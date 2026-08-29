@@ -50,8 +50,14 @@ Bicim:
 ]}
 
 Kurallar:
-- layout su yedi degerden biri: cover, section, content, bullets, steps,
-  statement, menu
+- layout su yedi degerden biri, ve HER BIRININ BIR ISI VAR:
+    cover      kursun ilk slaydi; bir kez kullanilir
+    section    bir bolumun ayraci; her konu sahnesinin basinda
+    content    bir iki cumlelik aciklama -- gorsel istenecekse BU duzen
+    bullets    kisa maddeler, sirasi onemli OLMAYAN
+    steps      SIRALI adimlar; numaralanir, yani sira anlam tasiyorsa kullan
+    statement  akilda kalmasi gereken TEK cumle; govdesi kisa olmali
+    menu       ogrencinin secim yaptigi slayt; secenekler buttons alaninda
 - kind: "content" veya "question"
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
 - Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
@@ -60,7 +66,13 @@ Kurallar:
   slaydi gelsin ve sahne bir question ile kapansin. Uc icerik slaydi koyarsan
   section ile birlikte ardisik okuma DORDE cikar; yukaridaki ritim kurali
   bunu yasakliyor.
-- Ayni layout'u ust uste tekrarlama; bullets, steps ve statement'i serpistir.
+- Ayni layout'u ust uste tekrarlama.
+- GOVDE SLAYTLARINDA EN AZ UC FARKLI DUZEN KULLAN. Govde, cover ve section
+  DISINDA kalanlardir. Hepsini content ve bullets yaparsan kurs bastan sona
+  ayni gorunur -- olculdu 2026-08-29: uretilmis bir kursta 15 govde slaydi
+  UC bilesime sigmisti (bes content, bes bullets, bes section) ve kullanici
+  "hepsi ayni tasarim" diye bildirdi. Sira tasiyan bir anlatimi steps yap,
+  akilda kalmasi gereken cumleyi statement yap.
 - Toplam slayt sayisi {slide_budget} civarinda olsun.
 {ogretim}
 {question_rule}
@@ -82,6 +94,10 @@ Bicim:
    "title": "Kisa baslik", "body": "Bir iki cumle."},
   {"kind": "content", "layout": "bullets", "eyebrow": "Ozet",
    "title": "Kisa baslik", "bullets": ["Madde bir", "Madde iki"]},
+  {"kind": "content", "layout": "steps", "eyebrow": "Nasil yapilir",
+   "title": "Kisa baslik", "bullets": ["Once sunu yap", "Sonra sunu"]},
+  {"kind": "content", "layout": "statement", "eyebrow": "Akilda kalsin",
+   "title": "Kisa baslik", "body": "Tek cumlelik, akilda kalacak fikir."},
   {"kind": "content", "layout": "content", "eyebrow": "Ornek",
    "title": "Kisa baslik", "body": "Bir iki cumle.",
    "medya": {"tur": "video", "saniye": 20,
@@ -95,6 +111,11 @@ Bicim:
 
 Kurallar:
 - Slayt sirasi ve layout degerleri asagidaki plana uysun.
+- HER DUZEN KENDI ALANINI ISTER, yoksa slayt bos cikar:
+    steps      -> bullets (en az iki madde). body degil.
+    statement  -> kisa bir body. bullets degil.
+    bullets    -> bullets.
+    section / content -> body.
 - title kisa olsun (en fazla 6 kelime). Aciklamayi body'ye yaz.
 - body en fazla 3 cumle. bullets en fazla 5 madde, her madde tek satir.
 - correct, dogru seceneklerin sifir tabanli indisleridir.
@@ -411,6 +432,102 @@ def _kadans_yamasi(scenes: list[dict], options: dict) -> list[str]:
         scenes[i]["slides"].insert(j, yeni_soru())
         duzeltmeler.append(
             f"{scenes[i].get('name') or i}: ardisik okuma 3'u asiyordu, araya soru kondu")
+    return duzeltmeler
+
+
+# Govde slaytlari: kapak ve bolum ayraci HARIC. Ikisi de kadansin zorunlu
+# kildigi slaytlar -- her sahnede bir section, kursta bir cover -- yani
+# "cesitlilik" sayarken onlari saymak, zorunlu tekrari cesitlilik sanmaktir.
+GOVDE_DUZENLERI = ("content", "bullets", "steps", "statement", "menu")
+
+
+def _govde(scenes: list[dict], anahtar: str) -> list[dict]:
+    return [s for scene in scenes for s in (scene.get(anahtar) or [])
+            if not _soru_mu(s) and (s.get("layout") or "content") in GOVDE_DUZENLERI]
+
+
+def _duzen_ihlalleri(scenes: list[dict], anahtar: str = "slides") -> list[str]:
+    """SAF TESPIT: govde slaytlari kac FARKLI duzen kullaniyor?
+
+    KADANSTAN AYRI BIR KURAL, o yuzden ayri fonksiyon. Kadans "ogrenci ne
+    kadar ard arda okuyor" diye sorar; bu "slaytlar birbirine benziyor mu"
+    diye sorar ve ikisi bagimsiz bozulur: her sahnede sorusu olan, hicbir
+    yerde uc slayttan fazla okutmayan bir kurs, govdesinin tamami `content`
+    oldugu icin bastan sona ayni gorunebilir.
+
+    Olculdu 2026-08-29, uretilmis alti modulde blok bilesimi sayilarak:
+
+        egitim    15 slayt -> 13 bilesim
+        cyber     19 slayt ->  9
+        musteri   11 slayt ->  7
+        toy       15 slayt ->  3      <-- 5 + 5 + 5
+
+    toy.story yedi duzenden UCUNU kullanmis (section, bullets, content) ve
+    beser kez tekrarlamis. Kullanicinin "hepsi ayni tasarim" dedigi sey bu
+    satir. Varyant makinesi calisiyordu -- ayni bilesimi farkli x'lerde
+    ciziyordu, ve goz onu yeni bir tasarim saymiyor.
+
+    ESIK SLAYT SAYISINA BAGLI: uc govde slaydi olan bir kurstan uc farkli
+    duzen istemek, cesitlilik degil zorlama olurdu.
+    """
+    govde = _govde(scenes, anahtar)
+    if len(govde) < 3:
+        return []
+    farkli = {(s.get("layout") or "content") for s in govde}
+    gerekli = min(3, len(govde))
+    if len(farkli) < gerekli:
+        return [f"govde slaytlarinin tamami {len(farkli)} duzene sigmis "
+                f"({', '.join(sorted(farkli))}); en az {gerekli} farkli duzen olmali"]
+    return []
+
+
+def _duzen_yamasi(scenes: list[dict], anahtar: str = "slides") -> list[str]:
+    """SON CARE: duzeni deterministik olarak cesitlendirir, yerinde.
+
+    ICERIK UYDURULMAZ, yalnizca ayni icerigi TASIYABILEN baska bir duzene
+    gecirilir. Iki takas guvenli, cunku hedef duzen kaynagin doldurdugu
+    alanlari tuketiyor (compose.py'de okundu):
+
+        bullets -> steps       ikisi de `bullets` + `title` kullanir
+        content -> statement   `body`i tek buyuk fikir olarak dizer
+
+    MEDYASI OLAN SLAYT TAKAS EDILMEZ: `_medya_yeri_var` yalnizca content ve
+    cover duzenlerinde alan ayirabiliyor, yani takas edilen bir slaytta
+    istek sessizce dusurulurdu.
+
+    En COK tekrarlanan duzenden baslanir: tekil bir duzeni bozmak
+    cesitliligi artirmaz, yalnizca yerini degistirir.
+    """
+    govde = _govde(scenes, anahtar)
+    if len(govde) < 3:
+        return []
+    gerekli = min(3, len(govde))
+    duzeltmeler: list[str] = []
+
+    def farkli() -> set:
+        return {(s.get("layout") or "content") for s in govde}
+
+    for hedef, kaynak, uygun in (
+        ("steps", "bullets",
+         lambda s: len(s.get("bullets") or []) >= 2),
+        ("statement", "content",
+         lambda s: (s.get("body") and not s.get("bullets")
+                    and not s.get("medya"))),
+    ):
+        if len(farkli()) >= gerekli:
+            break
+        if hedef in farkli():
+            continue
+        adaylar = [s for s in govde
+                   if (s.get("layout") or "content") == kaynak and uygun(s)]
+        # Kaynak duzenden GERIYE en az bir slayt kalsin: hepsini cevirmek
+        # bir tekduzeligi digeriyle degistirmek olur.
+        if len(adaylar) < 2:
+            continue
+        secilen = adaylar[len(adaylar) // 2]
+        secilen["layout"] = hedef
+        duzeltmeler.append(
+            f"{(secilen.get('title') or 'slayt')[:40]}: {kaynak} -> {hedef}")
     return duzeltmeler
 
 
@@ -771,7 +888,7 @@ def build(
     # Yeniden kontrol AYNI saf dedektorle yapilir, yani TUM kural setine
     # karsi: model bir ihlali giderirken baskasini uretirse yakalanir.
     duzeltmeler: list[str] = []
-    ihlaller = _kadans_ihlalleri(scenes, options)
+    ihlaller = _kadans_ihlalleri(scenes, options) + _duzen_ihlalleri(scenes)
     if ihlaller:
         on_progress("kadans ihlali: " + "; ".join(ihlaller)
                     + " -- iskelet yeniden isteniyor")
@@ -783,7 +900,7 @@ def build(
         except StoryError:
             aday = []       # yeniden isteme basarisiz; yama zaten devrede
         if aday and _plan_kabul_edilebilir(aday, scenes):
-            aday_ihlal = _kadans_ihlalleri(aday, options)
+            aday_ihlal = _kadans_ihlalleri(aday, options) + _duzen_ihlalleri(aday)
             if len(aday_ihlal) < len(ihlaller):
                 scenes, ihlaller = aday, aday_ihlal
                 duzeltmeler.append("iskelet yeniden istendi ve duzeldi")
@@ -814,6 +931,15 @@ def build(
     # Burada YAMA YOK: icerik asamasinda eksik soruyu yamamak, metnini
     # uydurmak demek olurdu. Bunun yerine O SAHNENIN icerigi bir kez
     # yeniden istenir; yine gelmezse durum RAPOR EDILIR, sessiz gecmez.
+    # DUZEN CESITLILIGI ICERIKTE OLCULUR, PLANDA DEGIL. Icerik gecisi
+    # `scene["content"] = filled.get("slides")` ile plani BUTUNUYLE
+    # degistiriyor: plandaki duzen dagilimi ne olursa olsun, ogrencinin
+    # gordugu duzen buradan geliyor. Yalnizca plani duzeltmek, olculmeyen
+    # bir yerde yesil gormekti -- ayni tuzak `_kadans_ihlalleri`nin
+    # docstring'inde soru icin yazili.
+    for d in _duzen_yamasi(scenes, "content"):
+        on_progress(f"duzen -- {d}")
+
     icerik_ihlalleri = _kadans_ihlalleri(scenes, options, "content")
     if icerik_ihlalleri:
         on_progress("icerik kadansi: " + "; ".join(icerik_ihlalleri))
