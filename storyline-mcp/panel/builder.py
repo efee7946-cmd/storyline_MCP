@@ -950,11 +950,14 @@ def build(
     # SIRA: ihlali adiyla soyle -> bir kez yeniden iste -> hala varsa yama.
     # Yeniden kontrol AYNI saf dedektorle yapilir, yani TUM kural setine
     # karsi: model bir ihlali giderirken baskasini uretirse yakalanir.
-    duzeltmeler: list[str] = []
+    duzeltmeler: list[tuple[str, str]] = []
     ihlaller = (_kadans_ihlalleri(scenes, options) + _duzen_ihlalleri(scenes)
                 + _ayrac_ihlalleri(scenes))
     if ihlaller:
-        on_progress("kadans ihlali: " + "; ".join(ihlaller)
+        # "plan ihlali", cunku liste artik UC kural ailesini birden tasiyor:
+        # kadans (soru ritmi), duzen (bilesim cesitliligi) ve ayrac. Hepsine
+        # "kadans" demek, akisi okuyan kisiyi yanlis kurala gonderir.
+        on_progress("plan ihlali: " + "; ".join(ihlaller)
                     + " -- iskelet yeniden isteniyor")
         try:
             aday = (_run_json(outline_istemi + _kadans_uyarisi(ihlaller),
@@ -968,12 +971,19 @@ def build(
                           + _duzen_ihlalleri(aday) + _ayrac_ihlalleri(aday))
             if len(aday_ihlal) < len(ihlaller):
                 scenes, ihlaller = aday, aday_ihlal
-                duzeltmeler.append("iskelet yeniden istendi ve duzeldi")
+                duzeltmeler.append(("iskelet", "yeniden istendi ve duzeldi"))
+    # ETIKET YALAN SOYLEMESIN. Iki yamanin ciktisi tek listede toplanip
+    # hepsi "kadans --" diye basiliyordu; ayrac duzeltmesi kadans duzeltmesi
+    # DEGIL ve akisi okuyan kisi hangi kuralin devreye girdigini oradan
+    # ogreniyor. Olculdu 2026-08-29: dort ayrac cikarildi ve dordu de
+    # "kadans" adiyla yazildi.
     if ihlaller:
-        duzeltmeler += _kadans_yamasi(scenes, options)
-        duzeltmeler += _ayrac_yamasi(scenes)
-    for d in duzeltmeler:
-        on_progress(f"kadans -- {d}")
+        for d in _kadans_yamasi(scenes, options):
+            duzeltmeler.append(("kadans", d))
+        for d in _ayrac_yamasi(scenes):
+            duzeltmeler.append(("ayrac", d))
+    for etiket, d in duzeltmeler:
+        on_progress(f"{etiket} -- {d}")
 
     planned = sum(len(s.get("slides") or []) for s in scenes)
     on_progress(f"{len(scenes)} bolum, {planned} slayt planlandi "
