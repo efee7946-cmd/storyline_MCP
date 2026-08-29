@@ -62,10 +62,14 @@ Kurallar:
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
 - Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
   "01_Ad", "02_Ad" biciminde, Turkce karakter ve bosluk kullanma.
-- Her konu sahnesi bir section slaydiyla baslasin, ardindan EN FAZLA 2 icerik
-  slaydi gelsin ve sahne bir question ile kapansin. Uc icerik slaydi koyarsan
-  section ile birlikte ardisik okuma DORDE cikar; yukaridaki ritim kurali
-  bunu yasakliyor.
+- Konu sahnesi EN FAZLA 2 icerik slaydi tasisin ve bir question ile kapansin.
+  Uc icerik slaydi koyarsan ardisik okuma DORDE cikar; ritim kurali bunu
+  yasakliyor.
+- SECTION KOSULLU: bir sahnede section'dan sonra EN AZ IKI gövde slaydi
+  gelecekse ayraç koy, yoksa KOYMA. Arkasinda tek slayt olan bir ayrac hicbir
+  seyi ayirmiyor, yalnizca yer kapliyor -- ve bütçe darken kurs bastan sona
+  ayrac gibi gorunuyor. Olculdu 2026-08-29: kurulan 8 slaydin 5'i section'di,
+  cunku alti sahnenin her biri zorunlu bir ayrac tasiyordu.
 - Ayni layout'u ust uste tekrarlama.
 - GOVDE SLAYTLARINDA EN AZ UC FARKLI DUZEN KULLAN. Govde, cover ve section
   DISINDA kalanlardir. Hepsini content ve bullets yaparsan kurs bastan sona
@@ -531,6 +535,65 @@ def _duzen_yamasi(scenes: list[dict], anahtar: str = "slides") -> list[str]:
     return duzeltmeler
 
 
+def _ayrac_ihlalleri(scenes: list[dict], anahtar: str = "slides") -> list[str]:
+    """SAF TESPIT: arkasinda tek gövde slaydi olan ayraclar.
+
+    Bir section slaydinin isi bolum ACMAK. Arkasinda tek slayt varsa hicbir
+    sey acmiyor -- ogrenci ayraci okuyor, tek slaydi okuyor, soruya geciyor.
+    Bedeli yalnizca bosluk degil, TEKDUZELIK: ayrac kursun en cok tekrarlanan
+    bilesimi ve slayt butcesi darken deck'in yarisini kaplayabiliyor.
+
+    Olculdu 2026-08-29 (DOGRULAMA3): 8 kurulan slaydin 5'i section. Sebep
+    besteci degil aritmetik -- alti sahne, her birine zorunlu bir ayrac,
+    ~11 slaytlik butce ve 8 soru; govdeye iki slayt kaliyor.
+    """
+    ihlaller = []
+    for scene in scenes:
+        slaytlar = [s for s in (scene.get(anahtar) or []) if not _soru_mu(s)]
+        ayrac = [s for s in slaytlar if (s.get("layout") or "content") == "section"]
+        govde = [s for s in slaytlar
+                 if (s.get("layout") or "content") in GOVDE_DUZENLERI]
+        if ayrac and len(govde) < 2:
+            ihlaller.append(
+                f"{scene.get('name') or '?'} sahnesinde ayrac var ama arkasinda "
+                f"{len(govde)} govde slaydi")
+    return ihlaller
+
+
+def _ayrac_yamasi(scenes: list[dict], anahtar: str = "slides") -> list[str]:
+    """SON CARE, ve iki asamada iki AYRI davranis -- cunku kayip ayni degil.
+
+    PLANDA (anahtar="slides") ayrac SILINIR. Plan bir iskelet: slaytin
+    yalnizca basligi var, govdesi henuz yazilmadi. Silmek bir baslik kaybi,
+    ve icerik gecisi zaten kalan slaytlar icin yazacak.
+
+    ICERIKTE (anahtar="content") ayrac SILINMEZ, `statement`a CEVRILIR.
+    Burada metin YAZILMIS durumda ve silmek modelin urettigi govdeyi cope
+    atmak olurdu. statement ayni alanlari tuketiyor (`body or title`), yani
+    icerik korunur ve bilesim de degisir -- ayni hamlede tekduzelik azalir.
+    """
+    duzeltmeler = []
+    for scene in scenes:
+        slaytlar = scene.get(anahtar) or []
+        govde = [s for s in slaytlar
+                 if not _soru_mu(s)
+                 and (s.get("layout") or "content") in GOVDE_DUZENLERI]
+        if len(govde) >= 2:
+            continue
+        for s in slaytlar:
+            if _soru_mu(s) or (s.get("layout") or "content") != "section":
+                continue
+            ad = (s.get("title") or scene.get("name") or "ayrac")[:40]
+            if anahtar == "slides":
+                slaytlar.remove(s)
+                duzeltmeler.append(f"{ad}: ayrac plandan cikarildi (arkasi bos)")
+            else:
+                s["layout"] = "statement"
+                duzeltmeler.append(f"{ad}: ayrac -> statement (arkasi bos)")
+            break
+    return duzeltmeler
+
+
 def _plan_kabul_edilebilir(aday: list[dict], orijinal: list[dict]) -> bool:
     """Yeniden istenen plan, orijinalin yerine gecmeye deger mi.
 
@@ -888,7 +951,8 @@ def build(
     # Yeniden kontrol AYNI saf dedektorle yapilir, yani TUM kural setine
     # karsi: model bir ihlali giderirken baskasini uretirse yakalanir.
     duzeltmeler: list[str] = []
-    ihlaller = _kadans_ihlalleri(scenes, options) + _duzen_ihlalleri(scenes)
+    ihlaller = (_kadans_ihlalleri(scenes, options) + _duzen_ihlalleri(scenes)
+                + _ayrac_ihlalleri(scenes))
     if ihlaller:
         on_progress("kadans ihlali: " + "; ".join(ihlaller)
                     + " -- iskelet yeniden isteniyor")
@@ -900,12 +964,14 @@ def build(
         except StoryError:
             aday = []       # yeniden isteme basarisiz; yama zaten devrede
         if aday and _plan_kabul_edilebilir(aday, scenes):
-            aday_ihlal = _kadans_ihlalleri(aday, options) + _duzen_ihlalleri(aday)
+            aday_ihlal = (_kadans_ihlalleri(aday, options)
+                          + _duzen_ihlalleri(aday) + _ayrac_ihlalleri(aday))
             if len(aday_ihlal) < len(ihlaller):
                 scenes, ihlaller = aday, aday_ihlal
                 duzeltmeler.append("iskelet yeniden istendi ve duzeldi")
     if ihlaller:
         duzeltmeler += _kadans_yamasi(scenes, options)
+        duzeltmeler += _ayrac_yamasi(scenes)
     for d in duzeltmeler:
         on_progress(f"kadans -- {d}")
 
@@ -937,6 +1003,11 @@ def build(
     # gordugu duzen buradan geliyor. Yalnizca plani duzeltmek, olculmeyen
     # bir yerde yesil gormekti -- ayni tuzak `_kadans_ihlalleri`nin
     # docstring'inde soru icin yazili.
+    # SIRA: once ayrac, sonra duzen. Ayrac yamasi bir section'i statement'a
+    # cevirdiginde ortaya YENI bir govde duzeni cikiyor; duzen yamasi once
+    # kosarsa o kazanci goremez ve gereksiz bir ikinci takas yapar.
+    for d in _ayrac_yamasi(scenes, "content"):
+        on_progress(f"ayrac -- {d}")
     for d in _duzen_yamasi(scenes, "content"):
         on_progress(f"duzen -- {d}")
 

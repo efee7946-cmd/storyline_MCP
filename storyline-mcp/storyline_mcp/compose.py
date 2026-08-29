@@ -371,6 +371,22 @@ VARIANTS: dict[str, dict[str, dict]] = {
         "girintili": {"text": (8.0, 84.0), "kart": (22.0, 56.0)},
         "sag-kart":  {"text": (8.0, 40.0), "kart": (48.0, 44.0)},
     },
+    # statement EKLENDI (2026-08-29). Yukaridaki "kullanilmayan yola is
+    # harcamamak" gerekcesi BU DUZEN ICIN ARTIK GECERSIZ: ayrac kapisi
+    # (_ayrac_yamasi) arkasi bos bir section'i statement'a ceviriyor ve
+    # olculdu -- alti sahneli bir kursta UC section birden statement oldu.
+    # Tek imzali bir duzeni sik kullanmak, tekduzeligi tasimak demek; kapi
+    # bir monotonlugu digeriyle takas etmis olurdu.
+    #
+    # UCU DE AYNI DILDE: x yogunlasmalari (8, 22) ve olculer degismiyor.
+    # Degisen sey BILESIM -- yanda ince vurgu / hic mobilya yok / arkada
+    # yatay serit. Uc ayri siluet, uc ayri agirlik merkezi.
+    "statement": {
+        "sol-vurgu":  {"bicim": "vurgu", "text": (MARGIN_X + 4, CONTENT_W * 0.74),
+                       "hiza": "l"},
+        "ortalanmis": {"bicim": "sade",  "text": (22.0, 56.0), "hiza": "c"},
+        "serit":      {"bicim": "serit", "text": (22.0, 56.0), "hiza": "c"},
+    },
     "content": {
         "sol-panel":  {"text": (8.0, 45.4),  "panel": (57.4, 34.6),
                        "band": "spread", "cta": "left"},
@@ -1935,15 +1951,38 @@ def compose_slide(
     elif layout == "statement":
         # One idea, large, with room around it. Used where a slide exists to
         # be remembered rather than read.
-        page.band(MARGIN_X, CEILING + 8, 0.8, FLOOR - CEILING - 16,
-                  colors["accent"], name="Vurgu")
+        #
+        # UC BILESIM, UC SILUET. Bu duzen bir donem tek imzaliydi ve o zaman
+        # zarars1zdi cunku neredeyse hic kullanilmiyordu. Ayrac kapisi onu
+        # sik kullanilan bir duzen yaptigi anda tek imza bir kusura donustu.
         content = body or title or "…"
-        h = page.text_height(content, "subtitle", CONTENT_W * 0.74)
-        page.text(content, max((100 - h) / 2, CEILING), role="subtitle",
-                  x=MARGIN_X + 4, w=CONTENT_W * 0.74, height=h, bold=False)
-        if title and body:
-            page.text(title, FLOOR - 6, role="eyebrow", x=MARGIN_X + 4,
-                      color=colors["accent_text"])
+        bicim = shape_var.get("bicim", "vurgu")
+        tx, tw = shape_var.get("text", (MARGIN_X + 4, CONTENT_W * 0.74))
+        hiza = shape_var.get("hiza", "l")
+        if bicim == "serit":
+            # Yatay slab: agirlik slaydin ortasinda ve TAM GENISLIKTE.
+            h = page.text_height(content, "subtitle", tw)
+            serit_h = min(h + UNIT * 100 * 2.4, FLOOR - CEILING)
+            serit_y = max((100 - serit_h) / 2, CEILING)
+            page.band(0, serit_y, 100, serit_h, colors["surface"], name="Serit")
+            page.text(content, serit_y + UNIT * 100 * 1.2, role="subtitle",
+                      x=tx, w=tw, height=h, align=hiza, bold=False,
+                      bottom=serit_y + serit_h)
+            if title and body:
+                page.text(title, min(serit_y + serit_h + UNIT * 100 * 0.8,
+                                     FLOOR - 4),
+                          role="eyebrow", x=tx, w=tw, align=hiza,
+                          color=colors["accent_text"])
+        else:
+            if bicim == "vurgu":
+                page.band(MARGIN_X, CEILING + 8, 0.8, FLOOR - CEILING - 16,
+                          colors["accent"], name="Vurgu")
+            h = page.text_height(content, "subtitle", tw)
+            page.text(content, max((100 - h) / 2, CEILING), role="subtitle",
+                      x=tx, w=tw, height=h, align=hiza, bold=False)
+            if title and body:
+                page.text(title, FLOOR - 6, role="eyebrow", x=tx, w=tw,
+                          align=hiza, color=colors["accent_text"])
 
     elif layout == "menu":
         # Choices are the content: the buttons get the room, not the copy.
