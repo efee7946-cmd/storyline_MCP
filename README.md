@@ -82,15 +82,32 @@ dosyasında hiç içerik slaydı yoktur; Storyline'da bir slayt ekleyip kaydedin
 
 ## Depoda olmayanlar
 
-| Yok | Neden |
-|---|---|
-| `storyline-mcp/donors/` | üçüncü tarafın telifli Storyline projeleri |
-| `test/`, `storyline-mcp/test/` | 2.3 GB fikstür; yerelde üretiliyor |
-| `.venv/`, `__pycache__/` | kurulum artığı |
+| Yok | Neden | Kaybedilen |
+|---|---|---|
+| `storyline-mcp/donors/` | üçüncü tarafın telifli Storyline projeleri | butonların kurstan kursa değişmesi |
+| `test/`, `storyline-mcp/test/` | 2.3 GB fikstür; yerelde üretiliyor | kontrol paketi koşamaz |
+| `.venv/`, `__pycache__/` | kurulum artığı | — |
 
-Bunun bir bedeli var ve saklamıyoruz: **`tools/suit.py` ve kontrol paketi
-klonlanmış bir depoda koşmaz**, çünkü okudukları fikstürler burada değil.
-Kodu kullanabilirsiniz, doğrulayamazsınız.
+**Kurs kurulumu bunların hiçbirini gerektirmez.** Soru slaytları, şekiller,
+katmanlar, tetikleyiciler ve sonuç slaydı `storyline_mcp/seeds/` içinde ve
+depoda; içerik slaytları zaten sizin kendi `.story` dosyanızdan çoğaltılıyor.
+Klonlanmış bir depoda tam bir kurs kurulduğu ölçüldü: 4 bölüm, 12 slayt,
+4 puanlı soru, 3 farklı soru görünüşü, paket doğrulaması temiz.
+
+İki bedeli var ve saklamıyoruz:
+
+- **Kontrol paketi koşmaz.** `tools/suit.py` fikstürleri okuyor, onlar burada
+  değil. Kodu kullanabilirsiniz, doğrulayamazsınız.
+- **Butonlar tek görünüşe iner.** `shapes.find_seed` sırayla projeye, donör
+  havuzuna, sonra gömülü tohuma bakar. Havuz yokken her kurs aynı gömülü
+  butonu giyer — ölçüldü: havuzla üç kurs üç farklı donörden buton alıyor,
+  havuzsuz üçü de `bundled`. Diğer şekiller (`rect`, `textBox`) zaten her
+  iki durumda da gömülü tohumdan geliyor, yani orada fark yok.
+
+  Kod bu düşüşü **haber vermez**: uyarı yalnızca havuz var ama uygun aday
+  yokken çıkar, havuz hiç yokken sessizdir. Buton çeşitliliği istiyorsanız
+  kendi Storyline projelerinizi `storyline-mcp/donors/` içine koyun ya da
+  `STORYLINE_DONORS` ortam değişkeniyle başka bir klasör gösterin.
 
 ## Bilinen sınırlar
 
