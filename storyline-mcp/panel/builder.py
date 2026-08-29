@@ -875,12 +875,49 @@ def _icerik_istemi(scene: dict, arity_text: str, options: dict,
             .replace("{ogretim}", ogretim.ORTAK_KURALLAR))
 
 
-def _kadans_uyarisi(ihlaller: list[str]) -> str:
-    """Ihlalleri ADIYLA soyleyen ek talimat -- model kendi planini duzeltsin."""
-    bas = ("\n\nONCEKI ISKELET SU KURALLARI CIGNEDI, DUZELTEREK YENIDEN URET:\n")
-    orta = "\n".join(f"- {i}" for i in ihlaller)
-    son = "\nSlayt sayisini AZALTMA; soruyu dogru yere koyarak coz.\n"
-    return bas + orta + son
+# Hangi ihlal ailesi hangi CAREYI ister. Aile basina ayri, cunku careler
+# birbiriyle CELISEBILIYOR: kadans "slayt sayisini azaltma" der, ayrac ise
+# cozumu tam da bir slayt silmek olabilen bir kusurdur.
+CARELER = {
+    "kadans": "Slayt sayisini AZALTMA; soruyu dogru yere koyarak coz.",
+    "duzen": ("Duzen ADLARINI degistirerek coz: sira tasiyan bir anlatimi "
+              "steps, akilda kalmasi gereken tek bir cumleyi statement yap. "
+              "Slayt EKLEME; var olanlarin layout degerini degistir."),
+    "ayrac": ("Iki yoldan BIRINI sec: ya o sahnenin section slaydini SIL, "
+              "ya da yanina ikinci bir govde slaydi ekle. Ayraci silmek "
+              "slayt sayisini dusurur ve BU IHLAL ICIN SERBESTTIR."),
+}
+
+
+def _kadans_uyarisi(kadans, duzen=(), ayrac=()) -> str:
+    """Ihlalleri ADIYLA soyleyen ek talimat -- model kendi planini duzeltsin.
+
+    NE YA"\n"IS yetmez, NE YAPILACAK da yazmali -- ve care AILEYE OZGU olmali.
+
+    Bu metin bir donem butun ihlalleri tek listede topluyor ve TEK bir care
+    cumlesi tasiyordu: "Slayt sayisini AZALTMA; soruyu dogru yere koyarak
+    coz." O cumle kadans icin dogru, duzen icin ilgisiz, ayrac icin ise
+    ACIKCA YA"\n"IS -- arkasi bos bir ayraci gidermenin iki yolundan biri onu
+    SILMEK, yani slayt sayisini dusurmek. Modele kendi kendisiyle celisen
+    bir talimat veriliyordu.
+
+    Olculdu 2026-08-29 (DOGRULAMA4): dort ayrac ihlali bildirildi, iskelet
+    yeniden istendi, IKINCI PLAN AYNI DORT IHLALI TASIDI ve isi deterministik
+    yama bitirdi. Bedeli 373 saniye ve bir fazladan model cagrisi. Teshis
+    "prompt zayif" degil; prompt CELISKILIYDI.
+    """
+    bloklar, kullanilan = [], []
+    for ad, liste in (("kadans", kadans), ("duzen", duzen), ("ayrac", ayrac)):
+        if not liste:
+            continue
+        bloklar.append("\n".join("- " + i for i in liste))
+        kullanilan.append(CARELER[ad])
+    if not bloklar:
+        return ""
+    return ("\n" + "\n" + "ONCEKI ISKELET SU KURALLARI CIGNEDI, DUZELTEREK YENIDEN URET:" + "\n"
+            + "\n".join(bloklar)
+            + "\n" + "\n" + "NASIL DUZELTILIR:" + "\n"
+            + "\n".join("- " + c for c in kullanilan) + "\n")
 
 def build(
     path: str,
@@ -951,8 +988,13 @@ def build(
     # Yeniden kontrol AYNI saf dedektorle yapilir, yani TUM kural setine
     # karsi: model bir ihlali giderirken baskasini uretirse yakalanir.
     duzeltmeler: list[tuple[str, str]] = []
-    ihlaller = (_kadans_ihlalleri(scenes, options) + _duzen_ihlalleri(scenes)
-                + _ayrac_ihlalleri(scenes))
+    # UC LISTE AYRI TUTULUR: uyari metni aileye ozgu care yaziyor ve
+    # birlestirilmis bir liste hangi carenin hangi ihlale ait oldugunu
+    # kaybeder -- celiskinin ilk cikis noktasi tam olarak buydu.
+    i_kadans = _kadans_ihlalleri(scenes, options)
+    i_duzen = _duzen_ihlalleri(scenes)
+    i_ayrac = _ayrac_ihlalleri(scenes)
+    ihlaller = i_kadans + i_duzen + i_ayrac
     if ihlaller:
         # "plan ihlali", cunku liste artik UC kural ailesini birden tasiyor:
         # kadans (soru ritmi), duzen (bilesim cesitliligi) ve ayrac. Hepsine
@@ -960,7 +1002,8 @@ def build(
         on_progress("plan ihlali: " + "; ".join(ihlaller)
                     + " -- iskelet yeniden isteniyor")
         try:
-            aday = (_run_json(outline_istemi + _kadans_uyarisi(ihlaller),
+            aday = (_run_json(outline_istemi
+                              + _kadans_uyarisi(i_kadans, i_duzen, i_ayrac),
                               model=model, on_progress=on_progress,
                               timeout=ISKELET_SURESI, deneme=1)
                     .get("scenes") or [])
