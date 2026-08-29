@@ -1,0 +1,29 @@
+# Sanal ortam ve derleme artiklari
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Donorler: ucuncu tarafin telifli Storyline projeleri.
+# storyline-mcp/donors/README.md bunu acikca soyluyor -- havuza alinip
+# envanteri cikarildiktan sonra depoya giden sey tohum XML'i, donor degil.
+storyline-mcp/donors/
+
+# Storyline proje dosyalari: ikili, buyuk (test/ tek basina 2.3 GB) ve
+# bir kismi gercek kurs icerigi tasiyor. Arac zincirinin bunlara ihtiyaci
+# var ama depoya girmeleri gerekmiyor -- yerelde uretiliyorlar.
+*.story
+*.story.bak
+*.story.bosblok-oncesi
+*.edited.story
+
+# Fikstur ve kanarya ciktilari (yerelde uretilir)
+test/
+storyline-mcp/test/
+
+# Isletim sistemi
+Thumbs.db
+desktop.ini
+
+# Kazara olusmus bos dosya
+devır

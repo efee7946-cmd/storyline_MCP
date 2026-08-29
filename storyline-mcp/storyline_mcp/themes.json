@@ -1,0 +1,66 @@
+{
+  "_not": [
+    "Zemin TURETILMEZ, secilir. derive_palette zemini markanin %90 siyaha",
+    "cekilmisi olarak hesapliyordu ve marka koyu oldugunda vurgu ile zemin",
+    "cakisiyordu -- olculdu, marka #0E1B3D icin kontrast orani 1.16, yani",
+    "yazi gorunmez. Kurumsal markalarin cogu koyu oldugu icin bu bir uc",
+    "durum degil, varsayilan durum.",
+    "",
+    "Formulu duzeltmek yetmezdi: tek bir marka renginden turetilen her tema",
+    "birbirine yakin cikar. Olculdu -- dort farkli markadan turetilen dort",
+    "tema, slayt alaninin %98'inde neredeyse ayni siyahi kullaniyordu ve",
+    "degisen yalnizca %2'lik vurguydu. 'Hepsi birbirine benziyor' sikayetinin",
+    "renk tarafi tam olarak buydu.",
+    "",
+    "Bu yuzden her temanin zemini ayri bir karardir ve zeminler birbirinden",
+    "GERCEKTEN farklidir: koyu lacivert, kagit beyazi, kömür grisi, derin",
+    "yesil, sicak krem, gece mavisi. Marka rengi yalnizca vurguyu belirler",
+    "ve o alanin %2'sidir.",
+    "",
+    "Her tema tools/themes_check.py ile dogrulanir: WCAG AA esikleri ve",
+    "birbirinden ayriksilik. Yeni tema eklendiginde o arac kosulur."
+  ],
+
+  "gece": {
+    "ad": "Gece",
+    "koyu": true,
+    "bg": "#0E1B3D", "deep": "#060C1E", "surface": "#1B2C5E",
+    "accent": "#FFC72C", "text": "#FFFFFF", "muted": "#B9C4DE",
+    "on_accent": "#10141B"
+  },
+  "kagit": {
+    "ad": "Kagit",
+    "koyu": false,
+    "bg": "#F7F5EF", "deep": "#E8E4D8", "surface": "#FFFFFF",
+    "accent": "#A63F26", "text": "#1F1D1A", "muted": "#5C574E",
+    "on_accent": "#FFFFFF"
+  },
+  "komur": {
+    "ad": "Komur",
+    "koyu": true,
+    "bg": "#1C1C1E", "deep": "#0B0B0C", "surface": "#2C2C30",
+    "accent": "#4ECDC4", "text": "#F2F2F2", "muted": "#A8A8AE",
+    "on_accent": "#0B0B0C"
+  },
+  "orman": {
+    "ad": "Orman",
+    "koyu": true,
+    "bg": "#123328", "deep": "#081A14", "surface": "#1D4A3A",
+    "accent": "#E8B54D", "text": "#F4F7F5", "muted": "#A7C3B6",
+    "on_accent": "#0A1F18"
+  },
+  "sis": {
+    "ad": "Sis",
+    "koyu": false,
+    "bg": "#DFE6EC", "deep": "#C4D0DA", "surface": "#F4F7F9",
+    "accent": "#1F5673", "text": "#16232C", "muted": "#40505B",
+    "on_accent": "#FFFFFF"
+  },
+  "murdum": {
+    "ad": "Murdum",
+    "koyu": true,
+    "bg": "#2A1B3D", "deep": "#150D20", "surface": "#3E2A57",
+    "accent": "#FF8A5B", "text": "#F6F1FA", "muted": "#BFAED2",
+    "on_accent": "#1A1024"
+  }
+}

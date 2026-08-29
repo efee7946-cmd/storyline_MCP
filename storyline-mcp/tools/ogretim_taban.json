@@ -1,0 +1,118 @@
+{
+  "alindi": "2026-08-28",
+  "nicin": "B (SYSTEM_PROMPT'a ogretim tasarimi bolumu) YAZILMADAN ONCE alinan karsilastirma tabani. B'den sonra ayni promptla yeni bir kurs uretilip bu olcu tekrar kosulmadan, prompt degisikliginin davranisi degistirdigi degil yalnizca kelime sayisini artirdigi da mumkun kalir. Iyilesme VARSAYILMAZ, olculur.",
+  "asil_ornek": "teknoloji_bagimliligi.story",
+  "kapsam": "ETKILESIM = kullanici girdisiyle baslayan VE salt gezinme olmayan tetikleyici; arti uzerinde soru etkilesimi (freePickOne, dragDrop, textEntry...) bulunan her slayt. GEZINME BILEREK SAYILMIYOR: jumpToSlide, jumpToScene, jumpToNextSlide, jumpToPrevSlide, ReviewQuizSL, exitCourse -- MENU TIKLAMASI DA BUNA DAHIL (menu icerik degil sira secimidir; sayilsaydi tek menu slaydi butun kursu gecirirdi). showSubSlide (katman acma) BURADA SAYILIYOR ama audit'in slides_without_navigation olcutunde GEZINME sayiliyor: iki ayri soru, iki ayri kume, bilerek paylasilmiyor. OnStateChange ve OnVariableValueChange TEPKIdir, girdi degil -- onlari tetikleyen tiklama zaten sayildi. Sekil durumlari (hover/down) tek basina etkilesim SAYILMAZ: tetikleyicisi olmayan bir hover, ogrenciden karar istemez. TETIKLEYICI YAZILDIGI GIBI SAYILIYOR, ATESLEDIGI GIBI DEGIL. 17 event'in yalnizca 2'si (OnStart, OnVariableValueChange) preview'da tetiklendigi GORULEREK olculdu; kalan 15 icin kanit 'Storyline cokmuyor' seviyesinde (JS_YOL_HARITASI.md). Yoldas alan eksikligi yuzunden sessizce calismayan bir OnDrop burada ETKILESIM olarak sayilir ve calisma aninda hicbir sey yapmaz. SIFIR BULGU IYI KURS DEMEK DEGILDIR: bu olcu etkilesimin VARLIGINI sayar, ogretme degerini olcmez.",
+  "ayirt_etme_kanidi": "Olcu kullanilmadan once gercek veride ayirt ettigi gosterildi (rubric.py'nin kendine uyguladigi 'kaba ayrim' disiplini, fikstursuz): etkilesim donorleri (Accordion, Tabcordion, Dials, DragDrop) ardisik=0-1; uretilen anlatim kurslari (cyber, teknoloji_bagimliligi, zorMusteri, costumer) ardisik=10-19. Iki kume ortusmuyor.",
+  "kurslar": {
+    "costumer.story": {
+      "ardisik_etkilesimsiz_slayt": 10,
+      "etkilesimli_slayt": 1,
+      "toplam_slayt": 19,
+      "toplam_soru": 1,
+      "sahne": 6,
+      "sorusuz_sahne": 5,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 3,
+      "toplam_tetikleyici": 52
+    },
+    "cyber.story": {
+      "ardisik_etkilesimsiz_slayt": 19,
+      "etkilesimli_slayt": 1,
+      "toplam_slayt": 27,
+      "toplam_soru": 0,
+      "sahne": 8,
+      "sorusuz_sahne": 8,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 3,
+      "toplam_tetikleyici": 78
+    },
+    "musteri.story": {
+      "ardisik_etkilesimsiz_slayt": 5,
+      "etkilesimli_slayt": 4,
+      "toplam_slayt": 15,
+      "toplam_soru": 3,
+      "sahne": 6,
+      "sorusuz_sahne": 3,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 7,
+      "toplam_tetikleyici": 50
+    },
+    "teknoloji_bagimliligi.story": {
+      "ardisik_etkilesimsiz_slayt": 14,
+      "etkilesimli_slayt": 0,
+      "toplam_slayt": 14,
+      "toplam_soru": 0,
+      "sahne": 6,
+      "sorusuz_sahne": 6,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 2,
+      "toplam_tetikleyici": 28
+    },
+    "toy.story": {
+      "ardisik_etkilesimsiz_slayt": 4,
+      "etkilesimli_slayt": 15,
+      "toplam_slayt": 31,
+      "toplam_soru": 15,
+      "sahne": 6,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 5,
+      "toplam_tetikleyici": 122
+    },
+    "try.story": {
+      "ardisik_etkilesimsiz_slayt": 4,
+      "etkilesimli_slayt": 0,
+      "toplam_slayt": 4,
+      "toplam_soru": 0,
+      "sahne": 1,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 2,
+      "toplam_tetikleyici": 14
+    },
+    "yeni.story": {
+      "ardisik_etkilesimsiz_slayt": 3,
+      "etkilesimli_slayt": 5,
+      "toplam_slayt": 14,
+      "toplam_soru": 4,
+      "sahne": 6,
+      "sorusuz_sahne": 2,
+      "sonuc_slaydi": true,
+      "tetikleyici_ayrik_cift": 8,
+      "toplam_tetikleyici": 35
+    },
+    "zorMusteri.story": {
+      "ardisik_etkilesimsiz_slayt": 13,
+      "etkilesimli_slayt": 1,
+      "toplam_slayt": 18,
+      "toplam_soru": 0,
+      "sahne": 7,
+      "sorusuz_sahne": 7,
+      "sonuc_slaydi": false,
+      "tetikleyici_ayrik_cift": 3,
+      "toplam_tetikleyici": 54
+    }
+  },
+  "b_sonrasi": {
+    "olculdu": "2026-08-28",
+    "dosya": "egitim.story",
+    "yol": "KOMUT yolu (agent + SYSTEM_PROMPT). Dogrulandi: icerik slaytlarinin hepsi 'Intro Slide' adini tasiyor -- builder.py slaytlari spec['title'] ile adlandirir, yani bu builder cikti degil. Baslangic dosyasi 1 slayt/1 sahne/0 soru idi, devralinan kirlilik yok.",
+    "ardisik_etkilesimsiz_slayt": 2,
+    "etkilesimli_slayt": 10,
+    "toplam_slayt": 19,
+    "toplam_soru": 4,
+    "sorusuz_sahne": 1,
+    "sahne": 5,
+    "sonuc_slaydi": true,
+    "tetikleyici_ayrik_cift": 8,
+    "toplam_tetikleyici": 54,
+    "kalan_kusurlar": [
+      "Sinir vakasi kurali TAM CALISMADI: tanim sorulari 'Bu ifade dogru mudur?' biciminde dogru/yanlis geri cagirmaya cokmus; cevap sorunun icinde yaziyor. B'nin 'iki kisa ornek ver ve hangisi? diye sor' kurali bu tembel bicimi engelleyecek kadar guclu degil.",
+      "Intro Scene sorusuz kaldi. B 'HER SAHNE' diyor; model giris sahnesini muaf tutmus. Makul, ama kural bunu soylemiyor -- builder.py'nin kendi promptu 'Her KONU sahnesinde' diyor, daha dogru ifade o.",
+      "DUZELTILDI + ILK TESHIS YANLISTI. Secenek metnindeki sondaki satir sonunu model YAZMIYORDU: gomulu tohum question_freePickManyIntr_5.xml'in 1 nolu seceneginde basibos bir bos Block (&lt;Block /&gt;) vardi; set_shape_text Span'leri bosaltip Block'u SILMIYOR (bilincli politika) ve _doc_text Block'lari '\n' ile birlestiriyor. Olculdu: girdi tamamen temizken bile her 5 secenekli soruda YALNIZCA indis 1 kirleniyordu; 2 secenekli tohum temizdi. Tohumdaki 3 sondaki bos Block silindi, BOM korundu, sorusuz bir dosyada dogrulandi (5/5 temiz).",
+      "ACIK: devralinan kirlilik. _pick_template projenin KENDI soru slaydini gomulu tohuma tercih ediyor, yani bugunden once uretilmis ve kirli soru slaydi tasiyan her kurs (egitim.story dahil) sonraki sorulara ayni bos Block'u kopyalamaya devam eder. Tohum duzeltmesi yalnizca SORUSUZ dosyadan baslayan kurslari kurtarir. Kalici cozum set_shape_text'te sondaki bos Block'lari dusurmek olurdu -- cekirdek fonksiyon (K10), regresyon kosulmadan dokunulmamali."
+    ],
+    "olcum_notu": "Katman sayisi duzeltildi: 13 showSubSlide tetikleyicisinin 7'si icerik slaydinda (gercek ogretim katmani), 6'si soru slaytlarinin geri bildirim makinesi, 2'si sonuc slaydinin OnStart'i. Ilk raporda 11 denmisti; o sayi geri bildirim katmanlarini da iceriyordu."
+  }
+}

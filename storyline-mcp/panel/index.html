@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Storyline Panel</title>
+<style>
+  :root {
+    --bg: #f6f7f9;  --panel: #ffffff;  --ink: #16181d;  --muted: #666e7a;
+    --line: #dfe3e8; --accent: #0f7b8a; --accent-ink: #ffffff;
+    --warn-bg: #fdf3e3; --warn-line: #e0b366; --warn-ink: #7a5312;
+    --ok-bg: #eaf6ee;  --ok-line: #86c79b;  --ok-ink: #1d6b36;
+    --err-bg: #fdeeee; --err-line: #dda0a0; --err-ink: #8c2b2b;
+    --chip: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d; --panel: #1e2127; --ink: #e6e8ec; --muted: #9aa3af;
+      --line: #2e333c; --accent: #2ea3b5; --accent-ink: #08131a;
+      --warn-bg: #33280f; --warn-line: #7d6224; --warn-ink: #f0cd8a;
+      --ok-bg: #14301f;  --ok-line: #2f6b45;  --ok-ink: #8fd5a8;
+      --err-bg: #33191a; --err-line: #7a3a3c; --err-ink: #f0a3a3;
+      --chip: #272b33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 12px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  .file { font-size: 13px; color: var(--muted); }
+  .file b { color: var(--ink); font-weight: 600; }
+  .stats { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .chip {
+    background: var(--chip); border-radius: 999px; padding: 3px 11px;
+    font-size: 12px; white-space: nowrap;
+  }
+  button {
+    font: inherit; padding: 7px 14px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.small { padding: 3px 9px; font-size: 12px; }
+  nav { display: flex; gap: 2px; padding: 0 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  nav button {
+    border: none; border-bottom: 2px solid transparent; border-radius: 0;
+    background: none; padding: 10px 14px; color: var(--muted);
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  main { flex: 1; overflow-y: auto; padding: 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px; margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], select, textarea {
+    width: 100%; padding: 8px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit;
+  }
+  textarea { resize: vertical; min-height: 62px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 190px; }
+  .choice { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .choice input[type=text] { flex: 1; }
+  .choice label { margin: 0; display: flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--ink); }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; border: 1px solid; }
+  .banner.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .banner.ok   { background: var(--ok-bg);   border-color: var(--ok-line);   color: var(--ok-ink); }
+  .banner.err  { background: var(--err-bg);  border-color: var(--err-line);  color: var(--err-ink); }
+  .tree { font-size: 13px; }
+  .tree .scene { font-weight: 650; margin: 12px 0 5px; }
+  .tree .slide { padding: 3px 0 3px 18px; color: var(--muted); display: flex; gap: 8px; }
+  .tree .slide b { color: var(--ink); font-weight: 500; }
+  .tag { font-size: 11px; background: var(--chip); border-radius: 4px; padding: 1px 6px; margin-left: auto; white-space: nowrap; }
+  footer {
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .queue { flex: 1; min-width: 260px; max-height: 96px; overflow-y: auto; font-size: 12.5px; }
+  .qitem { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .qitem span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--muted); font-style: italic; }
+  pre {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 7px;
+    padding: 11px; overflow-x: auto; font-size: 12px; margin: 0; white-space: pre-wrap;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .ok-mark { color: var(--ok-ink); font-weight: 700; }
+  .hide { display: none; }
+  .status {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--chip); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; margin-bottom: 12px; font-size: 13px; color: var(--muted);
+  }
+  .status code {
+    font-family: Consolas, monospace; font-size: 12.5px; color: var(--ink);
+  }
+  details.card > summary {
+    cursor: pointer; font-size: 13px; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--muted); list-style: none; display: flex; align-items: baseline; gap: 8px;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::before { content: "▸"; font-size: 11px; }
+  details.card[open] > summary::before { content: "▾"; }
+  details.card[open] > summary { margin-bottom: 10px; }
+  .hint { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--muted); }
+  input[type=color] {
+    width: 100%; height: 34px; padding: 2px; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 7px; cursor: pointer;
+  }
+  .card.sticky {
+    position: sticky; top: -18px; z-index: 5;
+    box-shadow: 0 6px 18px -12px rgba(0,0,0,.55);
+  }
+  .log { display: flex; gap: 9px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .log:last-child { border-bottom: none; }
+  .log .ic { width: 18px; flex: none; text-align: center; }
+  .log .body { flex: 1; min-width: 0; }
+  .log .body code {
+    font-family: Consolas, monospace; font-size: 12px;
+    background: var(--chip); padding: 1px 5px; border-radius: 4px;
+  }
+  .log .sub { color: var(--muted); font-size: 12px; word-break: break-word; }
+  .log.err .body { color: var(--err-ink); }
+  .swatches { display: flex; gap: 8px; margin-top: 8px; }
+  .chip {
+    padding: 5px 12px; border-radius: 999px; font-size: 12px;
+    border: 1px solid var(--line); font-weight: 600;
+  }
+  .badge {
+    background: var(--accent); color: var(--accent-ink); border-radius: 999px;
+    font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 6px;
+  }
+  .istek { border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; margin-bottom: 10px; }
+  .istek.eklendi { border-color: var(--ok-line); background: var(--ok-bg); }
+  .istek .ust { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .istek .ust b { font-weight: 600; }
+  .istek .aciklama { margin: 0; color: var(--ink); }
+  /* Siparis metni SECILEBILIR ve kopyalanabilir durur: bu cumle panelde
+     okunmak icin degil, bir gorsel uretecine yapistirilmak icindir. */
+  .siparis {
+    position: relative; margin: 9px 0 0; padding: 10px 84px 10px 12px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    user-select: text; cursor: text;
+  }
+  .siparis .kopya { position: absolute; top: 7px; right: 8px; }
+  .siparis .olcu {
+    display: inline-block; margin-top: 7px; font-size: 12px;
+    color: var(--muted); font-family: Consolas, monospace;
+  }
+  .istek .alt { display: flex; align-items: center; gap: 9px; margin-top: 11px; flex-wrap: wrap; }
+  .istek .alt .dosya { font-size: 12.5px; color: var(--muted); }
+  .istek .alt .dosya b { color: var(--ink); font-weight: 600; }
+  .tur {
+    font-size: 11px; font-weight: 700; letter-spacing: .5px; border-radius: 5px;
+    padding: 2px 7px; background: var(--chip); color: var(--muted);
+  }
+  .tur.video { background: var(--accent); color: var(--accent-ink); }
+  .gonder { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .gonder .sayac { font-size: 12.5px; color: var(--muted); }
+  .log.final { background: var(--ok-bg); border-radius: 7px; padding: 9px 11px; margin-top: 9px; border: 1px solid var(--ok-line); }
+  .log.final.err { background: var(--err-bg); border-color: var(--err-line); }
+  .spin { display: inline-block; animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Storyline Panel</h1>
+  <button id="pick">Dosya seç…</button>
+  <div class="file" id="fileLabel">Henüz dosya seçilmedi</div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<nav>
+  <button data-tab="command" class="active">Komut</button>
+  <button data-tab="overview">Genel Bakış</button>
+  <button data-tab="media">Görsel &amp; Video<span id="mediaBadge" class="badge hide"></span></button>
+</nav>
+
+<main>
+  <div id="lockBanner" class="banner warn hide">
+    <b>Bu proje Storyline'da açık.</b> Storyline dosyayı hiçbir paylaşıma izin
+    vermeden tutar, o yüzden açıkken düzenlenemez. Komut verdiğinizde panel
+    gerekeni kendisi yapar: <b>kaydeder, kapatır, değişikliği uygular ve yeniden
+    açar.</b> Sizin bir şey yapmanız gerekmez.
+  </div>
+  <div id="msg"></div>
+
+  <section id="tab-command">
+    <!-- Collected once, folded into every prompt. Each field changes the
+         output; anything left blank is simply not asserted. -->
+    <details class="card" id="profile">
+      <summary>Kurs künyesi <span class="hint">— brief verirken kullanılır, boş bırakılabilir</span></summary>
+      <div class="row">
+        <div><label>Kurs başlığı</label><input type="text" id="pTitle" placeholder="Siber Güvenlik Farkındalığı"></div>
+        <div><label>Hedef kitle</label><input type="text" id="pAudience" placeholder="Yeni işe başlayan tüm çalışanlar"></div>
+      </div>
+      <label>Amaç</label>
+      <input type="text" id="pGoal" placeholder="Günlük kararlarda riski fark etmesini sağlamak">
+      <div class="row">
+        <div><label>Süre</label>
+          <select id="pMinutes">
+            <option value="">belirtme</option>
+            <option value="15">15 dakika</option>
+            <option value="25" selected>25 dakika</option>
+            <option value="40">40 dakika</option>
+            <option value="60">60 dakika</option>
+          </select></div>
+        <div><label>Bölüm sayısı</label><input type="text" id="pSections" placeholder="otomatik"></div>
+        <div><label>Bölüm başına soru</label>
+          <select id="pQuestions">
+            <option value="auto" selected>otomatik</option>
+            <option value="0">soru olmasın</option>
+            <option value="1">1 soru</option>
+            <option value="2">2 soru</option>
+            <option value="3">3 soru</option>
+          </select></div>
+      </div>
+      <div class="row">
+        <div><label>Ton</label>
+          <select id="pTone">
+            <option value="kurumsal" selected>Kurumsal</option>
+            <option value="samimi">Samimi</option>
+            <option value="teknik">Teknik</option>
+            <option value="hikaye">Senaryo anlatımı</option>
+          </select></div>
+        <div><label>Tema</label>
+          <select id="pTheme"><option value="">yukleniyor…</option></select></div>
+        <div><label>Görsel &amp; video</label>
+          <select id="pMedya">
+            <option value="otomatik" selected>Otomatik — panel karar versin</option>
+            <option value="kapak">Yalnızca kapak</option>
+            <option value="yok">İstenmesin</option>
+          </select></div>
+      </div>
+      <div class="row" id="customColours" hidden>
+        <div style="max-width:150px"><label>Arka plan</label>
+          <input type="color" id="pBg" value="#0E1B3D"></div>
+        <div style="max-width:150px"><label>Vurgu</label>
+          <input type="color" id="pAccent" value="#FFC72C"></div>
+        <div><label>&nbsp;</label>
+          <div class="hint" id="colourNote">Yazı renkleri seçilen zeminden
+            türetilir; okunabilirlik eşiği motorda korunur.</div></div>
+      </div>
+      <div class="swatches" id="themePreview"></div>
+    </details>
+
+    <!-- Pinned: the box you type into should not scroll away behind a long run. -->
+    <div class="card sticky">
+      <h2>Komut ver</h2>
+      <div id="cliMissing" class="banner err hide">
+        Claude Code CLI bulunamadı — komut kutusu çalışmaz. VS Code'daki Claude Code
+        eklentisinin kurulu olduğundan emin olun; panel onunla gelen CLI'ı kullanıyor.
+      </div>
+      <textarea id="cmdText" style="min-height:76px"
+        placeholder="Ne yapılmasını istiyorsanız yazın. Örnek: SINAV bölümüne oltalama saldırılarıyla ilgili 3 soru ekle"></textarea>
+      <div style="display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <button class="primary" id="cmdSend">Gönder</button>
+        <button id="cmdStop" disabled>Durdur</button>
+        <select id="cmdModel" style="width:auto;min-width:150px">
+          <option value="sonnet">Sonnet — dengeli</option>
+          <option value="haiku">Haiku — hızlı, ucuz</option>
+          <option value="opus">Opus — en güçlü</option>
+        </select>
+        <span style="font-size:12px;color:var(--muted)">Ctrl+Enter ile gönderilir</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Akış</h2>
+      <div id="cmdStatus" class="status hide"></div>
+      <div id="cmdLog"><p class="empty">Henüz komut çalıştırılmadı.</p></div>
+    </div>
+  </section>
+
+  <section id="tab-media" class="hide">
+    <div class="card">
+      <h2>Yapay zekânın istedikleri</h2>
+      <p style="margin:0;color:var(--muted)">
+        Kurs kurulurken bir slayt için görsel ya da video gerekiyorsa, yapay zekâ
+        <b>ne olması gerektiğini</b> buraya yazar ve o slaytta yeri boş bırakır.
+        Dosyayı siz seçersiniz; <b>Gönder</b>'e bastığınızda tam olarak o ayrılan
+        alana yerleşir. Burada yalnızca <b>dosya bekleyen slaytlar</b> görünür.
+      </p>
+      <div id="mediaStatus" class="status hide"></div>
+    </div>
+    <div class="card">
+      <h2>İstekler</h2>
+      <div id="mediaList"><p class="empty">Bir .story dosyası seçin.</p></div>
+    </div>
+    <div class="card sticky" style="top:auto;bottom:-18px">
+      <div class="gonder">
+        <button class="primary" id="mediaSend" disabled>Gönder</button>
+        <span class="sayac" id="mediaCount">Henüz dosya seçilmedi.</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-overview" class="hide">
+    <div class="card"><h2>Sahneler ve slaytlar</h2><div class="tree" id="tree"><p class="empty">Bir .story dosyası seçin.</p></div></div>
+    <div class="card"><h2>Sorular</h2><div id="quizBox"><p class="empty">—</p></div></div>
+
+  </section>
+
+
+</main>
+
+<script>
+const S = { path: null, summary: null, themes: [] };
+const $ = (id) => document.getElementById(id);
+
+async function call(method, ...args) {
+  const res = await window.pywebview.api[method](...args);
+  if (!res || res.ok !== true) throw new Error(res ? res.error : "Yanıt alınamadı");
+  return res.data;
+}
+
+function note(text, kind = "ok") {
+  $("msg").innerHTML = `<div class="banner ${kind}">${escapeHtml(text)}</div>`;
+  if (kind === "ok") setTimeout(() => { $("msg").innerHTML = ""; }, 6000);
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ------------------------------------------------------------- navigation */
+document.querySelectorAll("nav button").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    document.querySelectorAll("main > section").forEach((s) => s.classList.add("hide"));
+    $("tab-" + b.dataset.tab).classList.remove("hide");
+  };
+});
+
+/* ------------------------------------------------------------------ file */
+$("pick").onclick = async () => {
+  try {
+    const data = await call("pick_file");
+    if (data) loadSummary(data);
+  } catch (e) { note(e.message, "err"); }
+};
+
+async function refresh() {
+  if (!S.path) return;
+  try { loadSummary(await call("summary", S.path)); } catch (e) { note(e.message, "err"); }
+}
+
+function loadSummary(data) {
+  S.path = data.path;
+  S.summary = data;
+  $("fileLabel").innerHTML = `<b>${escapeHtml(data.name)}</b> — ${data.size_mb} MB`;
+  $("stats").innerHTML = [
+    [data.scene_count, "bölüm"], [data.slide_count, "slayt"],
+    [data.question_count, "soru"], [data.text_run_count, "metin"],
+  ].map(([n, l]) => `<span class="chip">${n} ${l}</span>`).join("");
+  $("lockBanner").classList.toggle("hide", !data.locked);
+
+  renderTree(data.scenes);
+  loadQuiz();
+  loadMedia();
+}
+
+function renderTree(scenes) {
+  $("tree").innerHTML = scenes.map((sc) => `
+    <div class="scene">${escapeHtml(sc.scene)}</div>
+    ${sc.slides.map((s) => `<div class="slide"><b>${escapeHtml(s.name)}</b>
+      <span class="tag">${escapeHtml(s.slide)} · ${escapeHtml(s.layout || "—")}</span></div>`).join("")}
+  `).join("");
+}
+
+/* ------------------------------------------------------------------ quiz */
+async function loadQuiz() {
+  try {
+    const qs = await call("quiz", S.path);
+    $("quizBox").innerHTML = qs.length ? qs.map((q) => `
+      <table style="margin-bottom:14px">
+        <tr><th colspan="2">${escapeHtml(q.prompt || "(soru kökü yok)")}
+          <span class="tag">${escapeHtml(q.slide)} · ${escapeHtml(q.type)} · ${q.correct_points ?? "—"} puan</span></th></tr>
+        ${q.choices.map((c) => `<tr>
+          <td style="width:34px">${c.correct === true ? '<span class="ok-mark">✓</span>' : ""}</td>
+          <td>${escapeHtml(c.text)}${c.drops_onto ? ` <span class="tag">hedef: ${escapeHtml(String(c.drops_onto).slice(0, 18))}</span>` : ""}</td>
+        </tr>`).join("")}
+      </table>`).join("") : `<p class="empty">Soru yok.</p>`;
+  } catch (e) { $("quizBox").innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`; }
+}
+
+/* ------------------------------------------------------- gorsel & video */
+/* Istek MOTORDAN gelir, sayfadan degil: kursu kuran model hangi slaytta ne
+   gormek istedigini yaziyor ve panel yalnizca onu gosteriyor. Burada tek
+   slayt listesi YOK -- dosya bekleyen slaytlar disindakini gostermek, isi
+   yeniden bir slayt gezintisine cevirirdi. */
+const M = { istekler: [], secim: {}, calisiyor: false };
+
+async function loadMedia() {
+  if (!S.path) { M.istekler = []; M.secim = {}; return renderMedia(); }
+  try {
+    const data = await call("media_requests", S.path);
+    M.istekler = data.istekler || [];
+  } catch { M.istekler = []; }
+  for (const id of Object.keys(M.secim)) {
+    if (!M.istekler.some((i) => i.id === id && i.durum !== "eklendi")) delete M.secim[id];
+  }
+  renderMedia();
+}
+
+function renderMedia() {
+  const bekleyen = M.istekler.filter((i) => i.durum !== "eklendi");
+  const badge = $("mediaBadge");
+  badge.textContent = bekleyen.length || "";
+  badge.classList.toggle("hide", !bekleyen.length);
+
+  const box = $("mediaList");
+  if (!S.path) {
+    box.innerHTML = `<p class="empty">Bir .story dosyası seçin.</p>`;
+  } else if (!M.istekler.length) {
+    box.innerHTML = `<p class="empty">Bekleyen istek yok. Kurs kurulurken bir
+      slayta görsel ya da video gerekirse, ne olması gerektiği burada yazacak.</p>`;
+  } else {
+    box.innerHTML = M.istekler.map(renderIstek).join("");
+  }
+
+  const secili = Object.keys(M.secim).length;
+  $("mediaSend").disabled = !secili;
+  $("mediaCount").textContent = secili
+    ? `${secili} dosya seçildi — Gönder'e basınca modüle eklenir.`
+    : (bekleyen.length ? "Önce bir dosya seçin." : "Henüz dosya seçilmedi.");
+}
+
+function renderIstek(i) {
+  const tur = i.tur === "video" ? "VİDEO" : "GÖRSEL";
+  const sure = i.tur === "video" && i.saniye ? ` · ${i.saniye} sn` : "";
+  const yer = `${escapeHtml(i.sahne || "")} · ${escapeHtml(i.slayt || "")}`;
+  const bas = `<div class="ust">
+      <span class="tur ${i.tur === "video" ? "video" : ""}">${tur}${sure}</span>
+      <b>${escapeHtml(i.baslik || "Slayt")}</b>
+      <span class="tag">${yer}</span></div>
+    <div class="siparis">
+      <button class="small kopya" onclick="mediaCopy('${i.id}', this)">Kopyala</button>
+      <p class="aciklama">${escapeHtml(i.prompt || i.aciklama || "")}</p>
+    </div>`;
+
+  if (i.durum === "eklendi") {
+    return `<div class="istek eklendi">${bas}
+      <div class="alt"><span class="dosya">✔ eklendi —
+        <b>${escapeHtml((i.dosya || "").split("\\").pop())}</b></span></div></div>`;
+  }
+  const secilen = M.secim[i.id];
+  return `<div class="istek">${bas}
+    <div class="alt">
+      <button class="small" onclick="mediaPick('${i.id}')">
+        ${secilen ? "Değiştir" : (i.tur === "video" ? "Video seç…" : "Görsel seç…")}</button>
+      <span class="dosya">${secilen
+        ? `<b>${escapeHtml(secilen.name)}</b> ${secilen.mb} MB` +
+          (secilen.pixels ? ` · ${secilen.pixels[0]}×${secilen.pixels[1]}` : "")
+        : "dosya seçilmedi"}</span>
+      ${secilen ? `<button class="small" onclick="mediaClear('${i.id}')">Kaldır</button>` : ""}
+      <button class="small" style="margin-left:auto"
+        onclick="mediaSkip('${i.id}')">İstemiyorum</button>
+    </div></div>`;
+}
+
+window.mediaPick = async (id) => {
+  const istek = M.istekler.find((i) => i.id === id);
+  if (!istek) return;
+  try {
+    const picked = await call("pick_media", istek.tur);
+    if (picked) { M.secim[id] = picked; renderMedia(); }
+  } catch (e) { note(e.message, "err"); }
+};
+
+window.mediaClear = (id) => { delete M.secim[id]; renderMedia(); };
+
+// Sipariş metni panelde OKUNMAK için değil, bir görsel/video üretecine
+// YAPIŞTIRILMAK için var. İki yol da denenir: WebView2 dosya kökeninde
+// navigator.clipboard bazen tanımsızdır ve tek yola güvenmek, düğmenin
+// sessizce hiçbir şey yapmaması demek olurdu.
+window.mediaCopy = async (id, el) => {
+  const kayit = M.istekler.find((i) => i.id === id);
+  const metin = (kayit && (kayit.prompt || kayit.aciklama)) || "";
+  if (!metin) return;
+  let oldu = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(metin);
+      oldu = true;
+    }
+  } catch { oldu = false; }
+  if (!oldu) {
+    const kutu = document.createElement("textarea");
+    kutu.value = metin;
+    kutu.style.cssText = "position:fixed;top:-1000px;opacity:0";
+    document.body.appendChild(kutu);
+    kutu.select();
+    try { oldu = document.execCommand("copy"); } catch { oldu = false; }
+    kutu.remove();
+  }
+  // Geri bildirim düğmenin kendisinde: ayrı bir bildirim şeridi, kopyalamanın
+  // olduğunu göstermek için sayfanın başka bir yerine bakmayı gerektirirdi.
+  el.textContent = oldu ? "Kopyalandı ✓" : "Kopyalanamadı";
+  setTimeout(() => { el.textContent = "Kopyala"; }, 1600);
+};
+
+window.mediaSkip = async (id) => {
+  if (!confirm("Bu istek listeden kaldırılsın mı?\n\n" +
+               "Slayt olduğu gibi kalır; ayrılan alan boş kalır.")) return;
+  try {
+    const data = await call("skip_media", S.path, id);
+    M.istekler = data.istekler || [];
+    delete M.secim[id];
+    renderMedia();
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("mediaSend").onclick = async () => {
+  const secimler = Object.entries(M.secim).map(([id, f]) => ({ id, dosya: f.path }));
+  if (!secimler.length) return;
+  $("mediaSend").disabled = true;
+  M.calisiyor = true;
+  clearTimeout(window._medyaGizle);
+  $("mediaStatus").classList.remove("hide");
+  $("mediaStatus").innerHTML =
+    `<span class="spin">⟳</span><span>${secimler.length} dosya modüle ekleniyor…</span>`;
+  try {
+    const sonuc = await call("apply_media", S.path, secimler);
+    M.secim = {};
+    note(`${sonuc.eklendi.length} dosya eklendi.` +
+         (sonuc.kalan ? ` ${sonuc.kalan} istek bekliyor.` : " Bekleyen istek kalmadı."), "ok");
+    await refresh();
+  } catch (e) {
+    note(e.message, "err");
+  } finally {
+    M.calisiyor = false;
+    $("mediaStatus").classList.add("hide");
+    renderMedia();
+  }
+};
+
+/* --------------------------------------------------------------- komut */
+let running = false;
+let toolCount = 0;
+
+// Tool calls update one line in place instead of stacking up. Listing every
+// call buries the few lines that matter; hiding them entirely leaves a blank
+// screen for a minute with no sign of life.
+let statusText = "", statusCode = "", startedAt = 0, ticker = null;
+
+function renderStatus() {
+  const secs = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
+  $("cmdStatus").innerHTML =
+    `<span class="spin">⟳</span><span>${escapeHtml(statusText)}</span>` +
+    (statusCode ? ` <code>${escapeHtml(statusCode)}</code>` : "") +
+    `<span style="margin-left:auto;color:var(--muted)">${secs} sn</span>`;
+}
+
+// The elapsed counter is the point: a long run with a still line looks
+// identical to a hung one, which is how five minutes of silence gets read as
+// a crash.
+function setStatus(text, code = "") {
+  statusText = text; statusCode = code;
+  $("cmdStatus").classList.remove("hide");
+  if (!ticker) { startedAt = Date.now(); ticker = setInterval(renderStatus, 1000); }
+  renderStatus();
+}
+function clearStatus() {
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  startedAt = 0;
+  $("cmdStatus").classList.add("hide");
+}
+
+/* Ajan metnini HTML e cevirir: kacis, sonra kod/kalin, sonra satir
+   sonlari. TEK yerde -- `text` ve `final` ayni metni gosteriyor ve
+   biri satir sonlarini ceviriyor digeri cevirmiyordu, yani yesil
+   kutu tek blok paragraf olarak okunuyordu. */
+function metinHtml(t) {
+  return escapeHtml(t == null ? "" : t)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/[*][*]([^*]+)[*][*]/g, "<b>$1</b>")
+    .replace(/\n{2,}/g, "<br><br>")
+    .replace(/\n/g, "<br>");
+}
+
+let sonLogEl = null, sonMetinEl = null, sonMetinDeger = "";
+
+function logLine(icon, html, cls = "") {
+  const box = $("cmdLog");
+  if (box.querySelector(".empty")) box.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "log " + cls;
+  div.innerHTML = `<div class="ic">${icon}</div><div class="body">${html}</div>`;
+  box.appendChild(div);
+  sonLogEl = div;
+  box.parentElement.scrollIntoView({ block: "end", behavior: "smooth" });
+  return div;
+}
+
+window.onAgentEvent = (ev) => {
+  // Medya eklemenin kendi satiri var: komut akisinin sayacini baslatmaz,
+  // cunku onu durduran "done" olayi bu yolda hic gelmez.
+  if (ev.kind === "medya") {
+    // Süren iş dönen simge taşır, biten iş ✓ taşır. İkisini aynı şeritte
+    // aynı biçimde göstermek, bitmiş bir işi sürüyor gibi okutuyordu.
+    const bitti = ev.bitti === true;
+    $("mediaStatus").classList.remove("hide");
+    $("mediaStatus").innerHTML =
+      (bitti ? `<span>✓</span>` : `<span class="spin">⟳</span>`) +
+      `<span>${escapeHtml(ev.text)}</span>`;
+    // ARKADAN GELEN OLAY SERIDI ACIK BIRAKMASIN. Storyline arkada açılırken
+    // gelen "yeniden açıldı" olayı, çağrı çoktan dönmüş ve şerit gizlenmiş
+    // olduğu hâlde onu tekrar açıyordu; kimse de bir daha kapatmıyordu, yani
+    // panel bitmiş bir işi hâlâ sürüyormuş gibi gösteriyordu. İş sürerken
+    // şerit durur (M.calisiyor), bittikten sonra gelen olay birkaç saniye
+    // görünüp kendi kapanır.
+    clearTimeout(window._medyaGizle);
+    if (bitti || !M.calisiyor) {
+      window._medyaGizle = setTimeout(
+        () => $("mediaStatus").classList.add("hide"), 6000);
+    }
+    return;
+  }
+  if (ev.kind === "text") {
+    logLine("💬", metinHtml(ev.text));
+    // Ajanin kapanis cumlesi cogu zaman `final` ile AYNI metindir;
+    // ikisi de basilinca ayni paragraf ust uste iki kez okunuyordu.
+    sonMetinEl = sonLogEl;
+    sonMetinDeger = (ev.text || "").trim();
+  } else if (ev.kind === "tool") {
+    toolCount++;
+    setStatus("çalışıyor:", ev.name);
+  } else if (ev.kind === "result") {
+    logLine(ev.error ? "✕" : "✓", `<span class="sub">${escapeHtml(ev.text)}</span>`,
+            ev.error ? "err" : "");
+  } else if (ev.kind === "step") {
+    // Cycle steps stay: they explain why Storyline visibly closes and reopens.
+    setStatus(ev.text);
+    logLine("⟳", `<span class="sub">${escapeHtml(ev.text)}</span>`);
+  } else if (ev.kind === "error") {
+    logLine("✕", escapeHtml(ev.text), "err");
+  } else if (ev.kind === "final") {
+    // No cost figure: on a subscription the CLI's total_cost_usd is the
+    // equivalent API price, not a charge. Showing it as "$" reads as money
+    // leaving an account on every command, which is not what happens.
+    const secs = ev.duration_ms ? ` · ${(ev.duration_ms / 1000).toFixed(1)} sn` : "";
+    // The result is the file that is already open, so there is nothing to
+    // "load" -- only somewhere to view it.
+    const out = ev.output_path
+      ? `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+           <code>${escapeHtml(ev.output_path.split("\\").pop())}</code>
+           <button class="small" onclick="openResult('${escapeHtml(ev.output_path).replace(/\\/g, "\\\\")}')">Storyline'da aç</button>
+         </div>` : "";
+    const ops = toolCount ? ` · ${toolCount} işlem` : "";
+    if (sonMetinEl && (ev.text || "").trim() &&
+        (ev.text || "").trim() === sonMetinDeger) {
+      sonMetinEl.remove();
+    }
+    sonMetinEl = null; sonMetinDeger = "";
+    logLine(ev.error ? "✕" : "✔",
+      `${metinHtml(ev.text || "Tamamlandı")}<div class="sub">${ev.turns || 0} adım${secs}${ops}</div>${out}`,
+      "final" + (ev.error ? " err" : ""));
+  } else if (ev.kind === "done") {
+    running = false;
+    clearStatus();
+    $("cmdSend").disabled = false;
+    $("cmdStop").disabled = true;
+    refresh();
+  }
+};
+
+window.openResult = async (p) => {
+  try { await call("open_in_storyline", p); } catch (e) { note(e.message, "err"); }
+};
+
+// Is this a whole-course brief rather than an instruction?
+//
+// Chosen to be wrong in the cheap direction. Mistaking a brief for a command
+// costs one clarifying reply; mistaking a command for a brief spends five
+// minutes and fills the project with slides. So it takes real length *and*
+// real structure -- a list of topics, or the vocabulary of a specification --
+// and the reader still gets the final say.
+// The setup, as the engine wants it. Blank fields are dropped rather than
+// sent empty, so an unfilled form asserts nothing.
+function courseProfile() {
+  const raw = {
+    title: $("pTitle").value.trim(),
+    audience: $("pAudience").value.trim(),
+    goal: $("pGoal").value.trim(),
+    minutes: $("pMinutes").value,
+    sections: $("pSections").value.trim(),
+    questions_per_section: $("pQuestions").value,
+    tone: $("pTone").value,
+    // Kaç görsel isteneceğine panel karar verir; buradaki seçim yalnızca
+    // "otomatik / yalnızca kapak / hiç" arasında.
+    media: $("pMedya").value,
+    // Tema birincil yol. "ozel" secildiginde iki renk gonderilir ve motor
+    // kalan besini ZEMINDEN turetir -- once yalnizca bu ikisi gonderiliyordu
+    // ve geri kalan renkler varsayilan lacivertte kaliyordu.
+    theme: $("pTheme").value,
+    bg: $("pTheme").value === "ozel" ? $("pBg").value : "",
+    accent: $("pTheme").value === "ozel" ? $("pAccent").value : "",
+  };
+  return Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== ""));
+}
+
+function looksLikeBrief(text) {
+  if (text.length < 400) return false;
+  const lines = text.split("\n").filter((l) => l.trim());
+  const items = lines.filter((l) => /^\s*([0-9]+[.)]|[-•*])\s+/.test(l)).length;
+  const words = /\b(kurs|eğitim|modül|kapsam|senaryo|brief|scorm|müfredat|amaç)\b/i;
+  const hits = (text.match(words) || []).length;
+  return (items >= 3 && hits >= 1) || (items >= 5) || (hits >= 3 && lines.length >= 6);
+}
+
+$("cmdSend").onclick = async () => {
+  if (!S.path) return note("Önce bir .story dosyası seçin.", "err");
+  const text = $("cmdText").value.trim();
+  if (!text) return note("Komut boş.", "err");
+  if (running) return;
+
+  let asBrief = false;
+  if (looksLikeBrief(text)) {
+    asBrief = confirm(
+      "Bu bir kurs brief'i gibi görünüyor.\n\n" +
+      "TAMAM  → baştan sona kurs kurulur: bölümler, slaytlar ve sorular " +
+      "eklenir. Birkaç dakika sürer.\n\n" +
+      "İPTAL  → tek bir komut olarak çalıştırılır.");
+  }
+
+  running = true;
+  toolCount = 0;
+  $("cmdSend").disabled = true;
+  $("cmdStop").disabled = false;
+  logLine("▸", (asBrief ? "<b>Kurs kur:</b> " : "") +
+    `<b>${escapeHtml(text.slice(0, 200))}${text.length > 200 ? "…" : ""}</b>`);
+  setStatus(asBrief ? "planlanıyor…" : "başlatılıyor…");
+  try {
+    if (asBrief) {
+      await call("build_course", S.path, text, $("cmdModel").value, courseProfile());
+    } else {
+      // The palette travels with single commands too, so a slide added later
+      // matches the ones the course was built with.
+      // Palet tek komutlarla da yolculuk eder ki sonradan eklenen bir slayt
+      // kursun geri kalaniyla ayni dili konussun.
+      const profile = courseProfile();
+      await call("run_command", S.path, text, $("cmdModel").value, true,
+                 { theme: profile.theme || "", bg: profile.bg || "",
+                   accent: profile.accent || "" });
+      $("cmdText").value = "";
+    }
+  } catch (e) {
+    running = false;
+    clearStatus();
+    $("cmdSend").disabled = false;
+    $("cmdStop").disabled = true;
+    logLine("✕", escapeHtml(e.message), "err");
+  }
+};
+
+$("cmdStop").onclick = async () => {
+  try { await call("cancel_command"); } catch (e) { note(e.message, "err"); }
+};
+
+$("cmdText").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("cmdSend").click(); }
+});
+
+/* --------------------------------------------------------------- themes */
+/* Liste MOTORDAN gelir. Panelde elle yazilsaydi themes.json degistiginde
+   sessizce eskir: olmayan bir tema secilebilir ya da yeni tema hic
+   gorunmezdi. */
+function paintThemePreview() {
+  const box = $("themePreview");
+  const chosen = $("pTheme").value;
+  const entry = (S.themes || []).find((x) => x.name === chosen);
+  if (!entry) { box.innerHTML = ""; return; }
+  box.innerHTML =
+    `<span class="chip" style="background:${entry.bg};color:${entry.text};
+       border-color:${entry.accent}">${escapeHtml(entry.label)}</span>` +
+    `<span class="chip" style="background:${entry.accent};color:${entry.bg};
+       border-color:${entry.accent}">vurgu</span>`;
+}
+
+async function loadThemes() {
+  const select = $("pTheme");
+  try {
+    S.themes = await call("themes");
+  } catch { S.themes = []; }
+  select.innerHTML = S.themes
+    .map((x) => `<option value="${x.name}">${escapeHtml(x.label)}</option>`)
+    .join("") + '<option value="ozel">Özel renk…</option>';
+  select.onchange = () => {
+    $("customColours").hidden = select.value !== "ozel";
+    paintThemePreview();
+  };
+  paintThemePreview();
+}
+
+window.addEventListener("pywebviewready", async () => {
+  try {
+    const a = await call("agent_available");
+    $("cliMissing").classList.toggle("hide", a.available);
+  } catch { $("cliMissing").classList.remove("hide"); }
+  await loadThemes();
+  $("pick").focus();
+});
+</script>
+</body>
+</html>
