@@ -657,9 +657,21 @@ ortadan kalkar.
 
 ```powershell
 uv venv
-uv pip install -e .
-uv pip install pywebview     # yalnizca panel icin
+uv pip install -e ".[panel]"     # panel dahil
 ```
+
+Yalnızca MCP sunucusu yetiyorsa `uv pip install -e .` de olur; panel o zaman
+açılmaz. **Sessizce açılmaz:** `Storyline Panel.bat` `pythonw.exe` kullanır ve
+o süreç stdout/stderr vermez, dolayısıyla eksik `pywebview`'in `ImportError`'ı
+hiçbir yere düşmez — pencere hiç gelmez, hata da görünmez. Panel açılmıyorsa
+önce şunu çalıştırın, gerçek sebep orada yazar:
+
+```powershell
+.venv/Scripts/python.exe panel/app.py
+```
+
+Sanal ortam **tam olarak `storyline-mcp/.venv`** olmalı: `.bat` dosyası
+`%~dp0storyline-mcp\.venv\Scripts\pythonw.exe` yolunu sabit tutar.
 
 Claude Code kaydı `~/.claude.json` içinde `mcpServers.storyline` olarak durur.
 Panel WebView2 çalışma zamanını kullanır (Edge ile birlikte gelir).

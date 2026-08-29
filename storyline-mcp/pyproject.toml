@@ -8,6 +8,21 @@ requires-python = ">=3.10"
 # kenarda bosluk kalir; yani eksikligi bir kusur degil, bir kayip.
 dependencies = ["mcp[cli]>=1.2.0", "pillow>=10.0"]
 
+# Panel AYRI BIR EKSTRA, ama BEYAN EDILMIS bir ekstra. pywebview bir sure
+# yalnizca README'de elle atilacak bir satirdi ve bu, panelin ana giris
+# noktasi olmasiyla birlesince sessiz bir tuzak uretiyordu: `pip install -e .`
+# yapip `Storyline Panel.bat`e cift tiklayan biri HICBIR SEY gormuyor.
+# Sebebi README'nin kendisinde yazili -- pythonw.exe surece stdout/stderr
+# vermez, dolayisiyla eksik modulun ImportError'i hicbir yere dusmez.
+# Olculdu 2026-08-29, temiz klonda: panel/app.py -> ModuleNotFoundError:
+# No module named 'webview'.
+#
+# Zorunlu bagimlilik YAPILMADI: paketin ilan ettigi is MCP sunucusu ve
+# pywebview yaninda native WebView2 baglar. Ekstra olmasi ikisini de korur --
+# sunucu sade kalir, panel tek komutla kurulur.
+[project.optional-dependencies]
+panel = ["pywebview>=4.0"]
+
 [project.scripts]
 storyline-mcp = "storyline_mcp.server:main"
 
