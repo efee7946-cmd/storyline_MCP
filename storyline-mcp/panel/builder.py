@@ -355,6 +355,24 @@ def _soru_mu(s: dict) -> bool:
     return (s or {}).get("kind") == "question"
 
 
+def _ardisik_okuma(scenes: list[dict], anahtar: str = "slides") -> int:
+    """En uzun ardisik OKUMA serisi. TEK HESAPLAYAN YER.
+
+    Seri sahne sinirinda SIFIRLANMAZ, bilerek: ogrenci sahne sinirini
+    hissetmiyor, arka arkaya okudugu slaytlari hissediyor.
+
+    Ayri bir fonksiyon, cunku iki yer ayni sayiya ihtiyac duyuyor ve ikisi
+    ayri yazilsaydi ayrisirdi -- `_kadans_ihlalleri` ihlali bildirmek icin,
+    `_ayrac_yamasi` ekledigi ayracin seriyi bozup bozmadigini anlamak icin.
+    """
+    seri = en_uzun = 0
+    for scene in scenes:
+        for s in scene.get(anahtar) or []:
+            seri = 0 if _soru_mu(s) else seri + 1
+            en_uzun = max(en_uzun, seri)
+    return en_uzun
+
+
 def _kadans_ihlalleri(scenes: list[dict], options: dict,
                       anahtar: str = "slides") -> list[str]:
     """SAF TESPIT: plani degistirmez, ihlalleri sayar.
@@ -382,12 +400,7 @@ def _kadans_ihlalleri(scenes: list[dict], options: dict,
         if not any(_soru_mu(s) for s in (scenes[i].get(anahtar) or [])):
             ihlaller.append(f"{scenes[i].get('name') or i} sahnesinde hic soru yok")
 
-    seri = 0
-    en_uzun = 0
-    for scene in scenes:
-        for s in scene.get(anahtar) or []:
-            seri = 0 if _soru_mu(s) else seri + 1
-            en_uzun = max(en_uzun, seri)
+    en_uzun = _ardisik_okuma(scenes, anahtar)
     if en_uzun > 3:
         ihlaller.append(f"{en_uzun} slayt ardisik okuma (en fazla 3 olmali)")
     return ihlaller
@@ -535,64 +548,146 @@ def _duzen_yamasi(scenes: list[dict], anahtar: str = "slides") -> list[str]:
     return duzeltmeler
 
 
+def _sahne_basligi(scene: dict) -> str:
+    """Sahnenin okunabilir adi. Once title, yoksa makine adindan turetilir.
+
+    Sahne adlari "04_HalkaAcikAglar" biciminde -- basta sira numarasi, sonra
+    bosluksuz CamelCase (OUTLINE_PROMPT Turkce karakter ve bosluk yasakliyor).
+    Ogrenciye gosterilecek bir ayracin uzerine bunu oldugu gibi yazmak, makine
+    adini arayuze sizdirmak olur.
+    """
+    baslik = (scene.get("title") or "").strip()
+    if baslik:
+        return baslik
+    ham = re.sub(r"^\d+[_-]*", "", scene.get("name") or "")
+    bolunmus = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", ham).replace("_", " ")
+    return bolunmus.strip() or "Bolum"
+
+
+# AYRAC KURALI, ve NICIN ASAMAYA GORE DEGISIYOR.
+#
+# Istenen son durum tek cumle: govde >= 2 ise ayrac olmali, olmamasi
+# gereken yerde olmamali. Ama "olmamasi gereken"in siniri, o asamada
+# elde bulunan CAREYE bagli -- ve bunu gormemek bir dongu uretti.
+#
+# PLAN asamasinda care SILME'dir. Slaytin yalnizca basligi var, silmek
+# ucuz. Bir ayraci silmek gövde sayisini DEGISTIRMEZ (section zaten govde
+# sayilmiyor), dolayisiyla yeni bir ihlal dogurmaz. Burada siki kural
+# uygulanabilir: govde < 2 ise ayrac gitmeli.
+#
+# ICERIK asamasinda care CEVIRME'dir. Metin yazilmis; silmek modelin
+# urettigi govdeyi cope atmak olurdu, o yuzden section -> statement.
+# Ama statement BIR GOVDE SLAYDIDIR: cevirme govde sayisini bir artirir.
+#
+#     section + 1 govde  --cevir-->  2 govde, ayrac yok  -->  "ayrac olmali"
+#
+# Yani siki kurali icerik asamasinda uygulamak, az once kaldirdigi ayraci
+# geri isteyen bir dongu uretiyor. Olculdu 2026-08-29 (sentetik): yama
+# kostuktan sonra dedektor AYNI iki sahneyi yeniden ihlalli buldu.
+#
+# Cozum kurali gevsetmek degil, ASAMANIN CARESINE GORE yazmak:
+#
+#     plan    : govde < 2  -> ayrac gitmeli   (silme donguyu kapatmaz)
+#     icerik  : govde == 0 -> ayrac gitmeli   (cevirme 0'i 1 yapar, durur)
+#
+# Icerikte kalan "section + 1 govde" hali bilincli olarak SERBEST. Arkasinda
+# tek slayt olan bir ayrac gereksizdir ama zararsiz; arkasinda HIC slayt
+# olmayan bir ayrac ise acikca yanlis. Plan asamasi zaten ilk elemeyi yapiyor
+# ve olculdu (DOGRULAMA4): dort gereksiz ayracin dordu de orada temizlendi.
+def _ayrac_siniri(anahtar: str) -> int:
+    """Bu asamada ayracin YASAK oldugu govde sayisi ust siniri."""
+    return 2 if anahtar == "slides" else 1
+
+
 def _ayrac_ihlalleri(scenes: list[dict], anahtar: str = "slides") -> list[str]:
-    """SAF TESPIT: arkasinda tek gövde slaydi olan ayraclar.
+    """SAF TESPIT, CIFT YONLU: eksik ayrac da fazla ayrac da ihlaldir.
 
-    Bir section slaydinin isi bolum ACMAK. Arkasinda tek slayt varsa hicbir
-    sey acmiyor -- ogrenci ayraci okuyor, tek slaydi okuyor, soruya geciyor.
-    Bedeli yalnizca bosluk degil, TEKDUZELIK: ayrac kursun en cok tekrarlanan
-    bilesimi ve slayt butcesi darken deck'in yarisini kaplayabiliyor.
-
-    Olculdu 2026-08-29 (DOGRULAMA3): 8 kurulan slaydin 5'i section. Sebep
-    besteci degil aritmetik -- alti sahne, her birine zorunlu bir ayrac,
-    ~11 slaytlik butce ve 8 soru; govdeye iki slayt kaliyor.
+    Dedektor bir donem yalnizca FAZLA ayraci sayiyordu ve bu, kuralin
+    yarisini denetlemek demekti: yama iki ayrac ekledigi halde dedektor
+    "0 ihlal" diyordu, yani plan asamasinda model bu kusurdan HIC haberdar
+    olmuyor ve akista da hicbir sey gorunmuyordu. Olculdu 2026-08-29
+    (UZUN.story): iki govde slaydi tasiyan dort sahnenin ikisinde ayrac
+    yoktu. Tek yonlu bir kural kendi kor noktasini yesil raporlar.
     """
     ihlaller = []
-    for scene in scenes:
+    konu = set(_konu_araligi(scenes))
+    sinir = _ayrac_siniri(anahtar)
+    for i, scene in enumerate(scenes):
         slaytlar = [s for s in (scene.get(anahtar) or []) if not _soru_mu(s)]
         ayrac = [s for s in slaytlar if (s.get("layout") or "content") == "section"]
         govde = [s for s in slaytlar
                  if (s.get("layout") or "content") in GOVDE_DUZENLERI]
-        if ayrac and len(govde) < 2:
-            ihlaller.append(
-                f"{scene.get('name') or '?'} sahnesinde ayrac var ama arkasinda "
-                f"{len(govde)} govde slaydi")
+        ad = scene.get("name") or "?"
+        if ayrac and len(govde) < sinir:
+            ihlaller.append(f"{ad} sahnesinde ayrac var ama arkasinda "
+                            f"{len(govde)} govde slaydi")
+        elif not ayrac and len(govde) >= 2 and i in konu:
+            ihlaller.append(f"{ad} sahnesinde {len(govde)} govde slaydi var "
+                            f"ama ayrac yok")
     return ihlaller
 
 
 def _ayrac_yamasi(scenes: list[dict], anahtar: str = "slides") -> list[str]:
-    """SON CARE, ve iki asamada iki AYRI davranis -- cunku kayip ayni degil.
+    """SON CARE, CIFT YONLU: eksik ayraci ekler, fazlasini kaldirir.
 
-    PLANDA (anahtar="slides") ayrac SILINIR. Plan bir iskelet: slaytin
-    yalnizca basligi var, govdesi henuz yazilmadi. Silmek bir baslik kaybi,
-    ve icerik gecisi zaten kalan slaytlar icin yazacak.
+    Ekleme her iki asamada da AYNI: basliktan bir section sentezlenir.
+    Modele geri donulmez -- eklenecek her sey (sahne basligi) zaten elde ve
+    section govdesiz cizilebiliyor. Yeni bir uretim problemi degil, silmenin
+    simetrigi.
 
-    ICERIKTE (anahtar="content") ayrac SILINMEZ, `statement`a CEVRILIR.
-    Burada metin YAZILMIS durumda ve silmek modelin urettigi govdeyi cope
-    atmak olurdu. statement ayni alanlari tuketiyor (`body or title`), yani
-    icerik korunur ve bilesim de degisir -- ayni hamlede tekduzelik azalir.
+    AYRAC YALNIZCA KONU SAHNELERINE EKLENIR. Giris ve kapanis
+    `_konu_araligi` disinda: bir kapak slaydinin onune bolum ayraci koymak,
+    kursu kendi girisinden once bolen bir isaret uretirdi.
     """
-    duzeltmeler = []
-    for scene in scenes:
-        slaytlar = scene.get(anahtar) or []
+    duzeltmeler: list[str] = []
+    konu = set(_konu_araligi(scenes))
+    sinir = _ayrac_siniri(anahtar)
+    for i, scene in enumerate(scenes):
+        slaytlar = scene.get(anahtar)
+        if slaytlar is None:
+            continue
         govde = [s for s in slaytlar
                  if not _soru_mu(s)
                  and (s.get("layout") or "content") in GOVDE_DUZENLERI]
-        if len(govde) >= 2:
-            continue
-        for s in slaytlar:
-            if _soru_mu(s) or (s.get("layout") or "content") != "section":
-                continue
-            ad = (s.get("title") or scene.get("name") or "ayrac")[:40]
-            if anahtar == "slides":
-                slaytlar.remove(s)
-                duzeltmeler.append(f"{ad}: ayrac plandan cikarildi (arkasi bos)")
-            else:
-                s["layout"] = "statement"
-                duzeltmeler.append(f"{ad}: ayrac -> statement (arkasi bos)")
-            break
-    return duzeltmeler
+        ayraclar = [s for s in slaytlar
+                    if not _soru_mu(s)
+                    and (s.get("layout") or "content") == "section"]
 
+        if len(govde) >= 2 and not ayraclar and i in konu:
+            # KADANS KORUMASI. Ayrac eklemek bir OKUMA slaydi eklemektir ve
+            # ardisik okuma serisini uzatir. Olculdu 2026-08-29: onceki
+            # sahnesi soruyla bitmeyen bir yapida iki ayrac eklemek seriyi
+            # 5'ten 7'ye cikardi -- yani ayrac kurali kadans kuralini
+            # boluyordu. `_kadans_uyarisi`'nda duzeltilen celiskinin aynisi.
+            #
+            # Geri alma olcusu KARSILASTIRMALI, mutlak degil: deck zaten
+            # bozuksa ve ekleme onu DAHA KOTU yapmiyorsa ayrac hakki yenmez.
+            once = _ardisik_okuma(scenes, anahtar)
+            baslik = _sahne_basligi(scene)
+            aday = {"kind": "content", "layout": "section", "title": baslik}
+            slaytlar.insert(0, aday)
+            sonra = _ardisik_okuma(scenes, anahtar)
+            if sonra > 3 and sonra > once:
+                slaytlar.remove(aday)
+                duzeltmeler.append(
+                    f"{baslik}: ayrac EKLENMEDI -- ardisik okuma "
+                    f"{once}'ten {sonra}'e cikardi (kadans onceliklidir)")
+            else:
+                duzeltmeler.append(f"{baslik}: ayrac eklendi "
+                                   f"({len(govde)} govde slaydi var)")
+            continue
+
+        if len(govde) >= sinir or not ayraclar:
+            continue
+        s = ayraclar[0]
+        ad = (s.get("title") or _sahne_basligi(scene))[:40]
+        if anahtar == "slides":
+            slaytlar.remove(s)
+            duzeltmeler.append(f"{ad}: ayrac plandan cikarildi (arkasi bos)")
+        else:
+            s["layout"] = "statement"
+            duzeltmeler.append(f"{ad}: ayrac -> statement (arkasi bos)")
+    return duzeltmeler
 
 def _plan_kabul_edilebilir(aday: list[dict], orijinal: list[dict]) -> bool:
     """Yeniden istenen plan, orijinalin yerine gecmeye deger mi.
@@ -883,9 +978,11 @@ CARELER = {
     "duzen": ("Duzen ADLARINI degistirerek coz: sira tasiyan bir anlatimi "
               "steps, akilda kalmasi gereken tek bir cumleyi statement yap. "
               "Slayt EKLEME; var olanlarin layout degerini degistir."),
-    "ayrac": ("Iki yoldan BIRINI sec: ya o sahnenin section slaydini SIL, "
-              "ya da yanina ikinci bir govde slaydi ekle. Ayraci silmek "
-              "slayt sayisini dusurur ve BU IHLAL ICIN SERBESTTIR."),
+    "ayrac": ("Kural: bir sahnede EN AZ IKI govde slaydi varsa basina "
+              "section koy, yoksa KOYMA. Fazla ayrac icin iki yoldan birini "
+              "sec -- ya section slaydini SIL (slayt sayisini dusurmek BU "
+              "IHLAL ICIN SERBESTTIR), ya da yanina ikinci bir govde slaydi "
+              "ekle. Eksik ayrac icin sahnenin basina section ekle."),
 }
 
 
