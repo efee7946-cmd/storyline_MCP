@@ -419,7 +419,6 @@ function loadSummary(data) {
   $("lockBanner").classList.toggle("hide", !data.locked);
 
   renderTree(data.scenes);
-  populateSlideSelects(data.scenes);
   loadQuiz();
   loadAudit();
   loadMedia();
