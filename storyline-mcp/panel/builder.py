@@ -307,14 +307,23 @@ def _run_json(prompt: str, model: str = "sonnet", timeout: float = ICERIK_SURESI
                 f"Model {int(timeout)} saniyede yanit vermedi. Kursa hicbir sey "
                 "yazilmadi; komutu yeniden calistirabilirsiniz.") from None
 
-    # Automatic runtime fallback if Claude Code fails (limit reached, error, etc.)
-    if (result is None or result.returncode != 0) and flavor == "claude":
-        from agent import find_agy_cli
+    # Automatic runtime fallback if Claude Code fails (limit reached, error, disabled, etc.)
+    has_err = False
+    if result and result.stdout:
+        try:
+            payload = json.loads(result.stdout)
+            if payload.get("is_error") or payload.get("api_error_status") or "disabled" in str(payload.get("result", "")).lower():
+                has_err = True
+        except json.JSONDecodeError:
+            pass
+
+    if (result is None or result.returncode != 0 or has_err) and flavor == "claude":
+        from agent import disable_claude_cli, find_agy_cli
+        disable_claude_cli()
         agy_cli = find_agy_cli()
         if agy_cli:
             if on_progress:
-                err_text = (result.stderr if result else "").strip()[:100]
-                on_progress(f"Claude Code çağrısı başarısız oldu ({err_text or 'hata'}) — Antigravity (agy) CLI fallback'ine geçiliyor...")
+                on_progress("Claude Code erişimi engellendi/limit doldu — Antigravity (agy) CLI fallback'ine geçiliyor...")
             cli, flavor = agy_cli, "agy"
             result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
 

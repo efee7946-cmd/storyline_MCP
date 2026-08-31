@@ -74,14 +74,30 @@ def find_agy_cli() -> Path | None:
     return None
 
 
+_CLAUDE_DISABLED: bool = False
+
+
+def disable_claude_cli() -> None:
+    global _CLAUDE_DISABLED
+    _CLAUDE_DISABLED = True
+
+
+def is_claude_disabled() -> bool:
+    return _CLAUDE_DISABLED
+
+
 def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
-    """Locate available CLI: Claude Code first, Antigravity (agy) fallback second."""
-    claude = find_claude_cli()
-    if claude:
-        return claude, "claude"
+    """Locate available CLI: Claude Code first (if operational), Antigravity (agy) fallback second."""
+    if not _CLAUDE_DISABLED:
+        claude = find_claude_cli()
+        if claude:
+            return claude, "claude"
     agy = find_agy_cli()
     if agy:
         return agy, "agy"
+    claude = find_claude_cli()
+    if claude:
+        return claude, "claude"
     return None, None
 
 
@@ -483,12 +499,13 @@ class AgentRun:
 
             # RUNTIME LIMIT / FAILURE FALLBACK TO ANTIGRAVITY (AGY)
             if code != 0 and flavor == "claude" and not self._final_gorundu:
+                disable_claude_cli()
                 agy_cli = find_agy_cli()
                 if agy_cli:
                     err_msg = (stderr or "").strip()
                     self.on_event({
                         "kind": "step",
-                        "text": f"Claude Code çağrısı başarısız oldu/limit doldu ({err_msg[:100] if err_msg else f'kod {code}'}) — Antigravity (agy) CLI fallback'ine geçiliyor...",
+                        "text": f"Claude Code erişimi engellendi/limit doldu — Otomatik olarak Antigravity (agy) CLI fallback'ine geçiliyor...",
                     })
                     full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
                     argv = [
