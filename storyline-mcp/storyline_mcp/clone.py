@@ -215,6 +215,9 @@ def install_slide(
     if rels:
         pkg.add_part(new_rels, rels, like=f"story/slides/_rels/{slides[-1].rsplit('/', 1)[1]}.rels"
                      if slides else None)
+    else:
+        minimal_rels = b'<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+        pkg.add_part(new_rels, minimal_rels)
 
     _register_content_type(pkg, new_part)
     rel_id = _register_story_rel(pkg, new_part)
@@ -287,6 +290,9 @@ def clone_slide(
     new_rels = f"story/slides/_rels/{new_part.rsplit('/', 1)[1]}.rels"
     if pkg.has_part(source_rels):
         pkg.add_part(new_rels, pkg.read(source_rels), after=source_rels)
+    else:
+        minimal_rels = b'<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+        pkg.add_part(new_rels, minimal_rels)
 
     _register_content_type(pkg, new_part)
     rel_id = _register_story_rel(pkg, new_part)

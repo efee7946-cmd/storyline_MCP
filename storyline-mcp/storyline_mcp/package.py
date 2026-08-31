@@ -210,6 +210,14 @@ class StoryPackage:
             backup_path = self.path.with_suffix(self.path.suffix + ".bak")
             shutil.copy2(self.path, backup_path)
 
+        # Storyline requires every slide XML file to have a corresponding .rels file.
+        minimal_rels = b'<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+        slide_parts = [n for n in list(self._parts.keys()) if n.startswith("story/slides/slide") and n.endswith(".xml") and not "_rels" in n]
+        for sp in slide_parts:
+            rels_part = f"story/slides/_rels/{sp.rsplit('/', 1)[1]}.rels"
+            if rels_part not in self._parts:
+                self.add_part(rels_part, minimal_rels)
+
         repaired = self._normalise_boms()
 
         tmp = out.with_suffix(out.suffix + ".tmp")
@@ -341,6 +349,14 @@ def verify(path: str | Path) -> dict:
                 ET.fromstring(data)
             except ET.ParseError as exc:
                 problems.append(f"{name}: {exc}")
+
+    # Every slide XML file must have a corresponding .rels file
+    names_set = set(names)
+    for name in names:
+        if name.startswith("story/slides/slide") and name.endswith(".xml") and not "_rels" in name:
+            rels_name = f"story/slides/_rels/{Path(name).name}.rels"
+            if rels_name not in names_set:
+                problems.append(f"{name}: Slide relationship (.rels) dosyasi eksik ({rels_name})")
 
     # If the package overwhelmingly uses BOMs, the odd part without one is a
     # part we wrote and broke -- not a deck that never used them.
