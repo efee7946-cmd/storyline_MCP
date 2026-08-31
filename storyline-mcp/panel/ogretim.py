@@ -64,5 +64,18 @@ Olculdu: 351 ve 278 karakterlik iki kok, secenek sayisindan BAGIMSIZ olarak
 (2, 3 ve 5 sikta da) cerceveyi yedi ve ikisi de menuye dustu.
 - HER soruya feedback yaz. Ogrenci cevabini verdikten sonra bunu okuyacak;
 "Dogru!" gibi bos bir onay degil, KARARIN GEREKCESI olsun. Tek cumle.
-- Kapanis slaydi aforizma degil, secilen tek bir SOMUT adim olsun.\
+- Kapanis slaydi aforizma degil, secilen tek bir SOMUT adim olsun.
+- SORU TIPINI DEGISTIR. Uc fiil var ve ucu ayri sey olcer:
+     sik sec   (question) -- tek bir karar
+     grupla    (drag)     -- her oge icin ayri bir karar; siniflandirma,
+                             esleştirme, "hangisi nereye ait" anlatan her
+                             bolum bununla yoklanir
+     yaz       (commitment) -- ogrenci kendi cumlesini kurar; puanlanmaz
+  BASTAN SONA "asagidakilerden hangisi" YAZMA. Bir kursta ikiden fazla
+  konu sahnesi varsa EN AZ BIRI drag olsun, ve kurs bir commitment ile
+  kapansin. Olculdu 2026-08-30: arac o gune kadar yalnizca "sik sec"
+  uretebiliyordu ve kullanicinin bildirdigi sikayet "hep ayni sey cikiyor"
+  idi -- tipin kendisi tekduzeligin kaynagiydi, metin degil.
+- GRUPLAMA SORUSU DAR: her oge etiketi TEK SATIRLIK bir ad olsun (cumle
+  degil, yaklasik 30 karakter). Kutu sayisi 2-4, her kutuya en az iki oge.\
 """

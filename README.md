@@ -31,7 +31,7 @@ görsel/video sipariş defteri, sahne/slayt/soru dökümü, Storyline'da açma.
 | Windows | `.bat` başlatıcı ve Storyline Windows'ta |
 | Articulate Storyline 360 | kursu açmak ve yayınlamak için |
 | Python 3.10+ | |
-| [Claude Code CLI](https://claude.com/claude-code) | panelin model çağrıları bunu kullanır |
+| [Claude Code CLI](https://claude.com/claude-code) / Antigravity (`agy`) | panelin model çağrıları öncelikli Claude Code CLI'ı, eksikliğinde veya kota aşımında otomatik Antigravity (`agy`) CLI fallback'ini kullanır |
 | WebView2 | Edge ile birlikte gelir, ayrıca kurmanız gerekmez |
 
 ## Kurulum

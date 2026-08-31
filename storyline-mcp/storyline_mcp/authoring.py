@@ -10,6 +10,7 @@ count so a caller can pick a template that already fits.
 
 from __future__ import annotations
 
+import copy as _copy
 import hashlib
 import re
 import xml.etree.ElementTree as ET
@@ -36,9 +37,47 @@ def _choice_shape_guids(intr: ET.Element) -> list[str]:
     return [c.get("shpG", "") for c in (list(choices) if choices is not None else [])]
 
 
+# Suruklenen ogenin gittigi yer. `matchShpG` PICK ailesinde her zaman bos
+# (olculdu: iki tohumda da 9/9 null), dragDrop'ta ise DOGRU CEVABIN TA KENDISI
+# -- oge-kutu esleşmesi. O yuzden iki liste ayri okunur ve ikisi de korunur.
+def _drop_target_guids(intr: ET.Element) -> list[str]:
+    """Birakma hedefleri, ILK GORULME SIRASINDA ve tekrarsiz.
+
+    Sira onemli: `set` kullanmak, sik sirasinda olculen kusurun (bkz.
+    adapt_seeded_slide) kutu tarafindaki aynisi olurdu -- ayni kurs iki kez
+    uretildiginde kutular farkli yerlere iner. Uyelik testi icin kume,
+    SIRA icin liste.
+    """
+    choices = intr.find("choices")
+    out: list[str] = []
+    for c in (list(choices) if choices is not None else []):
+        guid = c.get("matchShpG", "") or ""
+        if guid and not guid.startswith("00000000") and guid not in out:
+            out.append(guid)
+    return out
+
+
+def _drag_pairs(intr: ET.Element) -> list[tuple[str, str]]:
+    """(suruklenen, hedef) ciftleri -- yazilan cevabin geri okunusu."""
+    choices = intr.find("choices")
+    return [(c.get("shpG", "") or "", c.get("matchShpG", "") or "")
+            for c in (list(choices) if choices is not None else [])]
+
+
 # The stem is identified in exactly one place, shared with the reader, so a
 # question is always read back from the shape it was written into.
 _stem_shape_guid = model.stem_shape_guid
+
+
+# "SIKKI SEC" AILESI. `add_question`, `_pick_template` ve sablon katalogu
+# YALNIZCA bunlari uretebilir; kutuphanedeki oteki tohumlar (surukle-birak,
+# metin girisi) kendi yollarindan gecer.
+#
+# Filtre gerekli, cunku `question_seeds()` anahtari (tur, SAYI) ve tuketici
+# bir donem yalnizca sayiya bakiyordu: kutuphaneye 9 ogeli bir surukle-birak
+# tohumu girdigi anda, 9 sikli bir "hangisi" sorusu onu secer ve yazma yolu
+# uyusmayan bir anatomiye carpardi. Sayiyla eslesmek TURU dogrulamaz.
+PICK_KINDS = ("freePickOneIntr", "freePickManyIntr")
 
 
 # ------------------------------------------------------------------ templates
@@ -112,7 +151,7 @@ def _pick_template(pkg: StoryPackage, count: int) -> str:
         if option["choices"] == count and option["source"] == "project":
             return option["slide"]
     for (kind, seed_count), looks in question_seeds().items():
-        if seed_count == count and looks:
+        if kind in PICK_KINDS and seed_count == count and looks:
             return bundled_name(kind, count)
     have = sorted({o["choices"] for o in available_question_shapes(pkg)})
     raise StoryError(
@@ -125,7 +164,9 @@ def _question_from_seed(
     pkg: StoryPackage, template: str, prompt: str, choices: list[str],
     correct: list[int], *, scene, name, points,
     eyebrow: str | None = None, palette: dict | None = None,
-    feedback: dict | None = None,
+    feedback: dict | None = None, style: str | None = None,
+    variant: str | None = None,
+    avoid_variant: "list[str] | None" = None,
 ) -> dict:
     """Install a bundled question slide, then write the question into it."""
     kind, count, look = parse_bundled(template)
@@ -142,7 +183,9 @@ def _question_from_seed(
     )
     _write_question(pkg, result["part"], prompt, choices, correct, points)
     adapted = adapt_seeded_slide(pkg, result["part"], eyebrow=eyebrow,
-                                 palette=palette, feedback=feedback)
+                                 palette=palette, feedback=feedback,
+                                 style=style, variant=variant,
+                                 avoid_variant=avoid_variant)
     # Klon yolundaki ayni kayit, tohum yolunda da. Iki yoldan yalnizca birine
     # baglamak, sablonun nereden geldigine gore bazen puanlanan bazen
     # puanlanmayan kurslar uretirdi.
@@ -156,10 +199,48 @@ def _question_from_seed(
                         for i, t in enumerate(choices)]}
 
 
+def _drop_dangling_triggers(pkg: StoryPackage, root: ET.Element) -> int:
+    """Hedefi cozulmeyen tetikleyicileri siler, kac tane oldugunu doner.
+
+    Bilinen kume slaydin TAMAMI arti story.xml: katman guid'leri
+    sldLayerLst'te, degisken guid'leri story.xml'de yasiyor. Ikisini de
+    disarida birakmak olculmus kusurlar uretti -- birincisi "Dogru Cevap
+    katmanini goster"i sildirdi, ikincisi metin girisi kutusunun degiskene
+    baglantisini sildirirdi (o yuzden baglama bu supurgeden ONCE kosar).
+
+    Iki cagirani var (tohum uyarlama ve metin slaydi), ve tek yerde durmasi
+    gerekiyor: bu supurgeyi her cagiranin kendi icine yazmasi, kuralin
+    birinde unutulmasi demek.
+    """
+    known = {e.get("g") for e in root.iter() if e.get("g")}
+    try:
+        known |= {e.get("g") for e in pkg.parse(STORY_PART).iter()
+                  if e.get("g")}
+    except Exception:
+        pass
+    dangling = 0
+    for owner in [root] + list(root.iter()):
+        trig_list = owner.find("trigLst") if owner is not root else root.find("trigLst")
+        if trig_list is None:
+            continue
+        for trig in list(trig_list):
+            raw = ET.tostring(trig, encoding="unicode")
+            refs = {g for g in _GUID_RE.findall(raw)
+                    if not g.startswith("00000000") and g not in known}
+            refs -= {trig.get("g") or "", trig.get("verG") or ""}
+            if refs:
+                trig_list.remove(trig)
+                dangling += 1
+    return dangling
+
+
 def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
                        eyebrow: str | None = None,
                        palette: dict | None = None,
-                       feedback: dict | None = None) -> dict:
+                       feedback: dict | None = None,
+                       style: str | None = None,
+                       variant: str | None = None,
+                       avoid_variant: "list[str] | None" = None) -> dict:
     """Gömülü tohumdan yalnızca ANATOMİYİ tutar, tasarımı kurstan alır.
 
     Tohum gercek bir kurstan hasat edildi. Onun tasarimini korumaya calismak
@@ -218,7 +299,17 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
     # Kume yalnizca UYELIK testi icin; sira ondan TURETILMEZ (K12).
     choice_order = _choice_shape_guids(intr)
     choice_ids = set(choice_order)
-    stem = _stem_shape_guid(root, choice_order)
+    # BIRAKMA HEDEFLERI DE ANATOMI. Olculdu 2026-08-30, bugunku yol taban
+    # cizgisi olarak kosturuldu: 9 ogeli/3 kutulu tohum kuruldu, ogelerin
+    # 9'u da hayatta kaldi ve KUTULARIN 3'U DE SILINDI -- "yazisiz roundRect"
+    # oldukları icin 1. adimin donor-icerik filtresine takildilar. Geriye
+    # birakilacak yeri olmayan dokuz surukleme kaldi: dosya gecerli,
+    # kontroller sessiz, soru cevaplanamaz. submitG ve A1 ile ayni sinif.
+    target_order = _drop_target_guids(intr)
+    keep_ids = choice_ids | set(target_order)
+    # Kutular sikların ALTINDA duruyor ve yazisiz olabiliyorlar; kok
+    # secimine aday olmamalari icin dislanan kumeye onlar da girer.
+    stem = _stem_shape_guid(root, choice_order + target_order)
 
     width, height = shapes.slide_size(root)
     removed: list[str] = []
@@ -228,7 +319,7 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
         guid = shape.get("g") or ""
         if shape is intr or shape.tag.endswith("Intr"):
             continue
-        if guid in choice_ids or guid == stem:
+        if guid in keep_ids or guid == stem:
             continue
         text = model.shape_text(root, guid).strip() if guid else ""
         removed.append(f"{shape.tag}: {text[:24]!r}" if text else shape.tag)
@@ -324,25 +415,7 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
     #    ve onlari disarida birakmak "Dogru Cevap katmanini goster"
     #    tetikleyicisini de sildiriyordu -- olculdu, soru geri bildirim
     #    veremez hale gelmisti.
-    known = {e.get("g") for e in root.iter() if e.get("g")}
-    try:
-        known |= {e.get("g") for e in pkg.parse("story/story.xml").iter()
-                  if e.get("g")}
-    except Exception:
-        pass
-    dangling = 0
-    for owner in [root] + list(root.iter()):
-        trig_list = owner.find("trigLst") if owner is not root else root.find("trigLst")
-        if trig_list is None:
-            continue
-        for trig in list(trig_list):
-            raw = ET.tostring(trig, encoding="unicode")
-            refs = {g for g in _GUID_RE.findall(raw)
-                    if not g.startswith("00000000") and g not in known}
-            refs -= {trig.get("g") or "", trig.get("verG") or ""}
-            if refs:
-                trig_list.remove(trig)
-                dangling += 1
+    dangling = _drop_dangling_triggers(pkg, root)
     if dangling:
         removed.append(f"{dangling} kopuk tetikleyici")
 
@@ -352,18 +425,30 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
     pkg.replace_xml(part, root)
 
     # 4. Cerceve ve yerlesim motordan.
-    laid = _compose.compose_question_frame(
-        pkg, part, eyebrow=eyebrow, palette=palette,
-        stem_guid=stem, choice_guids=choice_order)
+    if tag == "dragDropIntr":
+        laid = _compose.compose_drag_frame(
+            pkg, part, eyebrow=eyebrow, palette=palette, stem_guid=stem,
+            pairs=_drag_pairs(_find_interaction(pkg.parse(part))[1]),
+            style=style)
+    else:
+        laid = _compose.compose_question_frame(
+            pkg, part, eyebrow=eyebrow, palette=palette,
+            stem_guid=stem, choice_guids=choice_order,
+            style=style, variant=variant, avoid_variant=avoid_variant)
 
     # 5. Geri bildirim katmanlarinin ICI. Kabi klonlanmis kalir.
     layers = _compose.compose_feedback_layers(pkg, part, palette=palette,
                                               feedback=feedback)
+    # Boyama paylasilan fonksiyondan, METIN surukle-birakta kendi
+    # fonksiyonundan: katman adi bos oldugu icin rol adla cozulemiyor.
+    if tag == "dragDropIntr":
+        layers = {**layers,
+                  **_compose.compose_drag_feedback(pkg, part, feedback=feedback)}
 
     if palette:
         _recolour_for_palette(pkg, part, palette, stem=stem,
-                              choices=choice_ids, eyebrow=None)
-    return {"removed": removed, "kept": 1 + len(choice_ids) + (1 if stem else 0),
+                              choices=keep_ids, eyebrow=None)
+    return {"removed": removed, "kept": 1 + len(keep_ids) + (1 if stem else 0),
             **laid, **layers}
 
 
@@ -704,6 +789,8 @@ def available_question_shapes(pkg: StoryPackage, *,
     # kutuphanedeki ikinci/ucuncu gorunus katalogda HIC GORUNMUYORDU --
     # question_seeds'teki iki kusurun tuketici tarafindaki devami.
     for (kind, count), looks in question_seeds().items():
+        if kind not in PICK_KINDS:
+            continue
         for i, seed in enumerate(looks):
             out.append({"source": "bundled", "slide": None, "type": kind,
                         "choices": count, "look": i, "seed": seed,
@@ -1317,6 +1404,9 @@ def add_question(
     eyebrow: str | None = None,
     palette: dict | None = None,
     feedback: dict | None = None,
+    style: str | None = None,
+    variant: str | None = None,
+    avoid_variant: "list[str] | None" = None,
 ) -> dict:
     """Create a question slide and write a new question into it.
 
@@ -1349,6 +1439,7 @@ def add_question(
             pkg, template, prompt, choices, correct,
             scene=scene, name=name, points=points,
             eyebrow=eyebrow, palette=palette, feedback=feedback,
+            style=style, variant=variant, avoid_variant=avoid_variant,
         )
 
     template_part = pkg.slide_part_for(template)
@@ -1445,6 +1536,335 @@ def add_question(
 # Shapes whose text is a control label, not slide copy. Overwriting a button
 # caption with a slide title silently breaks that slide's navigation.
 LABEL_SHAPES = {"btn", "rsltBtn", "feedBackBtn", "textEntry"}
+
+
+# ---------------------------------------------------------- surukle-birak
+#
+# ARITE BURADA BAGLAYICI DEGIL, ve modul basligindaki gerekce bunu kapsamiyor:
+# orada "sik eklemek yoktan sekil/durum/tetikleyici uretmek demektir" yaziyor.
+# Surukle-birakta oyle degil -- tohum ZATEN dokuz suruklenen ve uc kutu
+# tasiyor, ve onuncu suruklenen YOKTAN degil, dokuzuncunun KOPYASINDAN
+# turuyor. Durumlar (Normal / Drop Correct / Drop Incorrect) kopyayla
+# geliyor, tetikleyici zaten yok (olculdu: 9 ogenin 9'unda da trigLst bos;
+# surukle-birak mantigi <choices> kayitlarinda durur, sekillerde degil).
+#
+# Yani gruplama sorusunda kisit "kac oge" degil, "etiketler hucreye siğiyor
+# mu" -- ve o soruyu compose_drag_frame olcup gerekcesiyle cevapliyor.
+
+
+def _fit_shape_pool(shape_list, by_guid: dict, guids: list[str], want: int, *,
+                    name: str) -> list[str]:
+    """Sekil havuzunu istenen sayiya getirir: fazlasi silinir, eksigi klonlanir.
+
+    Klon KAYNAGI havuzun ilk uyesi, donor ya da gomulu tohum degil: slaydin
+    kendi mobilyasi. Ayni gerekce `shapes.find_seed`'in "once proje" kurali
+    -- bir kurs zaten bir surukleme kutusu tasiyorsa onuncu de aynisi olmali.
+    """
+    guids = [g for g in guids if g in by_guid]
+    if not guids:
+        raise StoryError("Tohumda kopyalanacak sekil yok.")
+    while len(guids) > want:
+        gone = guids.pop()
+        shape = by_guid.pop(gone, None)
+        if shape is not None:
+            shape_list.remove(shape)
+    while len(guids) < want:
+        source = by_guid[guids[-1]]
+        made = shapes.clone_shape(source, name=name)
+        shape_list.insert(list(shape_list).index(source) + 1, made)
+        by_guid[made.get("g")] = made
+        guids.append(made.get("g") or "")
+    return guids
+
+
+def _write_drag_question(pkg: StoryPackage, part: str, prompt: str,
+                         groups: "dict[str, list[str]]",
+                         points: int | None) -> dict:
+    """Gruplama sorusunu slayda yazar: kok, suruklenenler, kutular, eslesme.
+
+    DOGRULUK `scoringData`'DA DEGIL. Pick ailesinde dogru sik
+    `scoringData correct="true"` ile isaretlenir; surukle-birakta oyle bir
+    isaret YOK -- dogru cevap `matchShpG`'nin ta kendisi, yani "bu oge bu
+    kutuya gider". Olculdu, elle yapilmis kursta 9 kaydin 9'unda da
+    correct="false" ve soru dogru puanlaniyor. Buraya correct="true" yazmak,
+    modelin `_describe_choice` uyarisinin ("her suruklenebilirl'i yanlis
+    etiketlemek") ters yonu olurdu: hepsini dogru etiketlemek.
+    """
+    root = pkg.parse(part)
+    tag, intr = _find_interaction(root)
+    if tag != "dragDropIntr" or intr is None:
+        raise StoryError(f"Bu slayt bir surukle-birak slaydi degil: {tag!r}")
+    shape_list = root.find("shapeLst")
+    by_guid = {s.get("g"): s for s in shape_list if s.get("g")}
+
+    labels = list(groups)
+    flat = [(index, text) for index, label in enumerate(labels)
+            for text in groups[label]]
+    if not flat:
+        raise StoryError("Hicbir kutuya oge verilmedi.")
+
+    items = _fit_shape_pool(shape_list, by_guid, _choice_shape_guids(intr),
+                            len(flat), name="Suruklenen")
+    zones = _fit_shape_pool(shape_list, by_guid, _drop_target_guids(intr),
+                            len(labels), name="Birakma Kutusu")
+
+    choices = intr.find("choices")
+    kalip = _copy.deepcopy(list(choices)[0])
+    for old in list(choices):
+        choices.remove(old)
+    for (zone_index, _text), item_guid in zip(flat, items):
+        record = _copy.deepcopy(kalip)
+        record.set("g", clone.new_guid())
+        record.set("verG", clone.new_guid())
+        record.set("shpG", item_guid)
+        record.set("matchShpG", zones[zone_index])
+        scoring = record.find("scoringData")
+        if scoring is not None:
+            scoring.set("correct", "false")
+            scoring.set("pts", "0")
+        choices.append(record)
+
+    stem = _stem_shape_guid(root, items + zones)
+    if stem:
+        set_shape_text(root, stem, prompt)
+    for item_guid, (_zone, text) in zip(items, flat):
+        set_shape_text(root, item_guid, text)
+    for zone_guid, label in zip(zones, labels):
+        set_shape_text(root, zone_guid, label)
+
+    if points is not None:
+        props = intr.find("intrProps")
+        if props is not None:
+            props.set("corPts", str(points))
+    pkg.replace_xml(part, root)
+    return {"items": len(items), "zones": len(zones), "stem": stem}
+
+
+def add_drag_question(
+    pkg: StoryPackage,
+    prompt: str,
+    groups: "dict[str, list[str]]",
+    *,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    look: int = 0,
+    style: str | None = None,
+) -> dict:
+    """Gruplama sorusu: ogeler yukarida, kutular asagida, dogru cevap eslesme."""
+    seeds = question_seeds().get(("dragDropIntr", 9)) or []
+    if not seeds:
+        raise StoryError(
+            "Gomulu surukle-birak tohumu yok "
+            "(seeds/question_dragDropIntr_9.xml bekleniyor).")
+    seed = seeds[look % len(seeds)]
+    result = clone.install_slide(pkg, seed.read_text(encoding="utf-8"),
+                                 scene=scene, name=name or prompt[:60])
+    written = _write_drag_question(pkg, result["part"], prompt, groups, points)
+    adapted = adapt_seeded_slide(pkg, result["part"], eyebrow=eyebrow,
+                                 palette=palette, feedback=feedback,
+                                 style=style)
+    registration = register_question(
+        pkg, pkg.parse(result["part"]).get("g", ""))
+    return {**result, "question_type": "dragDropIntr", "prompt": prompt,
+            "adapted": adapted, "registration": registration,
+            "framed": bool(adapted.get("framed")),
+            "groups": {label: list(texts) for label, texts in groups.items()},
+            **written}
+
+
+# ------------------------------------------------------------- metin girisi
+#
+# IKI KIP, VE AYRIM PUANDA DEGIL ANATOMIDE.
+#
+#   accept verilir  -> PUANLI. `freeTextEntryIntr` durur, kabul edilen
+#                      cevap(lar) <choices><intrFreeChoice><text> icine
+#                      yazilir, slayt quiz'e kaydedilir.
+#   accept verilmez -> TAAHHUT. Etkilesim ogesi SILINIR ve geriye degiskene
+#                      bagli bir yazma kutusu kalir. Slayt puanlanan bir
+#                      soru degil, icine yazilan bir icerik slaydi olur.
+#
+# Ikinci kipin etkilesimi silmesi kasitli. "Puani sifira cek" denendiginde
+# geriye hala DOGRU CEVABI OLAN bir soru kalir: kabul listesi bos oldugu
+# icin ogrenci ne yazarsa yazsin yanlis geri bildirimini gorur. Puan sifir
+# olsa bile ekranda "Yanlis" yazar -- ve taahhut slaydinda yanlis cevap YOK.
+#
+# DOGRULUK BURADA DA scoringData'DA DEGIL. Olculdu: elle yapilmis fixture'da
+# kabul edilen cevap <text>sabun</text> iken ayni kaydin scoringData'si
+# correct="false". Surukle-birakin aynisi -- pick ailesinin disina
+# cikildiginda `correct` bayragi cevabi TASIMIYOR.
+
+
+def _unique_variable_name(pkg: StoryPackage, base: str) -> str:
+    """Cakismayan bir degisken adi. add_variable ayni adda ikinciyi reddeder."""
+    try:
+        used = {(v.get("name") or "").casefold()
+                for v in (pkg.parse(STORY_PART).find("varLst") or [])}
+    except Exception:
+        used = set()
+    if base.casefold() not in used:
+        return base
+    index = 2
+    while f"{base}{index}".casefold() in used:
+        index += 1
+    return f"{base}{index}"
+
+
+def _bind_text_entry(pkg: StoryPackage, part: str, base_name: str) -> dict:
+    """Yazma kutusunu BU projedeki bir degiskene baglar.
+
+    Tohumun tetikleyicisi kendi kursundaki degiskeni isaret ediyor (olculdu:
+    varG=163dc4e1..., yani deneme.story'nin TextEntry1'i). O guid bu projede
+    yok, dolayisiyla `_drop_dangling_triggers` tetikleyiciyi HAKLI OLARAK
+    silerdi ve geriye hicbir yere yazmayan bir kutu kalirdi: ogrenci yaziyor,
+    yazdigi kayboluyor, hicbir kontrol bagirmiyor. O yuzden baglama
+    supurgeden ONCE kosar.
+    """
+    from . import logic
+    name = _unique_variable_name(pkg, base_name)
+    made = logic.add_variable(pkg, name, kind="text", default="")
+    root = pkg.parse(part)
+    rewired = 0
+    for trig in root.iter("textEntryTrig"):
+        for other in trig.iter("other"):
+            if other.get("varG"):
+                other.set("varG", made["guid"])
+                rewired += 1
+    pkg.replace_xml(part, root)
+    return {"variable": name, "variable_guid": made["guid"], "rewired": rewired}
+
+
+def _adapt_text_slide(pkg: StoryPackage, part: str, *,
+                      eyebrow: str | None, palette: dict | None,
+                      feedback: dict | None, graded: bool,
+                      style: str | None = None) -> dict:
+    """adapt_seeded_slide'in metin girisi karsiligi.
+
+    Ayri yazildi, cunku korunacak anatomi baska: burada SIK YOK. Tutulanlar
+    etkilesim (puanli kipte), yazma kutusu ve kok; gerisi -- tohumun kendi
+    mobilyasi -- gider. Ortak iki adim (kopuk tetikleyici supurgesi ve zemin)
+    paylasilan yardimcilardan gelir, kopyalanmaz.
+    """
+    from . import compose as _compose
+
+    root = pkg.parse(part)
+    shape_list = root.find("shapeLst")
+    if shape_list is None:
+        return {"removed": [], "kept": 0}
+    tag, intr = _find_interaction(root)
+    entry = next((sh for sh in shape_list if sh.tag == "textEntry"), None)
+    if entry is None:
+        return {"removed": [], "kept": 0, "reason": "yazma kutusu yok"}
+    entry_guid = entry.get("g") or ""
+    stem = _stem_shape_guid(root, [entry_guid])
+
+    removed: list[str] = []
+    for shape in list(shape_list):
+        guid = shape.get("g") or ""
+        if shape is entry or guid == stem:
+            continue
+        if shape.tag.endswith("Intr"):
+            if graded:
+                continue
+            removed.append(f"{shape.tag} (taahhut kipi: puanlama yok)")
+            shape_list.remove(shape)
+            continue
+        text = model.shape_text(root, guid).strip() if guid else ""
+        removed.append(f"{shape.tag}: {text[:24]!r}" if text else shape.tag)
+        shape_list.remove(shape)
+
+    dangling = _drop_dangling_triggers(pkg, root)
+    if dangling:
+        removed.append(f"{dangling} kopuk tetikleyici")
+    if palette:
+        _paint_slide_ground(root, palette.get("bg", "#0E1B3D"))
+    pkg.replace_xml(part, root)
+
+    laid = _compose.compose_text_frame(
+        pkg, part, eyebrow=eyebrow, palette=palette,
+        stem_guid=stem, entry_guid=entry_guid, style=style)
+    layers: dict = {}
+    if graded:
+        layers = _compose.compose_feedback_layers(pkg, part, palette=palette,
+                                                  feedback=feedback)
+    if palette:
+        _recolour_for_palette(pkg, part, palette, stem=stem,
+                              choices={entry_guid}, eyebrow=None)
+    kept = 2 + (1 if graded and intr is not None else 0)
+    return {"removed": removed, "kept": kept, **laid, **layers}
+
+
+def add_text_question(
+    pkg: StoryPackage,
+    prompt: str,
+    accept: "list[str] | None" = None,
+    *,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    variable: str | None = None,
+    style: str | None = None,
+) -> dict:
+    """Ogrencinin YAZDIGI slayt. accept verilirse puanli, verilmezse taahhut."""
+    seeds = question_seeds().get(("freeTextEntryIntr", 1)) or []
+    if not seeds:
+        raise StoryError(
+            "Gomulu metin girisi tohumu yok "
+            "(seeds/question_freeTextEntryIntr_1.xml bekleniyor).")
+    graded = bool(accept)
+    result = clone.install_slide(pkg, seeds[0].read_text(encoding="utf-8"),
+                                 scene=scene, name=name or prompt[:60])
+    part = result["part"]
+    bound = _bind_text_entry(pkg, part, variable or "Yanit")
+
+    root = pkg.parse(part)
+    _tag, intr = _find_interaction(root)
+    entry = next((sh for sh in root.find("shapeLst") if sh.tag == "textEntry"), None)
+    stem = _stem_shape_guid(root, [entry.get("g") or ""] if entry is not None else [])
+    if stem:
+        set_shape_text(root, stem, prompt)
+    # KUTUNUN ICI BOSALTILIR. Tohumun kutusunda "cevap?" yaziyordu ve
+    # temizlenmezse ogrenci onu SILEREK yazmaya basliyor -- ustelik yazi
+    # tohumun kendi kursundan gelen bir iz, yani `adapt_seeded_slide`'in
+    # bastan sona ugrastigi seyin metin girisi tarafindaki karsiligi.
+    # Cizime bakilinca gorundu; hicbir yapisal kontrol bagirmiyordu.
+    if entry is not None:
+        set_shape_text(root, entry.get("g") or "", "")
+    if intr is not None:
+        choices = intr.find("choices")
+        kalip = _copy.deepcopy(list(choices)[0])
+        for old in list(choices):
+            choices.remove(old)
+        for answer in (accept or []):
+            record = _copy.deepcopy(kalip)
+            record.set("g", clone.new_guid())
+            record.set("verG", clone.new_guid())
+            node = record.find("text")
+            if node is not None:
+                node.text = answer
+            choices.append(record)
+        if points is not None:
+            props = intr.find("intrProps")
+            if props is not None:
+                props.set("corPts", str(points))
+    pkg.replace_xml(part, root)
+
+    adapted = _adapt_text_slide(pkg, part, eyebrow=eyebrow, palette=palette,
+                                feedback=feedback, graded=graded, style=style)
+    registration = None
+    if graded:
+        registration = register_question(pkg, pkg.parse(part).get("g", ""))
+    return {**result,
+            "question_type": "freeTextEntryIntr" if graded else "taahhut",
+            "prompt": prompt, "accept": list(accept or []), "graded": graded,
+            "adapted": adapted, "registration": registration,
+            "framed": bool(adapted.get("framed")), **bound}
 
 
 def _title_shape(root: ET.Element) -> str | None:

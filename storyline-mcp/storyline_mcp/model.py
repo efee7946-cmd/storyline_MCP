@@ -324,13 +324,36 @@ def triggers(pkg: StoryPackage, slide: str | None = None) -> list[dict]:
 
 # ---------------------------------------------------------------------- quiz
 
+# ETIKET ADLARI TAHMIN EDILMEZ, DOSYADAN OKUNUR.
+#
+# Bu liste bir donem `textEntryIntr` ve `numericEntryIntr` yaziyordu ve
+# Storyline'in metin girisi sorusunun GERCEK etiketi `freeTextEntryIntr`.
+# Yani okuyucu o tipi HIC gormuyordu, ve sessizce: `list_quiz` metin girisi
+# tasiyan bir dosyada "soru yok" diyor, `_find_interaction` None donuyor,
+# ve None donen yerde yazma adimi atlaniyor -- her adim basarili raporlayip
+# hicbir sey yazmiyor.
+#
+# Olculdu 2026-08-30 ve tam olarak bu gerceklesti: puanli metin girisi
+# uretildi, "kabul edilen cevap yazildi" gibi dondu, slaytta tohumun kendi
+# cevabi (<text>sabun</text>) duruyordu.
+#
+# ASAGIDAKI ISIMLER 294 .story DOSYASINDA TARANDI. Bulunanlar:
+#     freePickOneIntr    476    freeTextEntryIntr    5
+#     freePickManyIntr    58    freeHotSpotIntr      5
+#     dragDropIntr        43    rsltsIntr           46
+# `matchDropDownIntr` ve `seqDropDownIntr` SIFIR kez gecti; adlari
+# dogrulanmadi, tahmin olarak duruyorlar ve bu yuzden burada isaretliler.
+# Biri elde bir ornekle dogrulanana kadar, o tiplerden birinin sessizce
+# gorunmez olmasi HALA mumkun.
 INTERACTION_TAGS = (
     "freePickOneIntr",
     "freePickManyIntr",
     "dragDropIntr",
+    "freeTextEntryIntr",
+    "freeHotSpotIntr",
+    # Dogrulanmadi -- korpusta hic ornegi yok (yukariya bakin).
     "matchDropDownIntr",
     "seqDropDownIntr",
-    "textEntryIntr",
     "numericEntryIntr",
 )
 
@@ -368,16 +391,31 @@ NULL_GUID = "00000000-0000-0000-0000-000000000000"
 def _describe_choice(root: ET.Element, choice: ET.Element, intr_tag: str) -> dict:
     """One answer option.
 
-    Pick-one and pick-many mark the answer on <scoringData correct="...">.
-    Drag-and-drop does not: there the answer *is* the pairing, carried by
-    matchShpG pointing at the drop target -- so reporting scoringData for it
-    would label every draggable "wrong".
+    UC AILE, UC AYRI YERDE DURAN CEVAP -- ve ucu de olculdu:
+
+      pick    <scoringData correct="true">, secenek metni SEKILDE.
+      drag    isaret YOK; cevap `matchShpG`'nin kendisi, yani eslesme.
+              (9 kayitli elle yapilmis kursta 9/9 correct="false".)
+      text    isaret YOK; kabul edilen cevap kaydin KENDI <text>'inde,
+              sekil hic yok (shpG null). Fixture'da <text>sabun</text>
+              yaninda scoringData correct="false" duruyordu.
+
+    Yani `correct` bayragini her aileye uygulamak iki yonde de yalan
+    soyler: drag'de her suruklenebiliri "yanlis" etiketler, text'te kabul
+    edilen cevabi "yanlis" gosterir. Metni sekilden okumak da ayni sinif --
+    sekli olmayan ailede "(metin yok)" doner ve cevap kayboldu gorunur.
     """
     scoring = choice.find("scoringData")
+    shape_guid = choice.get("shpG", "")
+    if intr_tag == "freeTextEntryIntr":
+        node = choice.find("text")
+        label = (node.text or "").strip() if node is not None else ""
+    else:
+        label = shape_text(root, shape_guid)
     entry = {
-        "text": shape_text(root, choice.get("shpG", "")) or "(metin yok)",
+        "text": label or "(metin yok)",
         "points": scoring.get("pts") if scoring is not None else None,
-        "shape_guid": choice.get("shpG", ""),
+        "shape_guid": shape_guid,
     }
     match_guid = choice.get("matchShpG", NULL_GUID)
     if intr_tag == "dragDropIntr":
@@ -385,6 +423,10 @@ def _describe_choice(root: ET.Element, choice: ET.Element, intr_tag: str) -> dic
         entry["drops_onto"] = (
             shape_text(root, match_guid) or match_guid if match_guid != NULL_GUID else None
         )
+    elif intr_tag == "freeTextEntryIntr":
+        # Listede duruyor olmak KABUL EDILDIGI anlamina gelir; bayrak degil,
+        # varlik cevabi tasiyor.
+        entry["correct"] = True
     else:
         entry["correct"] = _choice_is_correct(choice)
     return entry

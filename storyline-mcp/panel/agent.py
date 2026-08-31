@@ -33,15 +33,7 @@ EXTENSION_GLOB = "anthropic.claude-code-*/resources/native-binary/claude.exe"
 VERSION_RE = re.compile(r"claude-code-(\d+)\.(\d+)\.(\d+)")
 
 
-def find_cli() -> Path | None:
-    """Locate the Claude Code CLI, wherever this machine currently keeps it.
-
-    The VS Code extension carries its version in the directory name, so an
-    extension update moves the binary -- 2.1.227 became 2.1.228 here and a
-    hardcoded path simply stopped existing, leaving the command box dead with
-    no obvious cause. Resolved per call rather than at import, so an update
-    while the panel is open is picked up too.
-    """
+def find_claude_cli() -> Path | None:
     on_path = shutil.which("claude")
     if on_path:
         return Path(on_path)
@@ -66,11 +58,43 @@ def find_cli() -> Path | None:
             return extra
     return None
 
+
+def find_agy_cli() -> Path | None:
+    on_path = shutil.which("agy") or shutil.which("antigravity")
+    if on_path:
+        return Path(on_path)
+
+    for extra in (
+        Path(os.environ.get("LOCALAPPDATA", "")) / "agy" / "bin" / "agy.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Antigravity" / "bin" / "antigravity.cmd",
+        Path.home() / ".local" / "bin" / "agy",
+    ):
+        if extra.is_file():
+            return extra
+    return None
+
+
+def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
+    """Locate available CLI: Claude Code first, Antigravity (agy) fallback second."""
+    claude = find_claude_cli()
+    if claude:
+        return claude, "claude"
+    agy = find_agy_cli()
+    if agy:
+        return agy, "agy"
+    return None, None
+
+
+def find_cli() -> Path | None:
+    path, _ = find_cli_info()
+    return path
+
 TOOLS = [
     "story_info", "list_slides", "extract_text", "search_text",
     "list_variables", "list_triggers", "list_quiz", "list_templates", "audit",
     "question_formats",
     "update_text", "add_scene", "add_slide", "add_question",
+    "add_drag_question", "add_text_question",
     "duplicate_slide", "build_course",
     "compose_slide",
     "set_background", "add_text_box", "add_button", "add_shape",
@@ -406,41 +430,47 @@ class AgentRun:
     def _run(self) -> None:
         config: Path | None = None
         try:
-            # Everything, including building the command line, sits inside the
-            # try: a failure while assembling it is still a failure the page
-            # has to hear about, not one that kills this thread in silence.
-            config = _mcp_config()
-            argv = [
-                str(find_cli()), "-p", self.command,
-                "--mcp-config", str(config),
-                "--strict-mcp-config",
-                "--allowedTools", *ALLOWED,
-                "--output-format", "stream-json",
-                "--verbose",
-                "--model", self.model,
-                "--append-system-prompt",
+            cli, flavor = find_cli_info()
+            if cli is None:
+                raise RuntimeError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
+
+            sys_prompt = (
                 SYSTEM_PROMPT.replace(PATH_TOKEN, self.story_path)
-                + self._palette_note(),
-            ]
-            if self.resume:
-                argv[2:2] = ["--resume", self.resume]
+                + self._palette_note()
+            )
+
+            if flavor == "claude":
+                config = _mcp_config()
+                argv = [
+                    str(cli), "-p", self.command,
+                    "--mcp-config", str(config),
+                    "--strict-mcp-config",
+                    "--allowedTools", *ALLOWED,
+                    "--output-format", "stream-json",
+                    "--verbose",
+                    "--model", self.model,
+                    "--append-system-prompt", sys_prompt,
+                ]
+                if self.resume:
+                    argv[2:2] = ["--resume", self.resume]
+            else:
+                # Antigravity (agy) CLI fallback
+                full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
+                argv = [
+                    str(cli), "-p", full_prompt,
+                    "--output-format", "stream-json",
+                    "--dangerously-skip-permissions",
+                ]
+
             code, stderr = self._kos(argv)
 
-            # BAYAT OTURUM KIMLIGI BUTUN KOMUTLARI KIRMASIN. `--resume`
-            # bilinmeyen bir kimlikle cagrilirsa CLI sifir disi kodla ciker ve
-            # hicbir is yapilmaz. Baglam tasimak bir KOLAYLIK; kosunun
-            # gecerliligi ona baglanamaz (K13). O yuzden bir kez, baglamsiz
-            # tekrar denenir -- ve bunun sessiz olmamasi icin kullaniciya
-            # baglamin dustugu soylenir.
-            if code != 0 and self.resume and not self._final_gorundu:
+            if code != 0 and self.resume and not self._final_gorundu and flavor == "claude":
                 self.on_event({
                     "kind": "step",
                     "text": "Onceki komutun baglami suruyordu ama acilamadi; "
                             "komut baglamsiz yeniden calistiriliyor.",
                 })
                 self.resume = None
-                # Negatif indisle komsu bakmak i=0'da listenin SONUNA
-                # sarar; bayrak ve degeri acikca atlaniyor.
                 temiz, atla = [], False
                 for a in argv:
                     if atla:
@@ -452,6 +482,23 @@ class AgentRun:
                     temiz.append(a)
                 argv = temiz
                 code, stderr = self._kos(argv)
+
+            # RUNTIME LIMIT / FAILURE FALLBACK TO ANTIGRAVITY (AGY)
+            if code != 0 and flavor == "claude" and not self._final_gorundu:
+                agy_cli = find_agy_cli()
+                if agy_cli:
+                    err_msg = (stderr or "").strip()
+                    self.on_event({
+                        "kind": "step",
+                        "text": f"Claude Code çağrısı başarısız oldu/limit doldu ({err_msg[:100] if err_msg else f'kod {code}'}) — Antigravity (agy) CLI fallback'ine geçiliyor...",
+                    })
+                    full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
+                    argv = [
+                        str(agy_cli), "-p", full_prompt,
+                        "--output-format", "stream-json",
+                        "--dangerously-skip-permissions",
+                    ]
+                    code, stderr = self._kos(argv)
 
             if code != 0:
                 self.on_event({
@@ -489,6 +536,40 @@ class AgentRun:
 
     def _dispatch(self, event: dict) -> None:
         """Translate the CLI's stream into something the page can render."""
+        # Handle agy stream-json format
+        if "event" in event:
+            evt_name = event.get("event")
+            if evt_name == "step_update":
+                step = event.get("step_update", {})
+                if step.get("step_type") == "agent_response":
+                    text_delta = step.get("text_delta", "").strip()
+                    if text_delta:
+                        self.on_event({"kind": "text", "text": text_delta})
+                elif step.get("step_type") == "tool_call":
+                    tool_calls = step.get("tool_calls", [])
+                    for call in tool_calls:
+                        name = call.get("name", "")
+                        self.on_event({
+                            "kind": "tool",
+                            "name": name.replace(TOOL_PREFIX, ""),
+                            "input": self._brief(call.get("args", {})),
+                        })
+            elif evt_name == "result":
+                self._final_gorundu = True
+                res = event.get("result", {})
+                resp_text = res.get("response", "") or res.get("result", "")
+                written = Path(self.output_path)
+                self.on_event({
+                    "kind": "final",
+                    "error": res.get("status") == "ERROR",
+                    "text": resp_text,
+                    "duration_ms": int(res.get("duration_seconds", 0) * 1000),
+                    "turns": res.get("num_turns"),
+                    "output_path": str(written) if written.exists() else None,
+                    "session_id": res.get("conversation_id"),
+                })
+            return
+
         kind = event.get("type")
         # Her olayda gelebilir; sonuncusu tutulur.
         if event.get("session_id"):

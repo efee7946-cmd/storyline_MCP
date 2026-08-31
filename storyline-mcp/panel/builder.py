@@ -34,7 +34,7 @@ from storyline_mcp import authoring, compose, medya, model as sl_model, settings
 from storyline_mcp.package import StoryPackage, StoryError
 
 import ogretim
-from agent import find_cli
+from agent import find_cli, find_cli_info
 
 OUTLINE_PROMPT = """\
 Asagidaki brief icin bir e-ogrenme kursu iskeleti tasarla.
@@ -58,7 +58,7 @@ Kurallar:
     steps      SIRALI adimlar; numaralanir, yani sira anlam tasiyorsa kullan
     statement  akilda kalmasi gereken TEK cumle; govdesi kisa olmali
     menu       ogrencinin secim yaptigi slayt; secenekler buttons alaninda
-- kind: "content" veya "question"
+- kind: "content", "question", "drag" (gruplama) veya "commitment" (yazdirma)
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
 - Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
   "01_Ad", "02_Ad" biciminde, Turkce karakter ve bosluk kullanma.
@@ -110,7 +110,13 @@ Bicim:
    "choices": ["A secenegi", "B secenegi", "C secenegi", "D secenegi"],
    "correct": [1],
    "feedback": {"correct": "Neden dogru oldugunu tek cumleyle acikla.",
-                "incorrect": "Neden yanlis oldugunu ve dogru davranisi tek cumleyle acikla."}}
+                "incorrect": "Neden yanlis oldugunu ve dogru davranisi tek cumleyle acikla."}},
+  {"kind": "drag", "prompt": "Her ogeyi dogru kutuya surukle.",
+   "groups": {"Kutu bir": ["Kisa ad", "Kisa ad"],
+              "Kutu iki": ["Kisa ad", "Kisa ad"]},
+   "feedback": {"correct": "Tek cumlelik gerekce.",
+                "incorrect": "Tek cumlelik gerekce."}},
+  {"kind": "commitment", "prompt": "Bu haftaki tek somut adimini yaz."}
 ]}
 
 Kurallar:
@@ -207,14 +213,17 @@ def slide_budget(options: dict, fallback: int = 18) -> int:
         return fallback
 
 
-def _cli_json(cli, prompt: str, model: str, timeout: float,
+def _cli_json(cli, flavor: str, prompt: str, model: str, timeout: float,
               on_progress=None, deneme: int = 2):
     """CLI'i cagir; zaman asiminda bir kez daha dene."""
     for kalan in range(deneme - 1, -1, -1):
         try:
+            if flavor == "claude":
+                cmd = [str(cli), "-p", prompt, "--output-format", "json", "--model", model]
+            else:
+                cmd = [str(cli), "-p", prompt, "--output-format", "json"]
             return subprocess.run(
-                [str(cli), "-p", prompt, "--output-format", "json",
-                 "--model", model],
+                cmd,
                 capture_output=True, text=True, encoding="utf-8",
                 errors="replace", timeout=timeout,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -246,44 +255,66 @@ MEDYA_SURESI = 300.0
 
 def _run_json(prompt: str, model: str = "sonnet", timeout: float = ICERIK_SURESI,
               on_progress=None, deneme: int = 2) -> dict:
-    """Ask the model for JSON, with no tools attached.
-
-    Tools are deliberately absent: this pass writes nothing, and a model that
-    cannot reach for a tool cannot spend turns on one.
-
-    ZAMAN ASIMINDA BIR KEZ TEKRAR. Bir kurs bes-yedi cagri suruyor ve icerik
-    ancak hepsi bittikten sonra dosyaya yaziliyor: altinci cagrida takilan bir
-    kosu, oncekilerin tamamini cope atiyor. Tekrar bunu ucuza kapatir --
-    takilma gecici oldugunda (olculdu 2026-08-29: ayni istem bir kosuda 300
-    saniyeyi asti, otekinde normal surede dondu) ikinci deneme calisir. Sessiz
-    degil: bekleyen kullanici, birinci denemenin dustugunu akista gorur.
-    """
-    cli = find_cli()
+    """Ask the model for JSON, with no tools attached."""
+    cli, flavor = find_cli_info()
     if cli is None:
-        raise StoryError("Claude Code CLI bulunamadi.")
+        raise StoryError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
+    
+    result = None
     try:
-        result = _cli_json(cli, prompt, model, timeout, on_progress, deneme)
+        result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
     except subprocess.TimeoutExpired:
-        # ISTEM HATA METNINE GIRMEZ. TimeoutExpired'in kendi metni CAGRIYI
-        # tasiyor, yani bes bin karakterlik istemi -- panele oldugu gibi
-        # basildi ve kullanicinin gordugu sey, ne oldugunu soyleyen bir cumle
-        # yerine kendi brief'inin kacisli hali oldu (olculdu 2026-08-29).
-        raise StoryError(
-            f"Model {int(timeout)} saniyede yanit vermedi. Kursa hicbir sey "
-            "yazilmadi; komutu yeniden calistirabilirsiniz.") from None
-    except OSError as exc:
-        raise StoryError(f"Claude Code CLI calistirilamadi: {exc}") from None
-    if result.returncode != 0:
-        raise StoryError(f"Icerik uretilemedi: {(result.stderr or '').strip()[:200]}")
+        if flavor == "claude":
+            from agent import find_agy_cli
+            agy_cli = find_agy_cli()
+            if agy_cli:
+                if on_progress:
+                    on_progress("Claude Code zaman aşımına uğradı — Antigravity (agy) CLI ile tekrar deneniyor...")
+                cli, flavor = agy_cli, "agy"
+                result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
+        if result is None:
+            raise StoryError(
+                f"Model {int(timeout)} saniyede yanit vermedi. Kursa hicbir sey "
+                "yazilmadi; komutu yeniden calistirabilirsiniz.") from None
+
+    # Automatic runtime fallback if Claude Code fails (limit reached, error, etc.)
+    if (result is None or result.returncode != 0) and flavor == "claude":
+        from agent import find_agy_cli
+        agy_cli = find_agy_cli()
+        if agy_cli:
+            if on_progress:
+                err_text = (result.stderr if result else "").strip()[:100]
+                on_progress(f"Claude Code çağrısı başarısız oldu ({err_text or 'hata'}) — Antigravity (agy) CLI fallback'ine geçiliyor...")
+            cli, flavor = agy_cli, "agy"
+            result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
+
+    if result is None or result.returncode != 0:
+        err_msg = (result.stderr or "").strip()[:200] if result else "CLI yanıt vermedi"
+        raise StoryError(f"Icerik uretilemedi: {err_msg}")
+
     try:
         payload = json.loads(result.stdout)
-        text = payload.get("result", "")
+        text = payload.get("result", "") or payload.get("response", "")
     except json.JSONDecodeError:
         text = result.stdout
 
-    # Models wrap JSON in prose or fences often enough that it is cheaper to
-    # dig the object out than to insist the prompt was obeyed.
     match = re.search(r"\{.*\}", text, re.S)
+    if not match and flavor == "claude":
+        from agent import find_agy_cli
+        agy_cli = find_agy_cli()
+        if agy_cli:
+            if on_progress:
+                on_progress("Claude Code çıktısından JSON alınamadı — Antigravity (agy) CLI ile tekrar deneniyor...")
+            cli, flavor = agy_cli, "agy"
+            result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
+            if result.returncode == 0:
+                try:
+                    payload = json.loads(result.stdout)
+                    text = payload.get("response", "") or payload.get("result", "")
+                    match = re.search(r"\{.*\}", text, re.S)
+                except json.JSONDecodeError:
+                    text = result.stdout
+
     if not match:
         raise StoryError(f"Yanitta JSON bulunamadi: {text[:200]}")
     return json.loads(match.group(0))
@@ -351,8 +382,21 @@ def _konu_araligi(scenes: list[dict]):
     return range(1, len(scenes) - 1) if len(scenes) > 2 else range(len(scenes))
 
 
+# PUANLANAN HER SEY SORUDUR, YALNIZCA "question" DEGIL.
+#
+# Bu kapi bir donem sadece kind == "question" sayiyordu ve gruplama eklenince
+# sessizce yanlislasti: drag ile kapanan bir sahne "sorusuz" gorunur, kadans
+# kapisi icerigi bosuna yeniden ister ve model soruyu SIK SECMEYE cevirerek
+# "duzeltir" -- yani cesitlilik icin eklenen tip, cesitliligi olcen kapi
+# tarafindan geri alinirdi.
+#
+# commitment DISARIDA, ve bu bilerek: puanlanmiyor, dogru cevabi yok. Onu
+# soru saymak "her konu sahnesinde bir puanli olcum" kuralini bosaltirdi.
+PUANLI_KINDLER = ("question", "drag")
+
+
 def _soru_mu(s: dict) -> bool:
-    return (s or {}).get("kind") == "question"
+    return (s or {}).get("kind") in PUANLI_KINDLER
 
 
 def _ardisik_okuma(scenes: list[dict], anahtar: str = "slides") -> int:
@@ -1225,6 +1269,11 @@ def build(
     # SAHNE SINIRINDA SIFIRLANMAZ, `history` ile ayni sebeple: her sahnenin
     # ilk sorusu bir oncekinin sonuncusuyla ayni cikardi.
     soru_gecmisi: list[str] = []
+    # AYNI FIKRIN YERLESIM EKSENDEKI KARSILIGI. `soru_gecmisi` hangi TOHUMUN
+    # kullanildigini tutar (mobilya), bu hangi VARYANTIN (yerlesim). Ikisi
+    # ayri ayri tekrarlayabilir: ayni tohum farkli varyantla bambaska
+    # gorunur, farkli tohum ayni varyantla ayni siluete duser.
+    varyant_gecmisi: list[str] = []
     variant_log: list[dict] = []
     kurulan_sahneler: list[str] = []
     # Yapay zekanin istedigi ama veremedigi seyler. Kurs onlari beklemez:
@@ -1247,6 +1296,34 @@ def build(
             pass  # scene already exists
 
         for spec in scene["content"]:
+            if spec.get("kind") == "drag":
+                try:
+                    made = authoring.add_drag_question(
+                        pkg, spec.get("prompt", "Dogru kutuya surukle."),
+                        spec.get("groups") or {},
+                        scene=scene_name,
+                        eyebrow=scene.get("title") or scene_name,
+                        palette=palette, points=10,
+                        feedback=spec.get("feedback"))
+                    questions += 1
+                except StoryError as exc:
+                    # Gruplama REDDEDILEBILIR (etiket hucreye sigmazsa) ve
+                    # red sessiz gecilmez: sik secme sorusundaki ile ayni
+                    # sozlesme -- gerekce raporda durur.
+                    refusals.append({
+                        "prompt": str(spec.get("prompt", ""))[:60],
+                        "choices": sum(len(v) for v in
+                                       (spec.get("groups") or {}).values()),
+                        "diagnosis": "surukle-birak-kurulamadi",
+                        "why": str(exc)[:160], "resolved": False})
+                continue
+            if spec.get("kind") == "commitment":
+                made = authoring.add_text_question(
+                    pkg, spec.get("prompt", "Tek somut adimini yaz."),
+                    scene=scene_name,
+                    eyebrow=scene.get("title") or scene_name,
+                    palette=palette)
+                continue
             if spec.get("kind") == "question":
                 choices = spec.get("choices") or []
                 prompt = spec.get("prompt", "Soru")
@@ -1276,7 +1353,13 @@ def build(
                         # edildigi kursun metnini tasiyor; verilmezse notr
                         # varsayilan yazilir, tohumunki asla kalmaz.
                         feedback=spec.get("feedback"),
+                        # ARDISIK IKI SORU AYNI SILUETI TASIMASIN. Tohum
+                        # secimindeki `avoid` ile ayni is, farkli eksende:
+                        # o mobilyayi degistirir, bu YERLESIMI.
+                        avoid_variant=varyant_gecmisi[-1:],
                     )
+                    varyant_gecmisi.append(
+                        (made.get("adapted") or {}).get("variant") or "")
                     # TEK YERLESIM OTORITESI: compose_question_frame.
                     #
                     # Burada bir zamanlar `apply_choice_plan` dali vardi ve

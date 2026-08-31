@@ -223,6 +223,38 @@ def _apply_op(pkg: StoryPackage, op: dict) -> dict:
             points=op.get("points"),
             eyebrow=op.get("eyebrow"),
             feedback=op.get("feedback"),
+            style=op.get("style"),
+            variant=op.get("variant"),
+            avoid_variant=op.get("avoid_variant"),
+            palette=op.get("palette") or (
+                {k: v for k, v in compose.theme_palette(op["theme"]).items()
+                 if not k.startswith("_")} if op.get("theme") else None),
+        )
+    if kind == "add_drag_question":
+        return authoring.add_drag_question(
+            pkg,
+            op["prompt"],
+            op["groups"],
+            scene=op.get("scene"),
+            name=op.get("name"),
+            points=op.get("points"),
+            eyebrow=op.get("eyebrow"),
+            feedback=op.get("feedback"),
+            palette=op.get("palette") or (
+                {k: v for k, v in compose.theme_palette(op["theme"]).items()
+                 if not k.startswith("_")} if op.get("theme") else None),
+        )
+    if kind == "add_text_question":
+        return authoring.add_text_question(
+            pkg,
+            op["prompt"],
+            op.get("accept"),
+            scene=op.get("scene"),
+            name=op.get("name"),
+            points=op.get("points"),
+            eyebrow=op.get("eyebrow"),
+            feedback=op.get("feedback"),
+            variable=op.get("variable"),
             palette=op.get("palette") or (
                 {k: v for k, v in compose.theme_palette(op["theme"]).items()
                  if not k.startswith("_")} if op.get("theme") else None),
@@ -402,6 +434,9 @@ def add_question(
     theme: str | None = None,
     palette: dict | None = None,
     feedback: dict | None = None,
+    style: str | None = None,
+    variant: str | None = None,
+    avoid_variant: list[str] | None = None,
     output_path: str | None = None,
     in_place: bool = False,
 ) -> dict:
@@ -424,6 +459,17 @@ def add_question(
         cevap katmanlarinda ogrencinin okuyacagi aciklama. Verilmezse notr
         bir varsayilan yazilir; tohumun kendi metni hicbir durumda kalmaz.
 
+    DUZEN CESITLILIGI. Soru slaydinin iskeleti artik tek degil: variant
+    ("tam", "ortalanmis", "girintili", "sag") kokun ve sik yiginin slaydin
+    neresinde durdugunu degistirir. VERMEYIN -- bos birakildiginda soru
+    kokunden turer ve ayni kurs iki kez uretildiginde ayni sonucu verir.
+    avoid_variant, ardisik iki sorunun ayni siluetle cikmasini engeller;
+    bir onceki sorunun varyantini gecin.
+
+    style (rail/corner/band/plain) zemin ve vurgu isaretini secer ve KURS
+    ICINDE SABIT olmalidir: verilmezse dosya adindan turer, yani ayni
+    kursun butun sorulari ayni uslubu giyer.
+
     Secenek sayisi serbest degildir; question_formats ile kullanilabilir
     sayilari gorun ve sorulari ona gore yazin.
     correct: dogru seceneklerin sifir tabanli indisleri."""
@@ -432,6 +478,107 @@ def add_question(
     result = authoring.add_question(
         pkg, template, prompt, choices, correct, scene=scene, name=name,
         points=points, eyebrow=eyebrow, feedback=feedback,
+        style=style, variant=variant, avoid_variant=avoid_variant,
+        palette=palette or (
+            {k: v for k, v in compose.theme_palette(theme).items()
+             if not k.startswith("_")} if theme else None),
+    )
+    return {**result, **_write(pkg, path, output_path, in_place)}
+
+
+@mcp.tool()
+def add_drag_question(
+    path: str,
+    prompt: str,
+    groups: dict,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    theme: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Gruplama sorusu ekler: ogeler yukarida, kutular asagida, ogrenci surukler.
+
+    groups, KUTU ADI -> O KUTUYA AIT OGELER esleşmesidir; dogru cevap bu
+    esleşmenin ta kendisidir, ayri bir 'correct' listesi YOKTUR.
+
+        {"Gizli": ["Musteri fiyat teklifi", "Calisan bordrosu"],
+         "Halka acik": ["Basin bulteni", "Is ilani"]}
+
+    add_question'dan FARKI, ve niye ayri bir arac: sikki secmek tek bir
+    karardir, gruplamak her oge icin bir karardir. Tanim/siniflandirma
+    anlatan bir bolum "asagidakilerden hangisi" ile yoklandiginda ezber
+    olcer; ayni bolum gruplama ile yoklandiginda AYRIMI olcer.
+
+    Kutu sayisi sutun sayisini belirler (tavan 4); oge sayisi serbesttir --
+    tohum dokuz oge tasir, fazlasi kopyalanir, azi silinir. Etiketler
+    hucreye sigmazsa soru kurulmaz ve gerekce doner: her oge etiketi tek
+    satirlik bir ad olsun, cumle degil.
+
+    eyebrow ve theme, add_question'daki ile ayni islevi gorur ve AYNI
+    sebeple onemlidir: tohum gercek bir kurstan alindi.
+    """
+    _guard(path)
+    pkg = StoryPackage(path)
+    result = authoring.add_drag_question(
+        pkg, prompt, groups, scene=scene, name=name, points=points,
+        eyebrow=eyebrow, feedback=feedback,
+        palette=palette or (
+            {k: v for k, v in compose.theme_palette(theme).items()
+             if not k.startswith("_")} if theme else None),
+    )
+    return {**result, **_write(pkg, path, output_path, in_place)}
+
+
+@mcp.tool()
+def add_text_question(
+    path: str,
+    prompt: str,
+    accept: list[str] | None = None,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    theme: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    variable: str | None = None,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Ogrencinin YAZDIGI slayt. Iki kipi var ve ayrimi `accept` yapar.
+
+    TAAHHUT KIPI (accept VERILMEZ) -- onerilen kullanim. Puanlama yoktur,
+    dogru cevap yoktur; geriye bir soru koku ve bir yazma kutusu kalir.
+    Yazilan sey bir degiskene gider (adi donuste bildirilir), yani sonraki
+    slaytlarda %DegiskenAdi% ile geri gosterilebilir.
+
+        "Bu haftaki tek somut adimini yaz: hangi hesabinda iki adimli
+         dogrulamayi acacaksin?"
+
+    Kapanis slaydinin aforizma olmamasi kuralinin uygulanabilir hali budur:
+    ogrenci bir sey SECMEZ, bir sey YAZAR.
+
+    PUANLI KIP (accept verilir) -- kabul edilen cevaplarin listesi. Eslesme
+    metnin kendisiyle yapilir, yani yalnizca tek kelimelik ve yazimi kesin
+    cevaplarda ise yarar ("bildir", "raporla").
+
+      UYARI, VE OLCULDU: gomulu tohumda GERI BILDIRIM KATMANI YOK
+      (sldLayerLst hic yok). Puanli kipte ogrenci cevabini verdikten sonra
+      okuyacagi bir aciklama YAZILAMAZ; oynaticinin kendi varsayilani ne
+      gosteriyorsa onu gorur. Ogretim kurali "HER soruya feedback yaz"
+      diyor ve bu kip onu KARSILAMIYOR. Aciklama gerektiren bir olcum icin
+      add_question ya da add_drag_question kullanin.
+    """
+    _guard(path)
+    pkg = StoryPackage(path)
+    result = authoring.add_text_question(
+        pkg, prompt, accept, scene=scene, name=name, points=points,
+        eyebrow=eyebrow, feedback=feedback, variable=variable,
         palette=palette or (
             {k: v for k, v in compose.theme_palette(theme).items()
              if not k.startswith("_")} if theme else None),

@@ -455,10 +455,105 @@ def variant_for(layout: str, *, name: str | None = None, seed: str = "",
             "pool": len(keys), **table[picked]}
 
 
-def compose_question_frame(pkg: StoryPackage, part: str, *,
-                           eyebrow: str | None, palette: dict | None,
-                           stem_guid: str | None,
-                           choice_guids: list[str]) -> dict:
+def _apply_style(page: "_Page", colors: dict, style: str | None,
+                 pkg: StoryPackage) -> dict:
+    """Zemin ve vurgu isareti. UC CERCEVE DE BURADAN GECER.
+
+    Ayri yazilmasinin sebebi kopyalamamak degil, UNUTMAMAK: uc cerceveden
+    biri bu adimi atlarsa o tip slayt kursun icinde duz zeminli ve
+    isaretsiz durur, ve fark ancak yan yana konunca gorunur. Kural tek
+    yerde durunca "yeni bir cerceve yazildi, uslup baglanmadi" durumu
+    olamaz.
+    """
+    look = style_for(style, seed=pkg.path.stem)
+    kind, angle = look.get("ground", ("flat", 0))
+    if kind == "grad" and colors.get("deep"):
+        page.background(colors["bg"], to=colors["deep"], angle=angle)
+    else:
+        page.background(colors["bg"])
+    _mark(page, look, colors, "content")
+    return look
+
+
+# ------------------------------------------------------ soru duzeni varyantlari
+#
+# EKSEN, ICERIK VARYANTLARININ AYNISI: metin sutunu nerede baslar, ne kadar
+# genis. Renk degil, ISKELET -- iki soru ayni varyanti tasiyorsa bulaniklastirildiginda
+# ayni resim olur, ve "butun sorular ayni" sikayetinin olculebilir hali budur.
+#
+# SIK SUTUNU KOKTEN AYRI VERILIYOR, ve bu bilerek: `girintili` varyantinda
+# kok tam genislikte durur, siklar iceri cekilir. Tek bir (x, w) ciftiyle o
+# siluet kurulamazdi ve kurulabilen tek sey "her sey ayni yerden baslar"
+# olurdu -- kacilan seyin ta kendisi.
+#
+# DEGERLER OLCUM DEGIL, YARGI -- ama serbest de degil: icerik varyantlarinin
+# kurdugu dilin ICINDE kaliyorlar (8 / 22 / 35 / 48 yogunlasmalari).
+# IKINCI EKSEN: SIK YIGINI BANDIN NERESINE OTURUR.
+#
+# Yatay eksen tek basina yetmedi, ve bu CIZIME BAKILARAK gorundu: dort
+# varyant dort farkli x veriyordu ama dordunde de yigin kokun hemen altina
+# yapisip slaydin alt yarisi bos kaliyordu. Yani siluetler farkliydi,
+# AGIRLIK MERKEZI ayniydi -- bulaniklastirildiginda dordu de "ustte bir
+# blok, altta bos" resmi.
+#
+# `anchor` o bosluğu boluşturur: "ust" bugunku davranis (bosluk altta),
+# "orta" yigini kalan bandin ortasina alir. Uc-bir dagitildi, cunku dordu
+# de ortalanmis olsaydi eksen yine tek degerli olurdu.
+QUESTION_VARIANTS: dict[str, dict] = {
+    "tam":        {"stem": (8.0, 84.0),  "choices": (8.0, 84.0),  "anchor": "orta"},
+    "ortalanmis": {"stem": (18.0, 64.0), "choices": (18.0, 64.0), "anchor": "orta"},
+    "girintili":  {"stem": (8.0, 84.0),  "choices": (22.0, 70.0), "anchor": "ust"},
+    "sag":        {"stem": (35.0, 57.0), "choices": (35.0, 57.0), "anchor": "orta"},
+}
+QUESTION_DEFAULT = "tam"
+
+
+def question_variant_for(seed: str = "", *, name: str | None = None,
+                         avoid: "list[str] | None" = None) -> str:
+    """Varyant secimi: verilirse o, yoksa TOHUMDAN turetilir.
+
+    Turetme rastgele degil: ayni kurs iki kez uretildiginde ayni varyantlar
+    cikmali, yoksa "hangi varyant secildi" tekrar uretilemeyen bir sayi
+    olurdu. `avoid` ardisik tekrari kirar -- icerik tarafindaki yasagin
+    soru tarafindaki karsiligi.
+    """
+    if name in QUESTION_VARIANTS:
+        return name
+    havuz = [v for v in sorted(QUESTION_VARIANTS) if v not in (avoid or [])]
+    if not havuz:
+        havuz = sorted(QUESTION_VARIANTS)
+    # SECICI ICERIK TARAFIYLA AYNI KALIR (ord toplami), ve bunun bir
+    # hikayesi var -- yaziliyor, cunku yanlis tesis edilmis bir "kusur"
+    # duzeltmesi kodda gerekcesiyle donup kalirsa bir sonraki okuyucu onu
+    # olculmus sanar.
+    #
+    # 2026-08-30: dort soru kokuyle denendi, dordu de dort kovadan IKISINE
+    # dustu (mod4 = 0,1,0,1). Bu "karakter toplami yigiliyor" diye okundu
+    # ve secici sha256'ya cevrildi. SONRA GERCEK ORNEKLEMLE OLCULDU --
+    # korpustaki 67 benzersiz soru koku:
+    #
+    #     eski (ord toplami)   ki-kare 1.48   ← DUZ
+    #     yeni (sha256)        ki-kare 3.27   ← o da duz, ama daha az
+    #     (3 serbestlik derecesi, p=0.05 esigi 7.81)
+    #
+    # Yani yigilma YOKTU: dort ornek yeterince kucuktu ki 0,1,0,1 dizisi
+    # rastlanti olsun. Tesis kucuk orneklemden geldi, DOGRULAMA DA AYNI
+    # DORT ORNEKLE yapildi -- olcumun kendi kuyrugunu isirmasi.
+    #
+    # Ardisik tekrari kiran sey hash degil, `avoid`: ayni 67 kokte
+    # avoid'siz 11/66 ardisik tekrar var, avoid'li 0/66 -- ve bu iki
+    # secicide de AYNI. Dolayisiyla sha256 olculebilir hicbir sey
+    # kazandirmiyordu; birakilsaydi geriye ayni soruyu ("hangi varyant?")
+    # iki farkli yoldan cevaplayan iki mekanizma kalirdi.
+    return havuz[sum(ord(c) for c in (seed or "x")) % len(havuz)]
+
+
+def _question_frame_once(pkg: StoryPackage, part: str, *,
+                         eyebrow: str | None, palette: dict | None,
+                         stem_guid: str | None,
+                         choice_guids: list[str],
+                         style: str | None,
+                         variant: str) -> dict:
     """Soru slaydının çerçevesini KURAR: üst etiket, kök, şık yığını.
 
     Tohumdan yalnizca anatomi kaldi (etkilesim, sik kaplari, katmanlar);
@@ -478,14 +573,39 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
     page = _Page(pkg, root, colors)
     width, height = page.width, page.height
 
+    # USLUP VE VARYANT, ICERIK SLAYTLARINDAKI AYNI IKI EKSEN.
+    #
+    # Bu fonksiyonun bir donem HIC uslubu yoktu: `style` parametresi bile
+    # almiyordu. Sonucu olculdu 2026-08-30 -- icerik slaytlari dort uslup ve
+    # (duzenine gore) alti varyant arasindan seciliyorken soru slaydi
+    # 1x1'di: her kursta, her soruda ayni duz zemin, ayni isaretsiz kenar,
+    # ayni tam genislikte dikey yigin. Tohum havuzunu buyutmek bunu
+    # degistirmiyordu, cunku tohumdan yalnizca anatomi aliniyor ve gorunen
+    # her sey burada kuruluyor. Yani "butun sorular ayni" sikayetinin
+    # kaynagi kutuphane degil, BU FONKSIYONDU.
+    # USLUP TOHUMU KOK DEGIL, KURSUN KIMLIGI. Kokten turetmek her soruya
+    # ayri bir uslup veriyordu (olculdu: dort soru, iki uslup, sirayla) --
+    # oysa uslup kurs ICINDE sabit, kurslar ARASINDA farkli olmali; bu,
+    # donors.choose'un zaten uyguladigi kural. Varyant soru basina degisir,
+    # uslup degismez: biri ritim, digeri kimlik.
+    look = _apply_style(page, colors, style, pkg)
+    if eyebrow and look["eyebrow_case"] == "title":
+        eyebrow = eyebrow.title()
+    else:
+        eyebrow = eyebrow.upper() if eyebrow else eyebrow
+    spec = QUESTION_VARIANTS.get(variant) or QUESTION_VARIANTS[QUESTION_DEFAULT]
+    kok_x, kok_w = spec["stem"]
+    sik_x, sik_w = spec["choices"]
+    sik_hizasi = spec.get("anchor", "ust")
+
     by_guid = {s.get("g"): s for s in shape_list if s.get("g")}
     choices = [by_guid[g] for g in choice_guids if g in by_guid]
     stem = by_guid.get(stem_guid or "")
 
     top = CEILING
     if eyebrow:
-        h = page.text_height(eyebrow.upper(), "eyebrow", CONTENT_W)
-        page.text(eyebrow.upper(), top, role="eyebrow", height=h,
+        h = page.text_height(eyebrow, "eyebrow", kok_w)
+        page.text(eyebrow, top, role="eyebrow", height=h, x=kok_x, w=kok_w,
                   color=colors["accent_text"])
         top += h + UNIT * 100 * 0.5
 
@@ -510,12 +630,12 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
         # asagidaki dongu yer varsa daha buyuk punto secebilir.
         taban_birim = max(shapes.height_for_label(
             s, model.shape_text(root, s.get("g") or "").strip(),
-            MIN_CHOICE_SIZE, CONTENT_W / 100 * width, page.space)
+            MIN_CHOICE_SIZE, sik_w / 100 * width, page.space)
             for s in choices)
         sik_bandi = (taban_birim / height * 100) * n_sik             + MIN_CHOICE_GAP * (n_sik - 1)
         # Kok en az BIR SATIR alir; siklar gerisini alir. Kokten tumuyle
         # pay almak, soruyu okunamaz yapardi.
-        kok_min = page.text_height("X", "lead", CONTENT_W)
+        kok_min = page.text_height("X", "lead", kok_w)
         sik_bandi = min(sik_bandi,
                         max(FLOOR - top - kok_min - UNIT * 100, 0.0))
     kok_tabani = FLOOR - sik_bandi - (UNIT * 100 if sik_bandi else 0.0)
@@ -527,7 +647,7 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
         # ve merdivende olmayan tek deger oydu: kutu 21pt'ye gore olculup
         # 18pt yaziliyordu -- yani olcum ile cizim ayri puntodan konusuyordu.
         stem_size = page.size_of("lead")
-        stem_h = page.text_height(text, "lead", CONTENT_W)
+        stem_h = page.text_height(text, "lead", kok_w)
         # KOK KENDI BANDINA KUCULUR. Kok kucultulebilir (kalibre bandin
         # ustunde baslar), sik kutusu kucultulemez -- o yuzden sikisma
         # koke biner. `page.text` ayni sirayi zaten baska yerde uyguluyor.
@@ -538,19 +658,19 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
                 break
             stem_size = nxt
             stem_h = shapes.layout_text_height(
-                text, stem_size, CONTENT_W / 100 * width,
+                text, stem_size, kok_w / 100 * width,
                 page.space) / height * 100
         stem_h = min(stem_h, oda) if oda else stem_h
-        shapes.set_loc(stem, MARGIN_X / 100 * width, top / 100 * height,
-                       (MARGIN_X + CONTENT_W) / 100 * width,
+        shapes.set_loc(stem, kok_x / 100 * width, top / 100 * height,
+                       (kok_x + kok_w) / 100 * width,
                        (top + stem_h) / 100 * height)
         shapes.set_text_flow(stem, vertical="t", grow=False)
         top += stem_h + UNIT * 100
 
     # Siklar: olculen ihtiyaca gore yuva, sigmiyorsa punto kisilir.
     if choices:
-        left = MARGIN_X / 100 * width
-        right = (MARGIN_X + CONTENT_W) / 100 * width
+        left = sik_x / 100 * width
+        right = (sik_x + sik_w) / 100 * width
         floor = FLOOR / 100 * height
         band_top = top / 100 * height
         gap = MIN_CHOICE_GAP / 100 * height
@@ -585,9 +705,17 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
                 f"sigmiyor: her yuvaya %{mevcut / height * 100:.2f} kaliyor, "
                 f"en uzun etiket %{need / height * 100:.2f} istiyor "
                 f"(bant %{band_top / height * 100:.1f}..%{floor / height * 100:.1f}, "
-                f"bosluk %{MIN_CHOICE_GAP:.1f}). Etiketleri kisaltin — sablon "
-                f"eklemek bu durumu cozmez.")
+                f"bosluk %{MIN_CHOICE_GAP:.1f}, varyant {variant!r} sutunu "
+                f"%{sik_w:.0f}). Etiketleri kisaltin — sablon eklemek bu "
+                f"durumu cozmez.")
         each = min(need, mevcut)
+        # HIZA: artan bosluk ya altta kalir ya ikiye bolunur. Kok her zaman
+        # yukarida durur -- ortalanan sey yigin, slaydin tamami degil;
+        # soruyu okumadan siklara bakilmaz, o yuzden okuma sirasi bozulmaz.
+        toplam = each * len(choices) + gap * (len(choices) - 1)
+        artan = max(floor - band_top - toplam, 0.0)
+        if sik_hizasi == "orta":
+            band_top += artan / 2
         for index, shape in enumerate(choices):
             slot = band_top + index * (each + gap)
             shapes.set_loc(shape, left, slot, right, slot + each)
@@ -609,12 +737,378 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
         for shape in choices:
             _restyle(pkg, part, shape.get("g") or "", size=size)
         return {"framed": True, "choice_size": size, "stem_size": stem_size,
+                "style": look["name"], "variant": variant,
                 "choice_height_pct": round(each / height * 100, 1)}
 
     pkg.replace_xml(part, root)
     if stem_guid and stem_size:
         _restyle(pkg, part, stem_guid, size=stem_size)
-    return {"framed": True, "stem_size": stem_size}
+    return {"framed": True, "stem_size": stem_size,
+            "style": look["name"], "variant": variant}
+
+
+def compose_question_frame(pkg: StoryPackage, part: str, *,
+                           eyebrow: str | None, palette: dict | None,
+                           stem_guid: str | None,
+                           choice_guids: list[str],
+                           style: str | None = None,
+                           variant: str | None = None,
+                           avoid_variant: "list[str] | None" = None) -> dict:
+    """Soru cercevesi, uslup ve varyantla. Sigmayan varyant TAM'a duser.
+
+    GERI DUSUS SESSIZ DEGIL. Dar bir sutun uzun bir sikki tasiyamayabilir ve
+    o durumda dogru davranis soruyu reddetmek DEGIL: varyant susleme, sik
+    metni islev. Ama dusus rapora yazilir (`variant_fallback`), cunku
+    sessizce genisleyen bir sutun "neden butun sorular yine ayni gorunuyor"
+    sorusunun cevabini gizlerdi -- bu dosyanin en pahali aliskanligi.
+    """
+    seed = (model.shape_text(pkg.parse(part), stem_guid or "") or "")[:24]
+    secilen = question_variant_for(seed, name=variant, avoid=avoid_variant)
+    try:
+        return _question_frame_once(
+            pkg, part, eyebrow=eyebrow, palette=palette, stem_guid=stem_guid,
+            choice_guids=choice_guids, style=style, variant=secilen)
+    except ChoiceLabelsTooLong as dar:
+        if secilen == QUESTION_DEFAULT:
+            raise
+        out = _question_frame_once(
+            pkg, part, eyebrow=eyebrow, palette=palette, stem_guid=stem_guid,
+            choice_guids=choice_guids, style=style, variant=QUESTION_DEFAULT)
+        return {**out, "variant_fallback": secilen, "fallback_reason": str(dar)[:120]}
+
+
+# ------------------------------------------------------------- surukle-birak
+#
+# AYRI CERCEVE, cunku AYRI ISKELET. compose_question_frame'in tek bir duzeni
+# var -- kok, altinda tam genislikte dikey sik yigini -- ve o duzen surukle-
+# birak'i tasiyamaz: burada ekranda IKI kume durur (suruklenenler ve kutular)
+# ve aralarindaki bosluk anlamin kendisidir. Ayni fonksiyona bir bayrakla
+# eklemek iki iskeleti tek dallanma agacina sikistirmak olurdu; ayirmak,
+# "her duzene bir is" kuralinin soru tarafindaki karsiligi.
+#
+# ORANLAR OLCUM DEGIL, ELLE YAPILMIS KURSTAN OKUNDU (0_duz_kopya slide18,
+# 1920x1080): suruklenenler bandi 250..613 (%33.6), kutular 712..1036 (%30).
+# Yani ikisi kabaca esit ve suruklenen tarafi bir tik genis. Asagidaki
+# 0.52/0.48 bolusumu o okumanin yuzdeye cevrilmis haliydi -- ve SABITTI.
+#
+# SABIT BOLUSUM OLCULDU VE COKTU (2026-08-30). 12 oge / 4 kutu, etiketler
+# "Erisim gozden gecirme" uzunlugunda -- yani pedagoji promptunun 55
+# karakterlik tavaninin cok altinda. Cerceve yine de REDDETTI (hucreye
+# %8.71 kaliyor, en uzun etiket %9.95 istiyor) ve gerekce "etiketleri
+# kisaltin" dedi. Etiket zaten kisaydi; bos yer YARI BOS DURAN kuyu
+# bandindaydi. Bu, bu dosyada zaten kayitli olan kusurun aynisi (bkz.
+# "SIK BANDI KOKTEN ONCE AYRILIR"): red dogru sinyal, YANLIS SEBEP.
+#
+# O yuzden bolusum artik satir sayisina bakiyor. Iki egri ayri: oge
+# izgarasinin ihtiyaci SATIRLA buyur, kuyununki KUTU SAYISIYLA -- ve kutu
+# sayisi zaten sutun sayisini belirledigi icin genislikten karsilaniyor.
+DRAG_ITEM_BAND_RANGE = (0.45, 0.76)
+
+
+def _drag_band_share(rows: int) -> float:
+    """Oge izgarasinin kalan banttan aldigi pay, SATIR SAYISINA GORE.
+
+    rows=2 -> 0.59, rows=3 -> 0.68, rows=4 -> 0.74. Iki satirda eski sabite
+    (0.52) yakin duruyor -- elle yapilmis kurs iki satirliydi ve oran oradan
+    okunmustu. Dorde cikildiginda izgara nefes aliyor, kuyu hala slaydin
+    yaklasik besde biri.
+    """
+    alt, ust = DRAG_ITEM_BAND_RANGE
+    return max(alt, min(ust, rows / (rows + 1.4)))
+DRAG_GAP_X = 1.6          # sutunlar arasi, slayt GENISLIGININ yuzdesi
+
+# IKI BANT ARASI, SATIR ARASINDAN GENIS OLMAK ZORUNDA. Ilk surumde ikisi de
+# MIN_CHOICE_GAP idi ve cizime BAKINCA gorundu: alti suruklenen ve uc kutu
+# tek bir 3x3 izgara gibi okunuyordu. Burada bosluk susleme degil, ANLAM --
+# "sunlar" ile "sunlarin icine" arasindaki siniri gozun cizmesi gerekiyor,
+# ve tek isareti dolgu farkiysa siniri ancak deneyerek buluyor.
+# 2.5 DENENDI VE YETMEDI -- cizime bakildi, iki bant hala tek izgara gibi
+# okunuyordu (%1.6'ya karsi %2.5, 520px'lik cizimde 8px'e karsi 13px).
+# Sinirin ROW ARASINDAN acikca genis olmasi gerekiyor; 5.0 ucte bir bantlik
+# bir nefes birakiyor ve kuyu bandi zaten buyuk oldugu icin bedeli yok.
+DRAG_BAND_GAP = 5.0       # MIN_CHOICE_GAP'in ~3 kati
+
+
+def _shrink_to_cells(root, page, shapes_by_guid, guids, size, cell_w, cell_h):
+    """Butun etiketler kendi hucresine sigana kadar puntoyu kis.
+
+    compose_question_frame'deki dongu ile ayni sozlesme: once kucult, sonra
+    TABANDA hala sigmiyorsa sessizce kirpma -- gerekce ver. Fark yalnizca
+    hucrenin iki boyutlu olmasi.
+    """
+    need = 0.0
+    while True:
+        need = max(shapes.height_for_label(
+            shapes_by_guid[g], model.shape_text(root, g).strip(),
+            size, cell_w, page.space) for g in guids)
+        if need <= cell_h or size <= MIN_CHOICE_SIZE:
+            break
+        nxt = step_down(size, MIN_CHOICE_SIZE)
+        if nxt >= size:
+            break
+        size = nxt
+    return size, need
+
+
+def compose_drag_frame(pkg: StoryPackage, part: str, *,
+                       eyebrow: str | None, palette: dict | None,
+                       stem_guid: str | None,
+                       pairs: list[tuple[str, str]],
+                       style: str | None = None) -> dict:
+    """Surukle-birak slaydinin cercevesi: ust etiket, kok, oge izgarasi, kutular.
+
+    pairs, `<choices>` belge sirasinda (suruklenen, hedef) ciftleridir --
+    dogru cevabin ta kendisi. Buradan iki liste turer ve ikisi de SIRAYI
+    korur: ayni girdiyle iki kosu ayni yerlesimi vermeli.
+    """
+    root = pkg.parse(part)
+    shape_list = root.find("shapeLst")
+    if shape_list is None:
+        return {"framed": False}
+    colors = _palette(palette)
+    page = _Page(pkg, root, colors)
+    width, height = page.width, page.height
+    # Uslup soru cercevesiyle AYNI kaynaktan. Baglanmasaydi surukle-birak
+    # slaydi duz zeminli ve isaretsiz kalir, yani kursun icinde yabanci
+    # dururdu -- tohumdan yalnizca anatomi alma kuralinin bedeli.
+    look = _apply_style(page, colors, style, pkg)
+    if eyebrow:
+        eyebrow = eyebrow.title() if look["eyebrow_case"] == "title" else eyebrow.upper()
+
+    by_guid = {s.get("g"): s for s in shape_list if s.get("g")}
+    items: list[str] = []
+    zones: list[str] = []
+    for item_guid, zone_guid in pairs:
+        if item_guid in by_guid and item_guid not in items:
+            items.append(item_guid)
+        if zone_guid in by_guid and zone_guid not in zones:
+            zones.append(zone_guid)
+    if not items or not zones:
+        # Sessizce "framed: True" demek, tam olarak kacinilan sey: kutusu
+        # silinmis bir slayt gecerli bir dosya uretir ve cevaplanamaz.
+        return {"framed": False,
+                "reason": f"suruklenen={len(items)} kutu={len(zones)}"}
+
+    stem = by_guid.get(stem_guid or "")
+    top = CEILING
+    if eyebrow:
+        h = page.text_height(eyebrow, "eyebrow", CONTENT_W)
+        page.text(eyebrow, top, role="eyebrow", height=h,
+                  color=colors["accent_text"])
+        top += h + UNIT * 100 * 0.5
+
+    stem_size = None
+    if stem is not None:
+        text = model.shape_text(root, stem_guid or "").strip()
+        stem_size = page.size_of("lead")
+        stem_h = page.text_height(text, "lead", CONTENT_W)
+        shapes.set_loc(stem, MARGIN_X / 100 * width, top / 100 * height,
+                       (MARGIN_X + CONTENT_W) / 100 * width,
+                       (top + stem_h) / 100 * height)
+        shapes.set_text_flow(stem, vertical="t", grow=False)
+        top += stem_h + UNIT * 100
+
+    ara = MIN_CHOICE_GAP
+    kalan = FLOOR - top - DRAG_BAND_GAP
+    if kalan <= 0:
+        raise ChoiceLabelsTooLong(
+            f"Surukle-birak kokunden sonra bant kalmadi (%{FLOOR - top:.1f}). "
+            f"Koku kisaltin.")
+    # SUTUN SAYISI KUTU SAYISINDAN. Uc kutu icin uc sutun, elle yapilmis
+    # kurstaki 3x3 izgaranin aynisi -- goz ustteki sutunla alttaki kutuyu
+    # esler. Tavan 4: besinci sutunda hucre genisligi bir cumleyi tasimiyor
+    # (compose_question_frame'de yatay sira ayni sebeple reddedilmisti).
+    cols = max(2, min(len(zones), 4))
+    cols = min(cols, len(items))
+    rows = -(-len(items) // cols)
+    oge_bandi = kalan * _drag_band_share(rows)
+    kutu_bandi = kalan - oge_bandi
+    cell_w = (CONTENT_W - DRAG_GAP_X * (cols - 1)) / cols
+    cell_h = (oge_bandi - ara * (rows - 1)) / rows
+
+    size, need = _shrink_to_cells(root, page, by_guid, items,
+                                  TYPE_SCALE["body"],
+                                  cell_w / 100 * width, cell_h / 100 * height)
+    if need > cell_h / 100 * height + FIT_TOLERANCE / 100 * height:
+        raise ChoiceLabelsTooLong(
+            f"{len(items)} surukleme etiketi taban puntoda ({size:.0f}pt) bile "
+            f"{cols}x{rows} izgaraya sigmiyor: hucreye "
+            f"%{cell_h:.2f} kaliyor, en uzun etiket "
+            f"%{need / height * 100:.2f} istiyor. Etiketleri kisaltin ya da "
+            f"oge sayisini dusurun.")
+
+    for index, guid in enumerate(items):
+        row, col = divmod(index, cols)
+        left = (MARGIN_X + col * (cell_w + DRAG_GAP_X)) / 100 * width
+        slot = (top + row * (cell_h + ara)) / 100 * height
+        shapes.set_loc(by_guid[guid], left, slot,
+                       left + cell_w / 100 * width,
+                       slot + cell_h / 100 * height)
+        if palette:
+            shapes.set_fill(by_guid[guid], colors["surface"])
+
+    # KUTULAR ICERI CEKILMIS OKUNMALI. Suruklenenle ayni dolguyu verirsek
+    # ekranda on iki esdeger kutu olur ve hangisinin hedef oldugu ancak
+    # denenerek anlasilir. "deep" zaten paletin en koyu yuzeyi.
+    zone_top = top + oge_bandi + DRAG_BAND_GAP
+    zone_w = (CONTENT_W - DRAG_GAP_X * (len(zones) - 1)) / len(zones)
+    zone_size, zone_need = _shrink_to_cells(
+        root, page, by_guid, zones, TYPE_SCALE["body"],
+        zone_w / 100 * width, kutu_bandi / 100 * height)
+    for index, guid in enumerate(zones):
+        left = (MARGIN_X + index * (zone_w + DRAG_GAP_X)) / 100 * width
+        shapes.set_loc(by_guid[guid], left, zone_top / 100 * height,
+                       left + zone_w / 100 * width,
+                       (zone_top + kutu_bandi) / 100 * height)
+        if palette:
+            shapes.set_fill(by_guid[guid], colors["deep"])
+        shapes.set_text_flow(by_guid[guid], vertical="t", grow=False)
+
+    pkg.replace_xml(part, root)
+    if stem_guid and stem_size:
+        _restyle(pkg, part, stem_guid, size=stem_size)
+    for guid in items:
+        _restyle(pkg, part, guid, size=size)
+    for guid in zones:
+        _restyle(pkg, part, guid, size=zone_size)
+    return {"framed": True, "layout": "drag", "style": look["name"],
+            "grid": f"{cols}x{rows}",
+            "items": len(items), "zones": len(zones),
+            "choice_size": size, "zone_size": zone_size, "stem_size": stem_size}
+
+
+# --------------------------------------------------------------- metin girisi
+#
+# UCUNCU ISKELET. Burada ekranda tek bir sey var -- yazilacak kutu -- ve o
+# kutunun BUYUK olmasi bir tasarim tercihi degil davet: bir satirlik alan
+# "bir kelime yaz" der, dort satirlik alan "dusun ve yaz" der. Olculen bir
+# sey degil, ama kararin nerede verildigi kayitli olsun.
+TEXT_ENTRY_LINES = 4
+
+
+def compose_text_frame(pkg: StoryPackage, part: str, *,
+                       eyebrow: str | None, palette: dict | None,
+                       stem_guid: str | None, entry_guid: str | None,
+                       lines: int = TEXT_ENTRY_LINES,
+                       style: str | None = None) -> dict:
+    """Metin girisi slaydinin cercevesi: ust etiket, kok, yazma kutusu."""
+    root = pkg.parse(part)
+    shape_list = root.find("shapeLst")
+    if shape_list is None:
+        return {"framed": False}
+    colors = _palette(palette)
+    page = _Page(pkg, root, colors)
+    width, height = page.width, page.height
+    by_guid = {sh.get("g"): sh for sh in shape_list if sh.get("g")}
+    entry = by_guid.get(entry_guid or "")
+    stem = by_guid.get(stem_guid or "")
+    if entry is None:
+        return {"framed": False, "reason": "yazma kutusu yok"}
+    look = _apply_style(page, colors, style, pkg)
+
+    top = CEILING
+    if eyebrow:
+        if look["eyebrow_case"] == "title":
+            eyebrow = eyebrow.title()
+        else:
+            eyebrow = eyebrow.upper()
+        h = page.text_height(eyebrow, "eyebrow", CONTENT_W)
+        page.text(eyebrow, top, role="eyebrow", height=h,
+                  color=colors["accent_text"])
+        top += h + UNIT * 100 * 0.5
+
+    stem_size = None
+    if stem is not None:
+        text = model.shape_text(root, stem_guid or "").strip()
+        stem_size = page.size_of("lead")
+        stem_h = page.text_height(text, "lead", CONTENT_W)
+        shapes.set_loc(stem, MARGIN_X / 100 * width, top / 100 * height,
+                       (MARGIN_X + CONTENT_W) / 100 * width,
+                       (top + stem_h) / 100 * height)
+        shapes.set_text_flow(stem, vertical="t", grow=False)
+        top += stem_h + UNIT * 100
+
+    # Kutu satir sayisindan buyur ama TABANI asla asmaz; kalan alan
+    # yetmiyorsa kutu kalani alir -- kirpilan sey metin degil, davet.
+    satir = shapes.layout_text_height("X", TYPE_SCALE["body"],
+                                      CONTENT_W / 100 * width,
+                                      page.space) / height * 100
+    istenen = satir * lines
+    kutu_h = min(istenen, max(FLOOR - top, satir))
+    shapes.set_loc(entry, MARGIN_X / 100 * width, top / 100 * height,
+                   (MARGIN_X + CONTENT_W) / 100 * width,
+                   (top + kutu_h) / 100 * height)
+    shapes.set_text_flow(entry, vertical="t", grow=False)
+    if palette:
+        shapes.set_fill(entry, colors["surface"])
+
+    pkg.replace_xml(part, root)
+    if stem_guid and stem_size:
+        _restyle(pkg, part, stem_guid, size=stem_size)
+    _restyle(pkg, part, entry.get("g") or "", size=TYPE_SCALE["body"])
+    return {"framed": True, "layout": "text", "style": look["name"],
+            "stem_size": stem_size,
+            "entry_lines": lines,
+            "entry_height_pct": round(kutu_h, 1)}
+
+
+def compose_drag_feedback(pkg: StoryPackage, part: str, *,
+                          feedback: dict | None) -> dict:
+    """Surukle-birak katmanlarina YAZARIN geri bildirimini yazar.
+
+    NEDEN AYRI BIR FONKSIYON. `compose_feedback_layers` rolu katmanin
+    ADINDAN cikariyor ve gerekcesi saglam -- pick tohumlarinda ad var. Ama
+    surukle-birak tohumunda katman adlari BOS (olculdu: iki katmanin ikisi
+    de name=""), dolayisiyla ikisi de "yanlis" sayiliyor. Ustelik govde
+    metni 30 karakterin altinda ("Dogru Eslestirdin!" = 18) ve o esik onu
+    PANEL degil BUTON sayiyor, yani hic yeniden yazilmiyor.
+
+    Sonucu olculdu 2026-08-30: feedback={"correct": "Dogru ayirdin.",
+    "incorrect": "Sinifi yeniden dusun."} verildi ve uretilen slaytta
+    tohumun kendi metni duruyordu. Bu kez tohum metni MASUM -- "Dogru
+    Eslestirdin!" her gruplama sorusuna uyar -- ve tam da bu yuzden
+    tehlikeli: kusur gorunmuyor, ama sozlesme kirik. Yazar geri bildirim
+    veriyor, ogrenci baska bir sey okuyor, hicbir kontrol bagirmiyor.
+
+    Rol SIRADAN degil METINDEN okunur; sira yalnizca yedek. Tohum
+    degistirilirse ad yine bos olabilir, ama "Dogru"/"Yanlis" basligi
+    katmanin ne oldugunu soyler.
+    """
+    if not feedback:
+        return {"drag_feedback": 0}
+    root = pkg.parse(part)
+    layers = root.find("sldLayerLst")
+    if layers is None:
+        return {"drag_feedback": 0}
+
+    written = 0
+    for index, layer in enumerate(list(layers)):
+        shape_list = layer.find("shapeLst")
+        texts = [(model.shape_text(layer, sh.get("g") or "").strip(),
+                  sh.get("g") or "")
+                 for sh in (list(shape_list) if shape_list is not None else [])]
+        texts = [(t, g) for t, g in texts if t and g]
+        if not texts:
+            continue
+        birlesik = " ".join(t for t, _g in texts).casefold()
+        if "yanl" in birlesik or "incorrect" in birlesik:
+            is_correct = False
+        elif "dogru" in birlesik or "doğru" in birlesik or "correct" in birlesik:
+            is_correct = True
+        else:
+            is_correct = index == 0
+        given = feedback.get("correct" if is_correct else "incorrect")
+        if not given:
+            continue
+        # Govde = katmanin EN UZUN metni. Baslik ("Dogru") ve buton
+        # ("Devam") kisadir; ikisi de korunur, cunku biri rolu soyler
+        # digeri tiklanir.
+        _uzun, guid = max(texts, key=lambda pair: len(pair[0]))
+        set_shape_text(layer, guid, str(given))
+        written += 1
+    if written:
+        pkg.replace_xml(part, root)
+    return {"drag_feedback": written}
 
 
 FEEDBACK_DEFAULT = {

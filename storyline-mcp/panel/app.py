@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import builder  # noqa: E402
 import storyline_ctl  # noqa: E402
-from agent import AgentRun, find_cli  # noqa: E402
+from agent import AgentRun, find_cli, find_cli_info  # noqa: E402
 
 from storyline_mcp import authoring, compose, media, medya, model  # noqa: E402
 from storyline_mcp.clone import clone_slide, create_scene  # noqa: E402
@@ -528,8 +528,12 @@ class Api:
 
     @guarded
     def agent_available(self) -> dict:
-        cli = find_cli()
-        return {"available": cli is not None, "path": str(cli) if cli else None}
+        cli, flavor = find_cli_info()
+        return {
+            "available": cli is not None,
+            "path": str(cli) if cli else None,
+            "flavor": flavor,
+        }
 
     @guarded
     def run_command(
@@ -541,7 +545,7 @@ class Api:
             raise RuntimeError("Komut bos.")
         if find_cli() is None:
             raise RuntimeError(
-                "Claude Code CLI bulunamadi. VS Code eklentisi kurulu mu?"
+                "Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi."
             )
         if _ACTIVE_RUN and _ACTIVE_RUN.process and _ACTIVE_RUN.process.poll() is None:
             raise RuntimeError("Zaten calisan bir komut var.")
@@ -566,7 +570,7 @@ class Api:
         if not brief.strip():
             raise RuntimeError("Brief bos.")
         if find_cli() is None:
-            raise RuntimeError("Claude Code CLI bulunamadi.")
+            raise RuntimeError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
         _acilisi_bekle()
         threading.Thread(
             target=_run_builder,

@@ -1132,6 +1132,114 @@ yeşil metin var — hiçbir temanın rengi değil, donörden kaldığı gibi.
 `themes_check` ve `contrast` bu kesiti taramıyor. Yeşil-üstü-krem muhtemelen
 WCAG AA'yı geçmiyor.
 
+**B-borç. `_protected()` ölü, ama docstring'i "koruma tek yerde" diyor.**
+`storyline_mcp/authoring.py` içindeki `_protected(shape, keep, intr)`
+fonksiyonunu **hiçbir yer çağırmıyor** (2026-08-30, çağrı grafiğinden
+ölçüldü: kod tabanında tek geçtiği yer kendi tanımı). Docstring'i ise
+şunu söylüyor: *"Silinmesi YASAK olan şekiller. Tek yerde, çünkü üç silme
+döngüsü var. Korumayi her donguye ayri ayri yazmak, birinde unutmak
+demektir."*
+
+Yani sözleşme doğru, uygulaması yok: koruma kuralı bugün fiilen
+`adapt_seeded_slide` ve `_adapt_text_slide` içine **ayrı ayrı** yazılmış
+durumda — docstring'in tam olarak uyardığı hâl. Nitekim bir kez tam da
+öyle oldu: sürükle-bırak eklenirken bırakma kutuları korunan kümeye
+girmediği için siliniyordu (3/3, ölçüldü) ve `_protected` çağrılsaydı bile
+o kümeyi bilmiyordu.
+
+Bu bir ürün kırığı DEĞİL (çalışan yol doğru koruyor), **yanıltıcı bir
+borç**: sonraki okuyan korumanın merkezî olduğunu sanır ve yeni bir silme
+döngüsü yazarken oraya bakar. İki seçenek var ve ikisi de makul —
+fonksiyonu silmek (ve docstring'in dersini çağıran yerlere taşımak), ya da
+gerçekten üç yolun da ondan geçmesini sağlamak. Ölçmeden seçilmesin:
+`_adapt_text_slide` ile `adapt_seeded_slide`'ın koruduğu kümeler aynı
+değil (biri şık + bırakma hedefi, öteki yazma kutusu), yani ortaklaştırma
+imzayı da değiştirir.
+
+**B-bulgu. Sıcak nokta kodlaması ÇÖZÜLDÜ; engel kodlama değil, görselin
+zamanlaması.** (2026-08-30, ölçüldü ve Storyline'a doğrulatıldı.)
+
+Doğruluk `freeHotSpotIntr`'ın `<choices>`'ında **değil**, tıklama bölgesi
+şeklinin kendi `<scoreData>`'sında duruyor:
+
+```xml
+<freeHotSpotIntr ...><choices /></freeHotSpotIntr>   <!-- BOŞ, ve normali bu -->
+<clkAreaOval g="..." name="Oval Hotspot">
+  <scoreData correct="true" pts="0" .../>            <!-- cevap BURADA -->
+</clkAreaOval>
+```
+
+Korpustaki 5 sıcak nokta slaydının **beşi de** bu biçimde ve hepsi
+yapılandırılmış (1 `<pic>`, 1 bölge, `correct="true"`). Bir ara rapor
+"5/5 yapılandırılmamış, kodlama bilinmiyor" dedi — o rapor `<choices>`'a
+bakıyordu, yani **doğru sinyal, yanlış yer**; bu turda üçüncü kez aynı biçim.
+
+*Storyline'a doğrulatıldı, tahmin edilmedi.* Gidiş-dönüş sondası: iki uydurma
+kodlama (`intrFreeChoice shpG=<clkArea>`, biri `correct="true"` biri `"false"`)
+üç slayda yazıldı, dosya Storyline'da açılıp kirletilip kaydedildi. Storyline
+üç slaydı da yeniden yazdı (`scrollOverflow` ekledi — parmak izi) ve **iki
+uydurma kaydı da attı** (`intrFreeChoice` 1 → 0), `clkArea`'daki `scoreData`
+yerinde kaldı. Yani biçim tahminle değil, aracın kendi davranışıyla belirlendi.
+Sonda: `scratchpad/hotspot_probe.py` + `hotspot_roundtrip.py` deseni.
+
+*Örnek nerede:* `test/deneme.story` → `story/slides/slide5.xml` (ve aynısı
+`fener.story`'de). `storyline_mcp/seeds/hotspot_ornek.xml` bu slaydın
+kopyasıdır — **tohum değildir**, `question_seeds()` onu adı yüzünden zaten
+görmez; yalnızca elde tutulan referans örnek.
+
+**Açık kalan iki şey:**
+1. *Yanlış bölge nasıl işaretlenir bilinmiyor* — elimizdeki her örnekte TEK
+   bölge var ve o `correct="true"`. `correct="false"` olduğu varsayılıyor,
+   ölçülmedi; bir gidiş-dönüşle kapanır.
+2. **Asıl engel: görsel.** Bölge koordinatı görselin İÇERİĞİNE bağlı, ve
+   `request_media` akışında görsel slayt kurulduktan SONRA geliyor. Yani
+   otomatik üretilen her koordinat, görsel gelince tutmaz. Bu kodlama sorunu
+   değil, sıralama/mimari sorunu.
+
+**Mümkün ama AYRI bir ürün:** sahneyi kendimiz çizersek (kartlar/şema)
+koordinatı biliriz ve sıcak nokta tamamen otomatikleşir. Fakat bu, "gerçek bir
+görsel/ekran görüntüsü üzerinde tıklama" ihtiyacının yerine geçmez — sürükle-
+bırak kadar iş, yani dördüncü bir soru tipi. Somut bir kurs bunu isteyene
+kadar inşa edilmedi (2026-08-30 kararı).
+
+**B-bekleyen. İş 2 (eşiği orana çevirme) veri bekliyor; koşu betiği artık
+depoda.** (2026-08-30)
+
+*Ne oldu:* Bir önceki oturumda ~49 dakikalık varyans koşusu (2 kısa + 1 uzun,
+aynı brief) tamamlandı ve **sonucu hiçbir yere kalmadı**. Betik `varyans.json`
+yazıyordu — ama o oturumun geçici `scratchpad` klasörüne. Oturum kapandı,
+commit'ler kaldı, ölçüm buharlaştı. Diske yazmak yetmiyor: konum oturumu
+aşmalı.
+
+*Ne yapıldı:* Betik kurtarıldı ve depoya taşındı → **`tools/varyans.py`**,
+sonuç → **`tools/varyans_sonuc.json`** (her koşudan sonra yazılır, sonda değil;
+üçüncü koşu düşerse ilk ikisi de gitmesin diye).
+
+*Taşınırken bulunan ikinci kusur:* `duzen_dagilimi` betiğin docstring'inde
+sayılıyordu ama **hiç toplanmıyordu** — yani koşu bitse bile iş 2'nin beklediği
+veriyi vermeyecekti. Eklendi (`duzen_sayimi`, içerik aşamasından ölçer; plan
+aşamasından ölçmek "ölçülmeyen yerde yeşil görmek" olurdu).
+
+*Koşunun topladıkları:*
+| metrik | ne için |
+|---|---|
+| `yeniden_isteme` | iskelet yeniden isteme sayısı — çelişki düzeltmesinin nedensel testi |
+| `ayrac_kararlari` | dört hücre: doğru-korunan / EKSİK / FAZLA / doğru-silinen |
+| `duzen_dagilimi` | UZUN'dan bileşim dağılımı — **iş 2'nin girdisi** |
+| soru / düşen / görünüş | regresyon |
+
+**TABAN KARŞILAŞTIRMASI ARTIK TEMİZ DEĞİL, ve bu bilinerek okunmalı.**
+2026-08-30'da iki şey değişti, ikisi de bu ölçümlere dokunuyor:
+`CONTENT_PROMPT`'a iki yeni soru tipi girdi (drag, commitment), ve `_soru_mu`
+gruplamayı da soru sayıyor (`PUANLI_KINDLER`) — o fonksiyon ayraç yamasının
+"gövde" sayımını besliyor. Yani `yeniden_isteme`, "Koşu 4 = 1" tabanıyla
+**doğrudan karşılaştırılamaz**: o taban başka bir promptla ölçüldü. Ayraç dört
+hücresi ve düzen dağılımı bugünkü kod için geçerli ölçümlerdir — geçmişe dönük
+nedensel iddia için değil, bugün ne olduğunu bilmek için okunmalı.
+
+    python tools/varyans.py            # ~49 dk, model çağırır
+    python tools/varyans.py --hizli    # yalnızca KISA_A (~12 dk)
+
 ### C — Tasarım eksikleri (en son)
 
 **B5 — KESİT AÇILDI, ÖLÇÜ HENÜZ GÜVENİLİR DEĞİL (2026-08-18).**

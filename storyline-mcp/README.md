@@ -605,13 +605,14 @@ Desteklenen biçimler: görselde `.png .jpg .jpeg .gif`, videoda `.mp4 .m4v`.
 
 ### Komutu ne çalıştırıyor
 
-Panel doğrudan Anthropic API'sine bağlanmaz. VS Code eklentisiyle gelen ve
-**zaten oturum açmış** Claude Code CLI'ını headless modda sürer:
+Panel öncelikle **zaten oturum açmış** Claude Code CLI'ını headless modda sürer:
 
 ```
 claude -p "<komut>" --mcp-config <gecici> --strict-mcp-config
         --allowedTools mcp__storyline__* --output-format stream-json
 ```
+
+Claude Code CLI bulunamadığında veya çalışma zamanında kota/limit aşımına uğradığında sistem otomatik olarak **Antigravity (`agy`) CLI** fallback'ine geçer ve komutu/kurs kurulumunu duraksamadan tamamlar.
 
 Dolayısıyla ikinci bir API anahtarı ve ikinci bir fatura yok; çalışmalar diğer
 Claude Code kullanımıyla aynı kotadan yer. Panelde model seçici bulunur —
