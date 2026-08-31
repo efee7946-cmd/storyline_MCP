@@ -150,7 +150,7 @@ def test_open(path: Path, timeout: float = 100.0) -> dict:
     while time.time() < deadline:
         locked = lock_state(path) != "free"
         title = ctl.open_project()
-        if locked and title and title.casefold() == path.name.casefold():
+        if locked and title and (path.stem.casefold() in title.casefold() or path.name.casefold() in title.casefold()):
             opened_at = round(timeout - (deadline - time.time()), 1)
             break
         time.sleep(1.5)
