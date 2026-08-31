@@ -199,6 +199,43 @@ class StoryPackage:
             f"Slayt bulunamadi: {name}. list_slides ile dosya adlarini gorebilirsiniz."
         )
 
+    def _fix_orphan_layouts(self) -> None:
+        """Remap slide layoutG GUIDs that don't exist in story/slideLayouts/ to valid ones."""
+        valid_layouts = {}
+        default_guid = None
+        quiz_guid = None
+
+        for name in list(self._parts.keys()):
+            if name.startswith("story/slideLayouts/") and name.endswith(".xml") and not "_rels" in name:
+                try:
+                    l_xml = ET.fromstring(self._parts[name])
+                    g = l_xml.attrib.get("g")
+                    l_name = l_xml.attrib.get("name") or ""
+                    if g:
+                        valid_layouts[g] = l_name
+                        if not default_guid or "Title and Content" in l_name:
+                            default_guid = g
+                        if "Question" in l_name and not quiz_guid:
+                            quiz_guid = g
+                except Exception:
+                    pass
+
+        if not valid_layouts or not default_guid:
+            return
+
+        for sp in self.slide_parts:
+            try:
+                raw = self._parts[sp].decode("utf-8")
+                match = re.search(r'layoutG="([^"]+)"', raw)
+                if match:
+                    lg = match.group(1)
+                    if lg not in valid_layouts:
+                        target_lg = quiz_guid if ("Quiz" in raw or "Intr" in raw) and quiz_guid else default_guid
+                        raw = raw.replace(f'layoutG="{lg}"', f'layoutG="{target_lg}"')
+                        self.replace_raw(sp, raw.encode("utf-8"))
+            except Exception:
+                pass
+
     # ----------------------------------------------------------------- save
 
     def save(self, out_path: str | Path, *, backup: bool = True) -> dict:
@@ -217,6 +254,8 @@ class StoryPackage:
             rels_part = f"story/slides/_rels/{sp.rsplit('/', 1)[1]}.rels"
             if rels_part not in self._parts:
                 self.add_part(rels_part, minimal_rels)
+
+        self._fix_orphan_layouts()
 
         repaired = self._normalise_boms()
 
@@ -350,13 +389,33 @@ def verify(path: str | Path) -> dict:
             except ET.ParseError as exc:
                 problems.append(f"{name}: {exc}")
 
-    # Every slide XML file must have a corresponding .rels file
+    # Every slide XML file must have a corresponding .rels file and valid layoutG
     names_set = set(names)
-    for name in names:
-        if name.startswith("story/slides/slide") and name.endswith(".xml") and not "_rels" in name:
-            rels_name = f"story/slides/_rels/{Path(name).name}.rels"
-            if rels_name not in names_set:
-                problems.append(f"{name}: Slide relationship (.rels) dosyasi eksik ({rels_name})")
+    valid_layout_guids = set()
+    with zipfile.ZipFile(path) as z:
+        for name in names:
+            if name.startswith("story/slideLayouts/") and name.endswith(".xml") and not "_rels" in name:
+                try:
+                    l_xml = ET.fromstring(z.read(name))
+                    g = l_xml.attrib.get("g")
+                    if g: valid_layout_guids.add(g)
+                except Exception:
+                    pass
+
+        for name in names:
+            if name.startswith("story/slides/slide") and name.endswith(".xml") and not "_rels" in name:
+                rels_name = f"story/slides/_rels/{Path(name).name}.rels"
+                if rels_name not in names_set:
+                    problems.append(f"{name}: Slide relationship (.rels) dosyasi eksik ({rels_name})")
+                
+                if valid_layout_guids:
+                    try:
+                        raw = z.read(name).decode("utf-8")
+                        match = re.search(r'layoutG="([^"]+)"', raw)
+                        if match and match.group(1) not in valid_layout_guids:
+                            problems.append(f"{name}: Gecerli olmayan layoutG ('{match.group(1)}')")
+                    except Exception:
+                        pass
 
     # If the package overwhelmingly uses BOMs, the odd part without one is a
     # part we wrote and broke -- not a deck that never used them.
