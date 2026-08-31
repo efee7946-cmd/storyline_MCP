@@ -74,27 +74,62 @@ def find_agy_cli() -> Path | None:
     return None
 
 
+_CLAUDE_TESTED: bool = False
 _CLAUDE_DISABLED: bool = False
 
 
 def disable_claude_cli() -> None:
-    global _CLAUDE_DISABLED
+    global _CLAUDE_DISABLED, _CLAUDE_TESTED
     _CLAUDE_DISABLED = True
+    _CLAUDE_TESTED = True
 
 
 def is_claude_disabled() -> bool:
     return _CLAUDE_DISABLED
 
 
+def check_claude_working() -> bool:
+    global _CLAUDE_TESTED, _CLAUDE_DISABLED
+    if _CLAUDE_DISABLED:
+        return False
+    if _CLAUDE_TESTED:
+        return not _CLAUDE_DISABLED
+
+    claude = find_claude_cli()
+    if not claude:
+        _CLAUDE_DISABLED = True
+        _CLAUDE_TESTED = True
+        return False
+
+    try:
+        res = subprocess.run(
+            [str(claude), "-p", "hi", "--output-format", "json"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=6,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        out = (res.stdout or "") + (res.stderr or "")
+        if res.returncode != 0 or "disabled" in out.lower() or "subscription" in out.lower() or "403" in out or "api_error" in out:
+            _CLAUDE_DISABLED = True
+        else:
+            _CLAUDE_DISABLED = False
+    except Exception:
+        _CLAUDE_DISABLED = True
+
+    _CLAUDE_TESTED = True
+    return not _CLAUDE_DISABLED
+
+
 def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
     """Locate available CLI: Claude Code first (if operational), Antigravity (agy) fallback second."""
-    if not _CLAUDE_DISABLED:
+    if check_claude_working():
         claude = find_claude_cli()
         if claude:
             return claude, "claude"
+
     agy = find_agy_cli()
     if agy:
         return agy, "agy"
+
     claude = find_claude_cli()
     if claude:
         return claude, "claude"
