@@ -186,6 +186,7 @@ def _profile_text(options: dict) -> str:
         ("Amac", options.get("goal")),
         ("Sure", f"{options['minutes']} dakika" if options.get("minutes") else None),
         ("Bolum sayisi", options.get("sections")),
+        ("Istenen Soru/Etkilesim Tipleri", options.get("question_types")),
     ]
     lines = [f"- {label}: {value}" for label, value in fields if value]
     return "\n".join(lines) if lines else "- (belirtilmedi)"
@@ -193,19 +194,45 @@ def _profile_text(options: dict) -> str:
 
 def _question_rule(options: dict, arities: str) -> str:
     per = options.get("questions_per_section")
+    q_types = options.get("question_types")
+
+    type_rule = ""
+    if q_types:
+        if isinstance(q_types, str):
+            q_types_list = [t.strip() for t in q_types.split(",") if t.strip()]
+        else:
+            q_types_list = list(q_types)
+
+        type_names = {
+            "single": "question (tek secmeli)",
+            "multiple": "question (cok secmeli)",
+            "drag": "drag (surukle-birak gruplama)",
+            "hotspot": "hotspot (sicak nokta)",
+            "commitment": "commitment (metin girisi)",
+        }
+        allowed = [type_names.get(t, t) for t in q_types_list if t in type_names]
+        if allowed:
+            type_rule = (
+                f"- SECILEN SORU TIPLERI: {', '.join(allowed)}. "
+                "Sahnelere soru/etkilesim dagitirken YALNIZCA kullanicinin sectigi bu tipleri kullan.\n"
+            )
+
     if per in (None, "", "auto"):
-        return ("- Her konu sahnesinde en az 1 question bulunsun.\n"
+        rule = ("- Her konu sahnesinde en az 1 soru/etkilesim bulunsun.\n"
                 f"- Soru bicimleri: {arities}\n")
-    try:
-        count = int(per)
-    except (TypeError, ValueError):
-        count = 1
-    if count <= 0:
-        return ("- Bu kursta SORU OLMAYACAK. Hicbir sahneye question ekleme.\n"
-                "  Kullanici bunu ACIKCA istedi; yukaridaki ortak soru\n"
-                "  kurallari bu kursta GECERSIZDIR.\n")
-    return (f"- Her konu sahnesinde TAM OLARAK {count} adet question bulunsun.\n"
-            f"- Soru bicimleri: {arities}\n")
+    else:
+        try:
+            count = int(per)
+        except (TypeError, ValueError):
+            count = 1
+        if count <= 0:
+            return ("- Bu kursta SORU OLMAYACAK. Hicbir sahneye question ekleme.\n"
+                    "  Kullanici bunu ACIKCA istedi; yukaridaki ortak soru\n"
+                    "  kurallari bu kursta GECERSIZDIR.\n")
+        rule = (f"- Her konu sahnesinde TAM OLARAK {count} adet soru/etkilesim bulunsun.\n"
+                f"- Soru bicimleri: {arities}\n")
+
+    return rule + type_rule
 
 
 def slide_budget(options: dict, fallback: int = 18) -> int:

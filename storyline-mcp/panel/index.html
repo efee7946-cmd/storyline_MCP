@@ -270,6 +270,26 @@
             <option value="yok">İstenmesin</option>
           </select></div>
       </div>
+      <div style="margin-top:10px">
+        <label>Kullanılacak Soru &amp; Etkileşim Tipleri <span class="hint">— seçtiğiniz tipler modüle otomatik yerleştirilir</span></label>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px" id="qTypesBox">
+          <label style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-size:13px">
+            <input type="checkbox" class="q-type-cb" value="single" checked> Tek Seçmeli
+          </label>
+          <label style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-size:13px">
+            <input type="checkbox" class="q-type-cb" value="multiple" checked> Çok Seçmeli
+          </label>
+          <label style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-size:13px">
+            <input type="checkbox" class="q-type-cb" value="drag" checked> Sürükle-Bırak (Gruplama)
+          </label>
+          <label style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-size:13px">
+            <input type="checkbox" class="q-type-cb" value="hotspot" checked> Sıcak Nokta (Hotspot)
+          </label>
+          <label style="margin:0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-size:13px">
+            <input type="checkbox" class="q-type-cb" value="commitment" checked> Metin Girişi &amp; Taahhüt
+          </label>
+        </div>
+      </div>
       <div class="row" id="customColours" hidden>
         <div style="max-width:150px"><label>Arka plan</label>
           <input type="color" id="pBg" value="#0E1B3D"></div>
@@ -807,8 +827,8 @@ window.openResult = async (p) => {
 // real structure -- a list of topics, or the vocabulary of a specification --
 // and the reader still gets the final say.
 // The setup, as the engine wants it. Blank fields are dropped rather than
-// sent empty, so an unfilled form asserts nothing.
 function courseProfile() {
+  const selectedQTypes = Array.from(document.querySelectorAll('.q-type-cb:checked')).map(cb => cb.value);
   const raw = {
     title: $("pTitle").value.trim(),
     audience: $("pAudience").value.trim(),
@@ -817,6 +837,7 @@ function courseProfile() {
     sections: $("pSections").value.trim(),
     questions_per_section: $("pQuestions").value,
     tone: $("pTone").value,
+    question_types: selectedQTypes.length ? selectedQTypes.join(",") : "",
     // Kaç görsel isteneceğine panel karar verir; buradaki seçim yalnızca
     // "otomatik / yalnızca kapak / hiç" arasında.
     media: $("pMedya").value,
