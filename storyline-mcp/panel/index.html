@@ -314,8 +314,10 @@
   </section>
 
   <section id="tab-overview" class="hide">
+    <div class="card"><h2>Pedagojik Etkileşim &amp; Proje Sağlık Raporu</h2><div id="auditBox"><p class="empty">Bir .story dosyası seçin.</p></div></div>
     <div class="card"><h2>Sahneler ve slaytlar</h2><div class="tree" id="tree"><p class="empty">Bir .story dosyası seçin.</p></div></div>
     <div class="card"><h2>Sorular</h2><div id="quizBox"><p class="empty">—</p></div></div>
+  </section>
 
   <section id="tab-js" class="hide">
     <div class="card">
@@ -434,7 +436,55 @@ function loadSummary(data) {
   renderTree(data.scenes);
   populateSlideSelects(data.scenes);
   loadQuiz();
+  loadAudit();
   loadMedia();
+}
+
+/* ------------------------------------------------------------------ audit */
+async function loadAudit() {
+  if (!S.path) return;
+  try {
+    const data = await call("audit", S.path);
+    const ogr = data.ogretim || {};
+    const unreadAlt = (data.missing_alt || []).length;
+    const unusedVar = (data.unused_variables || []).length;
+    const deadEnds = (data.dead_ends || []).length;
+    const noQScenes = (ogr.sorusuz_sahneler || []).length;
+    const seqPass = (ogr.ardisik_etkilesimsiz_slayt ?? 0);
+
+    const ratio = Math.round((ogr.etkilesim_orani ?? 0) * 100);
+    const scoreColor = ratio >= 40 ? "var(--ok-line)" : "var(--err-line)";
+
+    let html = `
+      <div style="display:flex;gap:15px;flex-wrap:wrap;margin-bottom:15px">
+        <div style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid ${scoreColor};padding:10px 14px;border-radius:8px">
+          <div style="font-size:12px;color:var(--muted)">Etkileşim Oranı</div>
+          <div style="font-size:22px;font-weight:bold;color:${scoreColor}">%${ratio}</div>
+        </div>
+        <div style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);padding:10px 14px;border-radius:8px">
+          <div style="font-size:12px;color:var(--muted)">Max Ardışık Okuma</div>
+          <div style="font-size:22px;font-weight:bold;color:${seqPass > 3 ? "var(--err-line)" : "var(--text)"}">${seqPass} Slayt</div>
+        </div>
+        <div style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);padding:10px 14px;border-radius:8px">
+          <div style="font-size:12px;color:var(--muted)">Sorusuz Bölüm</div>
+          <div style="font-size:22px;font-weight:bold;color:${noQScenes > 0 ? "var(--err-line)" : "var(--text)"}">${noQScenes} Bölüm</div>
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <b>Sağlık Kontrolleri:</b>
+          <ul style="margin:8px 0 0 0;padding-left:18px;font-size:13px;line-height:1.6">
+            <li>${unreadAlt === 0 ? "✔️ Alt metinsiz görsel yok" : `<span style="color:var(--err-line)">⚠️ ${unreadAlt} görselde alt metin eksik</span>`}</li>
+            <li>${unusedVar === 0 ? "✔️ Kullanılmayan değişken yok" : `ℹ️ ${unusedVar} kullanılmayan değişken var`}</li>
+            <li>${deadEnds === 0 ? "✔️ Çıkışsız slayt yok" : `<span style="color:var(--err-line)">⚠️ ${deadEnds} çıkışsız slayt tespit edildi</span>`}</li>
+          </ul>
+        </div>
+      </div>
+    `;
+    $("auditBox").innerHTML = html;
+  } catch (e) {
+    $("auditBox").innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
+  }
 }
 
 function renderTree(scenes) {
