@@ -172,6 +172,31 @@
   .log.final.err { background: var(--err-bg); border-color: var(--err-line); }
   .spin { display: inline-block; animation: sp 1s linear infinite; }
   @keyframes sp { to { transform: rotate(360deg); } }
+
+  /* Presets & Stepped Progress Bar */
+  .preset-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .preset-btn {
+    font-size: 12.5px; padding: 5px 12px; border-radius: 20px;
+    background: var(--chip); border: 1px solid var(--line); color: var(--ink);
+    cursor: pointer; transition: all .15s ease; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .preset-btn:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); transform: translateY(-1px); }
+  
+  .progress-steps {
+    display: flex; gap: 6px; margin: 10px 0; border-radius: 8px; background: var(--bg);
+    padding: 6px; border: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .progress-step {
+    flex: 1; min-width: 110px; text-align: center; font-size: 11.5px; font-weight: 600;
+    padding: 6px 8px; border-radius: 6px; color: var(--muted); background: var(--panel);
+    border: 1px solid transparent; transition: all .2s ease;
+  }
+  .progress-step.active {
+    background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  }
+  .progress-step.done {
+    background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line);
+  }
 </style>
 </head>
 <body>
@@ -203,6 +228,19 @@
     <div class="card" id="donorCard" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px">
       <div id="donorInfo" style="font-size:13px;color:var(--text)">Tasarım Donör Havuzu yükleniyor…</div>
       <button id="openDonorsBtn" style="font-size:12px;padding:4px 10px;white-space:nowrap">Donör Klasörünü Aç</button>
+    </div>
+
+    <div class="card" style="padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+        🚀 Hızlı Kurs Şablon Presets (Tek Tıkla Doldur &amp; Başlat)
+      </div>
+      <div class="preset-bar">
+        <button class="preset-btn" data-preset="siber">🛡️ Siber Güvenlik</button>
+        <button class="preset-btn" data-preset="isg">⚠️ İş Sağlığı (İSG)</button>
+        <button class="preset-btn" data-preset="kvkk">🔒 KVKK Veri Gizliliği</button>
+        <button class="preset-btn" data-preset="musteri">💼 Müşteri İlişkileri</button>
+        <button class="preset-btn" data-preset="oryantasyon">🚀 Yeni Oryantasyon</button>
+      </div>
     </div>
 
     <!-- Collected once, folded into every prompt. Each field changes the
@@ -284,7 +322,13 @@
       </div>
     </div>
     <div class="card">
-      <h2>Akış</h2>
+      <h2>Akış &amp; Kurs İlerleme Adımları</h2>
+      <div id="progressSteps" class="progress-steps hide">
+        <div class="progress-step" id="pStep1">1. Taslak Müfredat</div>
+        <div class="progress-step" id="pStep2">2. Slaytlar &amp; Şablon</div>
+        <div class="progress-step" id="pStep3">3. Etkileşim &amp; Soru</div>
+        <div class="progress-step" id="pStep4">4. Doğrulama</div>
+      </div>
       <div id="cmdStatus" class="status hide"></div>
       <div id="cmdLog"><p class="empty">Henüz komut çalıştırılmadı.</p></div>
     </div>
@@ -682,16 +726,54 @@ function renderStatus() {
 // The elapsed counter is the point: a long run with a still line looks
 // identical to a hung one, which is how five minutes of silence gets read as
 // a crash.
+function updateProgressStep(stepNum) {
+  const stepsBox = $("progressSteps");
+  if (!stepsBox) return;
+  stepsBox.classList.remove("hide");
+  for (let i = 1; i <= 4; i++) {
+    const el = $("pStep" + i);
+    if (!el) continue;
+    if (i < stepNum) {
+      el.className = "progress-step done";
+    } else if (i === stepNum) {
+      el.className = "progress-step active";
+    } else {
+      el.className = "progress-step";
+    }
+  }
+}
+
+function resetProgressSteps() {
+  const stepsBox = $("progressSteps");
+  if (stepsBox) stepsBox.classList.add("hide");
+  for (let i = 1; i <= 4; i++) {
+    const el = $("pStep" + i);
+    if (el) el.className = "progress-step";
+  }
+}
+
 function setStatus(text, code = "") {
   statusText = text; statusCode = code;
   $("cmdStatus").classList.remove("hide");
   if (!ticker) { startedAt = Date.now(); ticker = setInterval(renderStatus, 1000); }
   renderStatus();
+
+  const low = (text + " " + code).toLowerCase();
+  if (low.includes("plan") || low.includes("taslak") || low.includes("başlat") || low.includes("müfredat")) {
+    updateProgressStep(1);
+  } else if (low.includes("slayt") || low.includes("tasarım") || low.includes("şablon") || low.includes("sayfa")) {
+    updateProgressStep(2);
+  } else if (low.includes("soru") || low.includes("etkileşim") || low.includes("quiz") || low.includes("test")) {
+    updateProgressStep(3);
+  } else if (low.includes("doğrulama") || low.includes("audit") || low.includes("kaydet") || low.includes("tamam")) {
+    updateProgressStep(4);
+  }
 }
 function clearStatus() {
   if (ticker) { clearInterval(ticker); ticker = null; }
   startedAt = 0;
   $("cmdStatus").classList.add("hide");
+  setTimeout(resetProgressSteps, 4000);
 }
 
 /* Ajan metnini HTML e cevirir: kacis, sonra kod/kalin, sonra satir
@@ -1046,6 +1128,73 @@ $("openDonorsBtn").onclick = async () => {
     note(e.message, "err");
   }
 };
+
+/* ------------------------------------------------------------- presets */
+const PRESETS = {
+  siber: {
+    title: "Siber Güvenlik ve Oltalama Farkındalığı",
+    audience: "Tüm Şirket Çalışanları",
+    goal: "Oltalama e-postalarını tanıma, şüpheli bağlantılara tıklamama ve parola güvenliği alışkanlığı kazandırma",
+    minutes: "25",
+    questions: "2",
+    tone: "kurumsal",
+    prompt: "Siber güvenlik, parola güvenliği ve oltalama (phishing) saldırılarıyla ilgili 3 bölümlük interaktif bir eğitim kursu kur. Her bölümün sonunda 2 adet pekiştirme sorusu ve sürükle-bırak eşleştirme olsun."
+  },
+  isg: {
+    title: "İş Sağlığı ve Güvenliği (İSG) Temel Eğitimi",
+    audience: "Ofis ve Saha Çalışanları",
+    goal: "Çalışma ortamındaki riskleri fark etme, acil durum tahliye adımlarını ve kişisel koruyucu donanım kullanımını öğrenme",
+    minutes: "30",
+    questions: "2",
+    tone: "kurumsal",
+    prompt: "İş sağlığı ve güvenliği (İSG), risk değerlendirmesi ve acil durum tahliye prosedürleriyle ilgili 3 bölümlük eğitim kursu oluştur. Her bölümün sonuna sıcak nokta (hotspot) ve çok seçmeli değerlendirme soruları ekle."
+  },
+  kvkk: {
+    title: "KVKK ve Kişisel Verilerin Korunması",
+    audience: "İnsan Kaynakları, Satış ve IT Personeli",
+    goal: "Kişisel verilerin işlenmesi, açık rıza ve veri ihlali durumlarında bildirim yükümlülüklerini kavrama",
+    minutes: "20",
+    questions: "2",
+    tone: "kurumsal",
+    prompt: "KVKK, kişisel veri işleme şartları ve veri güvenliği ihlalleri hakkında 3 bölümlük kapsamlı bir uyum eğitimi kursu kur. Her bölümde vaka bazlı sorular ve taahhüt yazma ekranı yer alsın."
+  },
+  musteri: {
+    title: "Müşteri İlişkileri ve İletişim Becerileri",
+    audience: "Müşteri Hizmetleri ve Satış Ekibi",
+    goal: "Zorlu müşteri senaryolarını yönetme, aktif dinleme ve çözüm odaklı yaklaşım geliştirme",
+    minutes: "20",
+    questions: "1",
+    tone: "samimi",
+    prompt: "Müşteri ilişkileri yönetimi, zor müşteri durumlarında empati ve ikna tekniklerini içeren 2 bölümlük interaktif eğitim tasarla. Senaryo bazlı durum soruları ekle."
+  },
+  oryantasyon: {
+    title: "Şirket İşe Alım ve Oryantasyon Rehberi",
+    audience: "Yeni Katılan Çalışanlar",
+    goal: "Şirket kültürünü, departman yapılarını ve ilk hafta tamamlanacak süreçleri tanıtma",
+    minutes: "15",
+    questions: "1",
+    tone: "samimi",
+    prompt: "Yeni işe başlayan çalışanlar için şirket kültürü, çalışma ilkeleri ve ilk gün adımlarını anlatan 2 bölümlük oryantasyon kursu kur. İnteraktif menü ve bilgilendirme kartları kullan."
+  }
+};
+
+document.querySelectorAll(".preset-btn").forEach(btn => {
+  btn.onclick = () => {
+    const key = btn.dataset.preset;
+    const p = PRESETS[key];
+    if (!p) return;
+    $("pTitle").value = p.title;
+    $("pAudience").value = p.audience;
+    $("pGoal").value = p.goal;
+    $("pMinutes").value = p.minutes;
+    $("pQuestions").value = p.questions;
+    $("pTone").value = p.tone;
+    $("cmdText").value = p.prompt;
+    const profile = $("profile");
+    if (profile && !profile.open) profile.open = true;
+    note(`"${p.title}" şablonu yüklendi! "Gönder" butonuna basarak kursu başlatabilirsiniz.`, "ok");
+  };
+});
 
 window.addEventListener("pywebviewready", async () => {
   try {
