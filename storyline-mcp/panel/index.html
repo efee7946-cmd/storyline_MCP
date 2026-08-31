@@ -187,6 +187,7 @@
   <button data-tab="command" class="active">Komut</button>
   <button data-tab="overview">Genel Bakış</button>
   <button data-tab="media">Görsel &amp; Video<span id="mediaBadge" class="badge hide"></span></button>
+  <button data-tab="js">JS Yetenekleri</button>
 </nav>
 
 <main>
@@ -311,8 +312,65 @@
     <div class="card"><h2>Sahneler ve slaytlar</h2><div class="tree" id="tree"><p class="empty">Bir .story dosyası seçin.</p></div></div>
     <div class="card"><h2>Sorular</h2><div id="quizBox"><p class="empty">—</p></div></div>
 
-  </section>
+  <section id="tab-js" class="hide">
+    <div class="card">
+      <h2>JavaScript Yetenek Kataloğu</h2>
+      <p style="margin:0;color:var(--muted)">
+        Storyline'ın kendi tetikleyicilerinin yapamadığı işlemleri (tarih/saat basma, rastgele sayı üretme,
+        Türkçe sayı biçimlendirme, Türkçe metin karşılaştırma, sayaç) ölçülmüş JS yetenekleri ile slaytlara bağlayın.
+      </p>
+    </div>
+    <div class="card">
+      <h2>Hazır JS Yeteneği Ekle</h2>
+      <div class="row">
+        <div style="flex:2">
+          <label>Yetenek seçin</label>
+          <select id="jsCapSelect"><option value="">Yukleniyor…</option></select>
+        </div>
+        <div style="flex:2">
+          <label>Hedef Slayt</label>
+          <select id="jsCapSlide"><option value="">Bir .story dosyası seçin</option></select>
+        </div>
+      </div>
+      <div id="jsCapDesc" style="margin-top:12px;font-size:13.5px;color:var(--text);line-height:1.5"></div>
+      <div id="jsCapParams" style="margin-top:15px"></div>
+      <div id="jsCapLimitations" class="banner warn hide" style="margin-top:15px"></div>
+      <div style="margin-top:15px">
+        <button class="primary" id="jsCapApply">Yetenek Ekle</button>
+      </div>
+    </div>
 
+    <details class="card">
+      <summary>Gelişmiş: Özel (Ham) JavaScript Ekle</summary>
+      <div style="margin-top:12px">
+        <div class="row">
+          <div style="flex:2">
+            <label>Hedef Slayt</label>
+            <select id="customJsSlide"><option value="">Bir .story dosyası seçin</option></select>
+          </div>
+          <div style="flex:1">
+            <label>Tetikleyici Olayı</label>
+            <select id="customJsEvent">
+              <option value="OnStart" selected>OnStart (Slayt Başladığında)</option>
+              <option value="OnClick">OnClick (Tıklandığında)</option>
+              <option value="OnVariableValueChange">OnVariableValueChange (Değişken Değiştiğinde)</option>
+            </select>
+          </div>
+          <div style="flex:1" id="customJsWatchBox" hidden>
+            <label>İzlenen Değişken (watch)</label>
+            <input type="text" id="customJsWatch" placeholder="Skor">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label>JavaScript Kodu</label>
+          <textarea id="customJsCode" style="min-height:90px;font-family:monospace" placeholder="var p = GetPlayer(); p.SetVar('Tarih', new Date().toLocaleDateString());"></textarea>
+        </div>
+        <div style="margin-top:12px">
+          <button class="primary" id="customJsApply">Özel JS Ekle</button>
+        </div>
+      </div>
+    </details>
+  </section>
 
 </main>
 
@@ -369,6 +427,7 @@ function loadSummary(data) {
   $("lockBanner").classList.toggle("hide", !data.locked);
 
   renderTree(data.scenes);
+  populateSlideSelects(data.scenes);
   loadQuiz();
   loadMedia();
 }
@@ -806,12 +865,117 @@ async function loadThemes() {
   paintThemePreview();
 }
 
+/* ------------------------------------------------------------- js capabilities */
+let jsCaps = [];
+
+async function loadJsCapabilities() {
+  try {
+    const res = await call("list_js_capabilities");
+    jsCaps = res.capabilities || [];
+    const select = $("jsCapSelect");
+    select.innerHTML = jsCaps.map(c => `<option value="${c.name}">${escapeHtml(c.title)}</option>`).join("");
+    select.onchange = renderJsCapDetails;
+    if (jsCaps.length) renderJsCapDetails();
+  } catch (e) {
+    console.error("JS capabilities load error:", e);
+  }
+}
+
+function renderJsCapDetails() {
+  const name = $("jsCapSelect").value;
+  const cap = jsCaps.find(c => c.name === name);
+  if (!cap) return;
+  $("jsCapDesc").innerHTML = `<b>${escapeHtml(cap.title)}:</b> ${escapeHtml(cap.description)}`;
+
+  if (cap.limitations) {
+    $("jsCapLimitations").classList.remove("hide");
+    $("jsCapLimitations").innerHTML = `<b>Sınırlama:</b> ${escapeHtml(cap.limitations)}`;
+  } else {
+    $("jsCapLimitations").classList.add("hide");
+  }
+
+  $("jsCapParams").innerHTML = (cap.params || []).map(p => {
+    let inputHtml = "";
+    if (p.type === "secenek" && p.options) {
+      inputHtml = `<select id="jsp_${p.name}">${p.options.map(o => `<option value="${o}" ${o===p.default?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select>`;
+    } else {
+      inputHtml = `<input type="text" id="jsp_${p.name}" value="${escapeHtml(p.default ?? '')}" placeholder="${escapeHtml(p.description)}">`;
+    }
+    return `<div style="margin-bottom:9px"><label>${escapeHtml(p.description)} (${p.name})</label>${inputHtml}</div>`;
+  }).join("");
+}
+
+function populateSlideSelects(scenes) {
+  const slides = [];
+  (scenes || []).forEach(sc => {
+    (sc.slides || []).forEach(sl => {
+      slides.push({ id: sl.slide, name: `${sc.scene} / ${sl.name}` });
+    });
+  });
+  const html = slides.length
+    ? slides.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("")
+    : '<option value="">Slayt bulunamadı</option>';
+  $("jsCapSlide").innerHTML = html;
+  $("customJsSlide").innerHTML = html;
+}
+
+$("jsCapApply").onclick = async () => {
+  if (!S.path) return note("Önce bir .story dosyası seçin.", "err");
+  const slide = $("jsCapSlide").value;
+  const name = $("jsCapSelect").value;
+  const cap = jsCaps.find(c => c.name === name);
+  if (!slide || !cap) return note("Lütfen hedef slayt ve yetenek seçin.", "err");
+
+  const params = {};
+  (cap.params || []).forEach(p => {
+    const el = $("jsp_" + p.name);
+    if (el) {
+      let val = el.value;
+      if (p.type === "sayi") val = Number(val);
+      params[p.name] = val;
+    }
+  });
+
+  try {
+    note("JS yeteneği ekleniyor…", "ok");
+    await call("add_js_capability", S.path, slide, name, params);
+    note(`"${cap.title}" yeteneği slayda başarıyla eklendi!`, "ok");
+    await refresh();
+  } catch (e) {
+    note(e.message, "err");
+  }
+};
+
+$("customJsEvent").onchange = () => {
+  $("customJsWatchBox").hidden = ($("customJsEvent").value !== "OnVariableValueChange");
+};
+
+$("customJsApply").onclick = async () => {
+  if (!S.path) return note("Önce bir .story dosyası seçin.", "err");
+  const slide = $("customJsSlide").value;
+  const code = $("customJsCode").value.trim();
+  const event = $("customJsEvent").value;
+  const watch = $("customJsWatch").value.trim();
+  if (!slide || !code) return note("Lütfen hedef slayt ve JS kodu girin.", "err");
+
+  try {
+    note("Özel JS tetikleyicisi ekleniyor…", "ok");
+    await call("add_custom_js_trigger", S.path, slide, code, event, watch || null);
+    note("Özel JS tetikleyicisi başarıyla eklendi!", "ok");
+    $("customJsCode").value = "";
+    await refresh();
+  } catch (e) {
+    note(e.message, "err");
+  }
+};
+
 window.addEventListener("pywebviewready", async () => {
   try {
     const a = await call("agent_available");
     $("cliMissing").classList.toggle("hide", a.available);
   } catch { $("cliMissing").classList.remove("hide"); }
   await loadThemes();
+  await loadJsCapabilities();
   $("pick").focus();
 });
 </script>

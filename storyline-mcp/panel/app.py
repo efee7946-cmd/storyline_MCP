@@ -524,6 +524,68 @@ class Api:
         target = source if in_place else source.with_suffix(".edited.story")
         return {**result, **pkg.save(target, backup=True)}
 
+    # --------------------------------------------------------------- js capabilities
+
+    @guarded
+    def list_js_capabilities(self) -> dict:
+        from storyline_mcp import jscat
+        items = []
+        for cap in jscat.KATALOG.values():
+            items.append({
+                "name": cap.ad,
+                "title": cap.baslik,
+                "description": cap.aciklama,
+                "event": cap.olay,
+                "watch": cap.izle,
+                "limitations": cap.calismaz,
+                "params": [
+                    {
+                        "name": p.ad,
+                        "type": p.tur,
+                        "description": p.aciklama,
+                        "default": p.varsayilan,
+                        "role": p.rol,
+                        "vtype": p.vtur,
+                        "options": list(p.secenekler),
+                    }
+                    for p in cap.parametreler
+                ],
+            })
+        return {"capabilities": items}
+
+    @guarded
+    def add_js_capability(
+        self, path: str, slide: str, capability: str,
+        params: dict | None = None, event: str | None = None,
+        in_place: bool = True,
+    ) -> dict:
+        from storyline_mcp import jscat
+        _guard(path)
+        pkg = StoryPackage(path)
+        result = jscat.uygula(pkg, slide, capability, params=params, event=event)
+        source = Path(path)
+        target = source if in_place else source.with_suffix(".edited.story")
+        return {**result, **pkg.save(target, backup=True)}
+
+    @guarded
+    def add_custom_js_trigger(
+        self, path: str, slide: str, code: str,
+        event: str = "OnStart", watch: str | None = None,
+        in_place: bool = True,
+    ) -> dict:
+        from storyline_mcp import logic, jscheck
+        _guard(path)
+        pkg = StoryPackage(path)
+        check = jscheck.check(code)
+        if check.get("syntax_ok") is False:
+            raise RuntimeError(f"JS sözdizimi hatası: {check.get('error')}")
+        result = logic.add_trigger(
+            pkg, slide, "execute_javascript", event=event, javascript=code, watch=watch
+        )
+        source = Path(path)
+        target = source if in_place else source.with_suffix(".edited.story")
+        return {**result, **pkg.save(target, backup=True)}
+
     # --------------------------------------------------------------- agent
 
     @guarded
