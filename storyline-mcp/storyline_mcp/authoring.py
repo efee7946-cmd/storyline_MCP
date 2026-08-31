@@ -1867,6 +1867,49 @@ def add_text_question(
             "framed": bool(adapted.get("framed")), **bound}
 
 
+def add_hotspot_question(
+    pkg: StoryPackage,
+    prompt: str,
+    *,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    style: str | None = None,
+) -> dict:
+    """Sıcak nokta (Hotspot) sorusu: ekrandaki doğru bölgeye tıklama sorusu."""
+    seeds = question_seeds().get(("freeHotSpotIntr", 1)) or []
+    if not seeds:
+        fallback = clone.SEED_DIR / "question_freeHotSpotIntr_1.xml"
+        if fallback.is_file():
+            seeds = [fallback]
+        else:
+            raise StoryError("Gömülü sıcak nokta tohumu bulunamadı.")
+    seed = seeds[0]
+    result = clone.install_slide(pkg, seed.read_text(encoding="utf-8"),
+                                 scene=scene, name=name or prompt[:60])
+    part = result["part"]
+    root = pkg.parse(part)
+    _tag, intr = _find_interaction(root)
+    stem = _stem_shape_guid(root, [])
+    if stem:
+        set_shape_text(root, stem, prompt)
+    if intr is not None and points is not None:
+        props = intr.find("intrProps")
+        if props is not None:
+            props.set("corPts", str(points))
+    pkg.replace_xml(part, root)
+
+    adapted = adapt_seeded_slide(pkg, part, eyebrow=eyebrow, palette=palette,
+                                 feedback=feedback, style=style)
+    registration = register_question(pkg, pkg.parse(part).get("g", ""))
+    return {**result, "question_type": "freeHotSpotIntr", "prompt": prompt,
+            "adapted": adapted, "registration": registration,
+            "framed": bool(adapted.get("framed"))}
+
+
 def _title_shape(root: ET.Element) -> str | None:
     """Pick the shape a slide title belongs in: a real text box, not a button."""
     best, best_len = None, -1

@@ -259,6 +259,19 @@ def _apply_op(pkg: StoryPackage, op: dict) -> dict:
                 {k: v for k, v in compose.theme_palette(op["theme"]).items()
                  if not k.startswith("_")} if op.get("theme") else None),
         )
+    if kind == "add_hotspot_question":
+        return authoring.add_hotspot_question(
+            pkg,
+            op["prompt"],
+            scene=op.get("scene"),
+            name=op.get("name"),
+            points=op.get("points"),
+            eyebrow=op.get("eyebrow"),
+            feedback=op.get("feedback"),
+            palette=op.get("palette") or (
+                {k: v for k, v in compose.theme_palette(op["theme"]).items()
+                 if not k.startswith("_")} if op.get("theme") else None),
+        )
     if kind == "update_text":
         return apply_text_edits(
             pkg, [Edit(addr=e["addr"], new_text=e["new_text"]) for e in op["edits"]]
@@ -579,6 +592,33 @@ def add_text_question(
     result = authoring.add_text_question(
         pkg, prompt, accept, scene=scene, name=name, points=points,
         eyebrow=eyebrow, feedback=feedback, variable=variable,
+        palette=palette or (
+            {k: v for k, v in compose.theme_palette(theme).items()
+             if not k.startswith("_")} if theme else None),
+    )
+    return {**result, **_write(pkg, path, output_path, in_place)}
+
+
+@mcp.tool()
+def add_hotspot_question(
+    path: str,
+    prompt: str,
+    scene: str | None = None,
+    name: str | None = None,
+    points: int | None = None,
+    eyebrow: str | None = None,
+    theme: str | None = None,
+    palette: dict | None = None,
+    feedback: dict | None = None,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Sıcak nokta (Hotspot) sorusu ekler: ekrandaki doğru alana tıklama sorusu."""
+    _guard(path)
+    pkg = StoryPackage(path)
+    result = authoring.add_hotspot_question(
+        pkg, prompt, scene=scene, name=name, points=points,
+        eyebrow=eyebrow, feedback=feedback,
         palette=palette or (
             {k: v for k, v in compose.theme_palette(theme).items()
              if not k.startswith("_")} if theme else None),

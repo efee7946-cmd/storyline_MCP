@@ -58,7 +58,7 @@ Kurallar:
     steps      SIRALI adimlar; numaralanir, yani sira anlam tasiyorsa kullan
     statement  akilda kalmasi gereken TEK cumle; govdesi kisa olmali
     menu       ogrencinin secim yaptigi slayt; secenekler buttons alaninda
-- kind: "content", "question", "drag" (gruplama) veya "commitment" (yazdirma)
+- kind: "content", "question", "drag" (gruplama), "commitment" (yazdirma) veya "hotspot" (sicak nokta)
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
 - Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
   "01_Ad", "02_Ad" biciminde, Turkce karakter ve bosluk kullanma.
@@ -116,7 +116,10 @@ Bicim:
               "Kutu iki": ["Kisa ad", "Kisa ad"]},
    "feedback": {"correct": "Tek cumlelik gerekce.",
                 "incorrect": "Tek cumlelik gerekce."}},
-  {"kind": "commitment", "prompt": "Bu haftaki tek somut adimini yaz."}
+  {"kind": "commitment", "prompt": "Bu haftaki tek somut adimini yaz."},
+  {"kind": "hotspot", "prompt": "Gorsel uzerindeki dogru bolgeye tiklayin.",
+   "feedback": {"correct": "Tek cumlelik gerekce.",
+                "incorrect": "Tek cumlelik gerekce."}}
 ]}
 
 Kurallar:
@@ -1323,6 +1326,15 @@ def build(
                     scene=scene_name,
                     eyebrow=scene.get("title") or scene_name,
                     palette=palette)
+                continue
+            if spec.get("kind") == "hotspot":
+                made = authoring.add_hotspot_question(
+                    pkg, spec.get("prompt", "Gorsel uzerindeki dogru alana tiklayin."),
+                    scene=scene_name,
+                    eyebrow=scene.get("title") or scene_name,
+                    palette=palette, points=10,
+                    feedback=spec.get("feedback"))
+                questions += 1
                 continue
             if spec.get("kind") == "question":
                 choices = spec.get("choices") or []

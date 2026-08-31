@@ -94,7 +94,7 @@ TOOLS = [
     "list_variables", "list_triggers", "list_quiz", "list_templates", "audit",
     "question_formats",
     "update_text", "add_scene", "add_slide", "add_question",
-    "add_drag_question", "add_text_question",
+    "add_drag_question", "add_text_question", "add_hotspot_question",
     "duplicate_slide", "build_course",
     "compose_slide",
     "set_background", "add_text_box", "add_button", "add_shape",
@@ -331,9 +331,7 @@ Su an YAPILAMAYANLAR (istenirse acikca soyle, uydurma):
 add_video DISKTEKI bir dosyayi alir. Dosya yoksa dogru cevap "yapilamiyor"
 degil, request_media ile siparis birakmaktir.
 - Timeline animasyonlari (62 dosya tarandi, klonlanacak calisan ornek yok).
-- Surukle-birak, metin girisi, sicak nokta ve soru bankasi sorulari. Calisan
-soru tipleri tek dogru ve cok dogru secmeli; hangisinin kac secenekle
-kurulabildigini question_formats soyler.
+- Soru bankasi (Question Bank) yapilari. Desteklenen soru tipleri: Tek/Cok Secmeli (add_question), Surukle-Birak (add_drag_question), Metin Girisi (add_text_question) ve Sicak Nokta (add_hotspot_question).
 """
 
 # Ortak ogretim kurallari TEK YERDE durur (panel/ogretim.py) ve iki uretici de
