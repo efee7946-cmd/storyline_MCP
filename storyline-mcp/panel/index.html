@@ -225,24 +225,6 @@
   <div id="msg"></div>
 
   <section id="tab-command">
-    <div class="card" id="donorCard" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px">
-      <div id="donorInfo" style="font-size:13px;color:var(--text)">Tasarım Donör Havuzu yükleniyor…</div>
-      <button id="openDonorsBtn" style="font-size:12px;padding:4px 10px;white-space:nowrap">Donör Klasörünü Aç</button>
-    </div>
-
-    <div class="card" style="padding:12px 14px;margin-bottom:12px">
-      <div style="font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
-        🚀 Hızlı Kurs Şablon Presets (Tek Tıkla Doldur &amp; Başlat)
-      </div>
-      <div class="preset-bar">
-        <button class="preset-btn" data-preset="siber">🛡️ Siber Güvenlik</button>
-        <button class="preset-btn" data-preset="isg">⚠️ İş Sağlığı (İSG)</button>
-        <button class="preset-btn" data-preset="kvkk">🔒 KVKK Veri Gizliliği</button>
-        <button class="preset-btn" data-preset="musteri">💼 Müşteri İlişkileri</button>
-        <button class="preset-btn" data-preset="oryantasyon">🚀 Yeni Oryantasyon</button>
-      </div>
-    </div>
-
     <!-- Collected once, folded into every prompt. Each field changes the
          output; anything left blank is simply not asserted. -->
     <details class="card" id="profile">
@@ -1106,96 +1088,6 @@ $("customJsApply").onclick = async () => {
   }
 };
 
-/* ------------------------------------------------------------- donor pool */
-async function loadDonorStatus() {
-  try {
-    const data = await call("donor_status");
-    const info = $("donorInfo");
-    if (!data || !data.files_on_disk || data.files_on_disk.length === 0) {
-      info.innerHTML = `💡 <b>Donör Havuzu Boş:</b> Kurslarda gömülü varsayılan buton kullanılır. Özel buton stilleri için donör klasörüne <code>.story</code> dosyalarınızı ekleyebilirsiniz.`;
-    } else {
-      info.innerHTML = `🎨 <b>Tasarım Havuzu Aktif:</b> ${data.files_on_disk.length} donör projesi (${data.candidates} aday nesne) yüklü. Kurs butonları donör tasarımlarıyla çeşitlendirilecek.`;
-    }
-  } catch (e) {
-    console.error("Donor status load error:", e);
-  }
-}
-
-$("openDonorsBtn").onclick = async () => {
-  try {
-    await call("open_donors_folder");
-  } catch (e) {
-    note(e.message, "err");
-  }
-};
-
-/* ------------------------------------------------------------- presets */
-const PRESETS = {
-  siber: {
-    title: "Siber Güvenlik ve Oltalama Farkındalığı",
-    audience: "Tüm Şirket Çalışanları",
-    goal: "Oltalama e-postalarını tanıma, şüpheli bağlantılara tıklamama ve parola güvenliği alışkanlığı kazandırma",
-    minutes: "25",
-    questions: "2",
-    tone: "kurumsal",
-    prompt: "Siber güvenlik, parola güvenliği ve oltalama (phishing) saldırılarıyla ilgili 3 bölümlük interaktif bir eğitim kursu kur. Her bölümün sonunda 2 adet pekiştirme sorusu ve sürükle-bırak eşleştirme olsun."
-  },
-  isg: {
-    title: "İş Sağlığı ve Güvenliği (İSG) Temel Eğitimi",
-    audience: "Ofis ve Saha Çalışanları",
-    goal: "Çalışma ortamındaki riskleri fark etme, acil durum tahliye adımlarını ve kişisel koruyucu donanım kullanımını öğrenme",
-    minutes: "30",
-    questions: "2",
-    tone: "kurumsal",
-    prompt: "İş sağlığı ve güvenliği (İSG), risk değerlendirmesi ve acil durum tahliye prosedürleriyle ilgili 3 bölümlük eğitim kursu oluştur. Her bölümün sonuna sıcak nokta (hotspot) ve çok seçmeli değerlendirme soruları ekle."
-  },
-  kvkk: {
-    title: "KVKK ve Kişisel Verilerin Korunması",
-    audience: "İnsan Kaynakları, Satış ve IT Personeli",
-    goal: "Kişisel verilerin işlenmesi, açık rıza ve veri ihlali durumlarında bildirim yükümlülüklerini kavrama",
-    minutes: "20",
-    questions: "2",
-    tone: "kurumsal",
-    prompt: "KVKK, kişisel veri işleme şartları ve veri güvenliği ihlalleri hakkında 3 bölümlük kapsamlı bir uyum eğitimi kursu kur. Her bölümde vaka bazlı sorular ve taahhüt yazma ekranı yer alsın."
-  },
-  musteri: {
-    title: "Müşteri İlişkileri ve İletişim Becerileri",
-    audience: "Müşteri Hizmetleri ve Satış Ekibi",
-    goal: "Zorlu müşteri senaryolarını yönetme, aktif dinleme ve çözüm odaklı yaklaşım geliştirme",
-    minutes: "20",
-    questions: "1",
-    tone: "samimi",
-    prompt: "Müşteri ilişkileri yönetimi, zor müşteri durumlarında empati ve ikna tekniklerini içeren 2 bölümlük interaktif eğitim tasarla. Senaryo bazlı durum soruları ekle."
-  },
-  oryantasyon: {
-    title: "Şirket İşe Alım ve Oryantasyon Rehberi",
-    audience: "Yeni Katılan Çalışanlar",
-    goal: "Şirket kültürünü, departman yapılarını ve ilk hafta tamamlanacak süreçleri tanıtma",
-    minutes: "15",
-    questions: "1",
-    tone: "samimi",
-    prompt: "Yeni işe başlayan çalışanlar için şirket kültürü, çalışma ilkeleri ve ilk gün adımlarını anlatan 2 bölümlük oryantasyon kursu kur. İnteraktif menü ve bilgilendirme kartları kullan."
-  }
-};
-
-document.querySelectorAll(".preset-btn").forEach(btn => {
-  btn.onclick = () => {
-    const key = btn.dataset.preset;
-    const p = PRESETS[key];
-    if (!p) return;
-    $("pTitle").value = p.title;
-    $("pAudience").value = p.audience;
-    $("pGoal").value = p.goal;
-    $("pMinutes").value = p.minutes;
-    $("pQuestions").value = p.questions;
-    $("pTone").value = p.tone;
-    $("cmdText").value = p.prompt;
-    const profile = $("profile");
-    if (profile && !profile.open) profile.open = true;
-    note(`"${p.title}" şablonu yüklendi! "Gönder" butonuna basarak kursu başlatabilirsiniz.`, "ok");
-  };
-});
-
 window.addEventListener("pywebviewready", async () => {
   try {
     const a = await call("agent_available");
@@ -1203,7 +1095,6 @@ window.addEventListener("pywebviewready", async () => {
   } catch { $("cliMissing").classList.remove("hide"); }
   await loadThemes();
   await loadJsCapabilities();
-  await loadDonorStatus();
   $("pick").focus();
 });
 </script>
