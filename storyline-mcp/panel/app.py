@@ -586,6 +586,24 @@ class Api:
         target = source if in_place else source.with_suffix(".edited.story")
         return {**result, **pkg.save(target, backup=True)}
 
+    # --------------------------------------------------------------- donor pool
+
+    @guarded
+    def donor_status(self) -> dict:
+        from storyline_mcp import donors
+        return donors.summary()
+
+    @guarded
+    def open_donors_folder(self) -> dict:
+        from storyline_mcp import donors
+        folder = donors.pool_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(str(folder))
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(folder)])
+        return {"opened": str(folder)}
+
     # --------------------------------------------------------------- agent
 
     @guarded

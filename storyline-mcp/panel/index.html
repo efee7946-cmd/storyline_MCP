@@ -200,6 +200,11 @@
   <div id="msg"></div>
 
   <section id="tab-command">
+    <div class="card" id="donorCard" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px">
+      <div id="donorInfo" style="font-size:13px;color:var(--text)">Tasarım Donör Havuzu yükleniyor…</div>
+      <button id="openDonorsBtn" style="font-size:12px;padding:4px 10px;white-space:nowrap">Donör Klasörünü Aç</button>
+    </div>
+
     <!-- Collected once, folded into every prompt. Each field changes the
          output; anything left blank is simply not asserted. -->
     <details class="card" id="profile">
@@ -969,6 +974,29 @@ $("customJsApply").onclick = async () => {
   }
 };
 
+/* ------------------------------------------------------------- donor pool */
+async function loadDonorStatus() {
+  try {
+    const data = await call("donor_status");
+    const info = $("donorInfo");
+    if (!data || !data.files_on_disk || data.files_on_disk.length === 0) {
+      info.innerHTML = `💡 <b>Donör Havuzu Boş:</b> Kurslarda gömülü varsayılan buton kullanılır. Özel buton stilleri için donör klasörüne <code>.story</code> dosyalarınızı ekleyebilirsiniz.`;
+    } else {
+      info.innerHTML = `🎨 <b>Tasarım Havuzu Aktif:</b> ${data.files_on_disk.length} donör projesi (${data.candidates} aday nesne) yüklü. Kurs butonları donör tasarımlarıyla çeşitlendirilecek.`;
+    }
+  } catch (e) {
+    console.error("Donor status load error:", e);
+  }
+}
+
+$("openDonorsBtn").onclick = async () => {
+  try {
+    await call("open_donors_folder");
+  } catch (e) {
+    note(e.message, "err");
+  }
+};
+
 window.addEventListener("pywebviewready", async () => {
   try {
     const a = await call("agent_available");
@@ -976,6 +1004,7 @@ window.addEventListener("pywebviewready", async () => {
   } catch { $("cliMissing").classList.remove("hide"); }
   await loadThemes();
   await loadJsCapabilities();
+  await loadDonorStatus();
   $("pick").focus();
 });
 </script>
