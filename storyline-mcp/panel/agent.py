@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import sys
 from pathlib import Path
 
 SERVER_EXE = Path(__file__).resolve().parent.parent / ".venv" / "Scripts" / "storyline-mcp.exe"
@@ -119,6 +120,32 @@ def check_claude_working() -> bool:
     return not _CLAUDE_DISABLED
 
 
+ROOT = Path(__file__).resolve().parent.parent
+_AGY_MCP_REGISTERED: bool = False
+
+
+def ensure_agy_mcp_registered() -> None:
+    global _AGY_MCP_REGISTERED
+    if _AGY_MCP_REGISTERED:
+        return
+    agy = find_agy_cli()
+    if not agy:
+        return
+
+    server_script = ROOT / "storyline_mcp" / "server.py"
+    python_exe = sys.executable
+    if server_script.exists() and Path(python_exe).exists():
+        try:
+            subprocess.run(
+                [str(agy), "mcp", "add", "storyline", str(python_exe), str(server_script)],
+                capture_output=True, text=True, timeout=5,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            _AGY_MCP_REGISTERED = True
+        except Exception:
+            pass
+
+
 def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
     """Locate available CLI: Claude Code first (if operational), Antigravity (agy) fallback second."""
     if check_claude_working():
@@ -128,6 +155,7 @@ def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
 
     agy = find_agy_cli()
     if agy:
+        ensure_agy_mcp_registered()
         return agy, "agy"
 
     claude = find_claude_cli()
@@ -504,6 +532,7 @@ class AgentRun:
                     argv[2:2] = ["--resume", self.resume]
             else:
                 # Antigravity (agy) CLI fallback
+                ensure_agy_mcp_registered()
                 full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
                 argv = [
                     str(cli), "-p", full_prompt,
