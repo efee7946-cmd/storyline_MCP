@@ -199,6 +199,83 @@ def _question_from_seed(
                         for i, t in enumerate(choices)]}
 
 
+def _temizle_donor_katmanlari(root, proje_degiskenleri: set[str]):
+    """Katmanlardan DONOR artiklarini siler: (silinen guid kumesi, rapor).
+
+    Iki cagirani var ve ikisi de sart: tohum yolu (adapt_seeded_slide) ve
+    KLON yolu (add_question, projede sablon varsa secilen yol). Ilk surum
+    yalnizca tohum yolundaydi ve uretimde hicbir sey degismiyordu, cunku
+    taban pakette sablon VAR ve klon yolu seciliyor.
+    """
+    silinen: set[str] = set()
+    rapor: list[str] = []
+    #
+    # Yukaridaki 1. adim "anatomi disinda her sey gider" diyor ama yalnizca
+    # slaydin kendi shapeLst'inde yuruyordu. Katmanlar hic temizlenmiyordu ve
+    # tohumun hasat edildigi kursun icerigi oradan ogrenciye ULASIYORDU --
+    # olculdu 2026-09-05, question_freePickOneIntr_3'un Cevap katmanlari:
+    #
+    #     group     (metinsiz rozet)         <- kullanicinin gordugu sey
+    #     textBox   'Guvenlik Skoru'          <- donorun etiketi
+    #     textBox   '%GuvenlikSkoru%'         <- BU PROJEDE OLMAYAN degisken
+    #
+    # Sonuncusu en kotusu: oynatici cozemedigi degisken adini oldugu gibi
+    # yazar. Kullanici bunu "baska slayttan klonlanmis guvenlik skoru" diye
+    # bildirdi ve teshis dogruydu.
+    #
+    # OLCUT DAR TUTULDU, cunku katmanda neyin anatomi oldugu slayttaki kadar
+    # net degil: yalnizca (a) kod tabaninin katmanda HIC uretmedigi `group`
+    # sekilleri ve (b) bu projede karsiligi olmayan %degisken% referansi
+    # tasiyan metinler gider. Geri bildirim yazisi, butonu ve paneli
+    # DOKUNULMADAN kalir -- onlari compose_feedback_layers yeniden yaziyor.
+    for _kat_adi, katman in model.layers(root):
+        kat_liste = katman.find("shapeLst")
+        if kat_liste is None:
+            continue
+        # ROZET TEK SEKIL DEGIL, KUME. Olculdu (freePickOneIntr_3, Cevap1):
+        #     group      %80..%97 x , %-0..%11 y
+        #     roundRect  %80..%97   , %4..%11
+        #     textBox    %80..%91   , %4..%-0     'Guvenlik Skoru'
+        #     textBox    %81..%93   , %4..%10     '%GuvenlikSkoru%'
+        # Dorduu de sag ust kosede, ayni kutunun icinde. Gercek geri bildirim
+        # icerigi (anlatim metni %16..%66, buton %50..%73) tamamen ayri yerde.
+        #
+        # O yuzden olcut GEOMETRIK ve kendini sinirlar: silinen group'un
+        # kutusunun icinde kalan komsulari da gider. Group yoksa hicbir sey
+        # silinmez -- kural kendiliginden kapanir.
+        rozet_kutulari = []
+        for shape in list(kat_liste):
+            g = shape.get("g") or ""
+            neden = None
+            if shape.tag == "group":
+                neden = "donor rozeti (group)"
+                kutu = _kutu(shape)
+                if kutu:
+                    rozet_kutulari.append(kutu)
+            else:
+                metin = model.shape_text(katman, g).strip() if g else ""
+                bilinmeyen = [ad for ad in _DEGISKEN_REF.findall(metin)
+                              if ad not in proje_degiskenleri]
+                if bilinmeyen:
+                    neden = f"cozulmeyen degisken referansi %{bilinmeyen[0]}%"
+            if neden:
+                rapor.append(f"katman {_kat_adi!r}: {shape.tag} -- {neden}")
+                silinen |= guids_within(shape)
+                kat_liste.remove(shape)
+
+        for shape in list(kat_liste):
+            kutu = _kutu(shape)
+            if not kutu or not any(_icinde(kutu, r) for r in rozet_kutulari):
+                continue
+            metin = model.shape_text(katman, shape.get("g") or "").strip()
+            rapor.append(f"katman {_kat_adi!r}: {shape.tag} -- rozet kumesi "
+                           f"{metin[:20]!r}")
+            silinen |= guids_within(shape)
+            kat_liste.remove(shape)
+
+    return silinen, rapor
+
+
 def _kutu(shape: ET.Element) -> tuple[float, float, float, float] | None:
     """Seklin kutusu, KOSELERI SIRALANMIS halde.
 
@@ -396,71 +473,18 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
         silinen |= guids_within(shape)
         shape_list.remove(shape)
 
-    # 1-KATMAN. AYNI KURAL KATMANLARDA DA ISLER.
+    # 1-KATMAN. AYNI KURAL KATMANLARDA DA ISLER -- ve IKI YOLDA DA.
     #
-    # Yukaridaki 1. adim "anatomi disinda her sey gider" diyor ama yalnizca
-    # slaydin kendi shapeLst'inde yuruyordu. Katmanlar hic temizlenmiyordu ve
-    # tohumun hasat edildigi kursun icerigi oradan ogrenciye ULASIYORDU --
-    # olculdu 2026-09-05, question_freePickOneIntr_3'un Cevap katmanlari:
-    #
-    #     group     (metinsiz rozet)         <- kullanicinin gordugu sey
-    #     textBox   'Guvenlik Skoru'          <- donorun etiketi
-    #     textBox   '%GuvenlikSkoru%'         <- BU PROJEDE OLMAYAN degisken
-    #
-    # Sonuncusu en kotusu: oynatici cozemedigi degisken adini oldugu gibi
-    # yazar. Kullanici bunu "baska slayttan klonlanmis guvenlik skoru" diye
-    # bildirdi ve teshis dogruydu.
-    #
-    # OLCUT DAR TUTULDU, cunku katmanda neyin anatomi oldugu slayttaki kadar
-    # net degil: yalnizca (a) kod tabaninin katmanda HIC uretmedigi `group`
-    # sekilleri ve (b) bu projede karsiligi olmayan %degisken% referansi
-    # tasiyan metinler gider. Geri bildirim yazisi, butonu ve paneli
-    # DOKUNULMADAN kalir -- onlari compose_feedback_layers yeniden yaziyor.
-    proje_degiskenleri = {v["name"] for v in model.variables(pkg)}
-    for _kat_adi, katman in model.layers(root):
-        kat_liste = katman.find("shapeLst")
-        if kat_liste is None:
-            continue
-        # ROZET TEK SEKIL DEGIL, KUME. Olculdu (freePickOneIntr_3, Cevap1):
-        #     group      %80..%97 x , %-0..%11 y
-        #     roundRect  %80..%97   , %4..%11
-        #     textBox    %80..%91   , %4..%-0     'Guvenlik Skoru'
-        #     textBox    %81..%93   , %4..%10     '%GuvenlikSkoru%'
-        # Dorduu de sag ust kosede, ayni kutunun icinde. Gercek geri bildirim
-        # icerigi (anlatim metni %16..%66, buton %50..%73) tamamen ayri yerde.
-        #
-        # O yuzden olcut GEOMETRIK ve kendini sinirlar: silinen group'un
-        # kutusunun icinde kalan komsulari da gider. Group yoksa hicbir sey
-        # silinmez -- kural kendiliginden kapanir.
-        rozet_kutulari = []
-        for shape in list(kat_liste):
-            g = shape.get("g") or ""
-            neden = None
-            if shape.tag == "group":
-                neden = "donor rozeti (group)"
-                kutu = _kutu(shape)
-                if kutu:
-                    rozet_kutulari.append(kutu)
-            else:
-                metin = model.shape_text(katman, g).strip() if g else ""
-                bilinmeyen = [ad for ad in _DEGISKEN_REF.findall(metin)
-                              if ad not in proje_degiskenleri]
-                if bilinmeyen:
-                    neden = f"cozulmeyen degisken referansi %{bilinmeyen[0]}%"
-            if neden:
-                removed.append(f"katman {_kat_adi!r}: {shape.tag} -- {neden}")
-                silinen |= guids_within(shape)
-                kat_liste.remove(shape)
-
-        for shape in list(kat_liste):
-            kutu = _kutu(shape)
-            if not kutu or not any(_icinde(kutu, r) for r in rozet_kutulari):
-                continue
-            metin = model.shape_text(katman, shape.get("g") or "").strip()
-            removed.append(f"katman {_kat_adi!r}: {shape.tag} -- rozet kumesi "
-                           f"{metin[:20]!r}")
-            silinen |= guids_within(shape)
-            kat_liste.remove(shape)
+    # Cekirdek `_temizle_donor_katmanlari`'nda; burasi tohum yolu, klon yolu
+    # ise register_question uzerinden ayni fonksiyonu cagirir. Bir sure
+    # yalnizca burada duruyordu ve add_question'in KLON dali (projede sablon
+    # varsa secilen yol) hic temizlenmiyordu -- yani uretimde rozet duruyordu.
+    # Ayni tuzagin kaydi zaten add_question'da yaziliydi: "iki soru yolu var
+    # ve kayit IKISINDE de olmali".
+    _kat_silinen, _kat_rapor = _temizle_donor_katmanlari(
+        root, {v["name"] for v in model.variables(pkg)})
+    removed.extend(_kat_rapor)
+    silinen |= _kat_silinen
 
     # 1a. SICAK NOKTA TOHUMU METIN LISTESINE UYARLANIR -- SILMEDEN SONRA.
     #
@@ -1633,19 +1657,32 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
     # cevabini gonderebilmesi gerekir. Asagidaki iki erken donusun arkasina
     # konsaydi, tam da o paketlerde sessizce atlanirdi.
     gonder = {"submit": "slayt bulunamadi", "added": 0, "repaired": 0}
+    katman_temizligi: list[str] = []
     part = next((p for p, r in model.slide_index(pkg).items()
                  if r.guid == slide_guid), None)
     if part is not None:
         gonder = ensure_submit_trigger(pkg, part)
+        # KATMAN TEMIZLIGI DE BURADA, ayni gerekceyle: iki soru yolu var
+        # (klon ve gomulu tohum) ve ikisi de buradan geciyor. Tohum yolunda
+        # adapt_seeded_slide zaten temizledi; ikinci kosu ZARARSIZ cunku
+        # islem etkisiz-tekrarlanabilir (group gittiyse kural kendiliginden
+        # kapanir). Klon yolunda ise TEK temizlik burasi.
+        _kok = pkg.parse(part)
+        _sil, katman_temizligi = _temizle_donor_katmanlari(
+            _kok, {v["name"] for v in model.variables(pkg)})
+        if katman_temizligi:
+            pkg.replace_xml(part, _kok)
 
     story = pkg.parse(STORY_PART)
     manager = story.find("quizMgr")
     if manager is None:
-        return {"registered": False, "why": "quizMgr yok", "gonder": gonder}
+        return {"registered": False, "why": "quizMgr yok", "gonder": gonder,
+                "katman_temizligi": katman_temizligi}
     quiz = next(iter(story.iter("quiz")), None)
     if quiz is None:
         return {"registered": False, "why": "quizLst icinde quiz yok",
-                "gonder": gonder}
+                "gonder": gonder,
+                "katman_temizligi": katman_temizligi}
 
     id_list = quiz.find("questionIdLst")
     if id_list is None:
@@ -1653,7 +1690,8 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
         id_list = ET.Element("questionIdLst")
         quiz.insert(0, id_list)
     if any((el.text or "").strip() == slide_guid for el in id_list):
-        return {"registered": True, "why": "zaten kayitli", "gonder": gonder}
+        return {"registered": True, "why": "zaten kayitli", "gonder": gonder,
+                "katman_temizligi": katman_temizligi}
     item = ET.SubElement(id_list, "item")
     item.text = slide_guid
 
@@ -1671,7 +1709,8 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
 
     pkg.replace_xml(STORY_PART, story)
     return {"registered": True, "why": "kaydedildi",
-            "lms_tracking_set": changed_tracking, "gonder": gonder}
+            "lms_tracking_set": changed_tracking, "gonder": gonder,
+            "katman_temizligi": katman_temizligi}
 
 
 def add_question(
