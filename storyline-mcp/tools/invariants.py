@@ -1497,10 +1497,29 @@ def check_choice_admission() -> list[str]:
 
 
 def _gonder_baglantisi(pkg, slayt: str) -> bool | None:
-    """Bu slayttaki her `submitG`, slaydın KENDİ etkileşimine çözülüyor mu?
+    """Bu slaytta CALISIR bir gonder baglantisi var mi?
 
-    None = slaytta submitG yok (sorulacak sey yok). True/False = hepsi
-    cozuluyor / en az biri cozulmuyor.
+    None  = slaytta etkilesim yok (sorulacak sey yok)
+    False = etkilesim var ama gonder tetikleyicisi yok, YA DA `submitG`
+            baska bir seyi gosteriyor
+    True  = gonder tetikleyicisi var ve etkilesime cozuluyor
+
+    IKI KUSUR DUZELTILDI (2026-09-05), ikisi de bu olcuyu KOR birakiyordu:
+
+    1. "submitG yoksa None" idi -- yani "sorulacak sey yok". Ama gonder
+       tetikleyicisi SILINDIGINDE geriye submitG kalmiyor, dolayisiyla olcu
+       tam da kusurun gerceklestigi durumda sessiz kaliyordu. Olculdu: dokuz
+       tohumun dokuzunda tetikleyici siliniyordu ve bu satir hicbir zaman
+       bagirmadi. Kanarya ciktisi bile "kurulamadi (fikstuurde submitG yok)"
+       diyordu -- olcu, olctugu seyin kayboldugunu kendi agziyla soyledi ve
+       bu "kanarya kurulamadi" diye okundu.
+       Artik: etkilesim VARSA gonder de OLMALI. Yoksa False.
+
+    2. Slayttaki HER submitG'ye bakiyordu. Ama etkilesim ogesinin KENDISI de
+       bir submitG tasiyor ve o SIFIR olabiliyor -- olculdu, tohumda:
+       freeTextEntryIntr submitG="00000000-...". O yuzden metin girisi
+       slaydi saglam oldugu halde False donerdi.
+       Artik yalnizca GONDER TETIKLEYICILERININ icindeki submitG sayilir.
 
     Dogru bicim TAHMIN DEGIL, olculdu: elle yapilmis bir kursta 11 soru
     slaydinin 11'inde submitG o slaydin etkilesim guid'ine esit.
@@ -1516,9 +1535,15 @@ def _gonder_baglantisi(pkg, slayt: str) -> bool | None:
     if intr is None:
         return None
     hedef = intr.get("g")
-    bulunan = [el.get("submitG") for el in root.iter() if el.get("submitG")]
+    bulunan = []
+    for trig in root.iter("trig"):
+        data = trig.find("data")
+        if data is None or data.get("action") != "submitInteraction":
+            continue
+        bulunan += [el.get("submitG") for el in trig.iter()
+                    if el.get("submitG")]
     if not bulunan:
-        return None
+        return False
     return all(s == hedef for s in bulunan)
 
 
@@ -1745,9 +1770,9 @@ def check_question_frame() -> list[str]:
         gonder = _quiet(_gonder_baglantisi, StoryPackage(work),
                         made["new_slide"])
         if gonder is not None and not gonder:
-            out.append(f"soru cerceve {ad}: gonder baglantisi (submitG) "
-                       f"etkilesime cozulmuyor — editorde 'Submit unassigned', "
-                       f"ogrenci cevabi degerlendirilmez")
+            out.append(f"soru cerceve {ad}: gonder baglantisi yok ya da "
+                       f"etkilesime cozulmuyor — Submit tusu hicbir sey "
+                       f"yapmaz, ogrenci cevabi degerlendirilmez")
 
         sirali = _quiet(_sik_sirasi, StoryPackage(work), made["new_slide"])
         if sirali is None:

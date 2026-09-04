@@ -36,8 +36,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import builder  # noqa: E402
+import production  # noqa: E402
 import storyline_ctl  # noqa: E402
-from agent import AgentRun, find_cli, find_cli_info  # noqa: E402
+from agent import AgentRun, find_cli  # noqa: E402
 
 from storyline_mcp import authoring, compose, media, medya, model  # noqa: E402
 from storyline_mcp.clone import clone_slide, create_scene  # noqa: E402
@@ -174,6 +175,7 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
     """Whole-course build, with the same close/reopen courtesy as a command."""
     reopen_after = False
     try:
+        _push_event({"kind": "step", "text": "Kurs oluşturma başlıyor…"})
         if storyline_ctl.holds(path):
             _push_event({"kind": "step", "text": "Storyline bu projeyi açık tutuyor — kaydedilip kapatılıyor…"})
             result = storyline_ctl.save_and_close(path)
@@ -182,26 +184,14 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
                 return
             reopen_after = True
 
-        # Colours are applied by the engine, not asked of the model: a palette
-        # described in a prompt comes back approximately.
-        #
-        # Ve palet TAM uretilir. Once yalnizca bg ile accent gonderiliyordu ve
-        # geri kalan bes renk varsayilan lacivertte kaliyordu: acik bir zemin
-        # secildiginde baslik beyaz kaliyor, kontrast 1.09'a duşuyor, yani yazi
-        # gorunmez oluyordu. Olculdu, koyu lacivert disinda her secim bozuktu.
         palette = _palette_for(options)
+        _push_event({"kind": "step", "text": "Builder çalışıyor…"})
         report = builder.build(
             path, brief, model=model, options=options, palette=palette or None,
             on_progress=lambda text: _push_event({"kind": "step", "text": text}),
         )
         verified = report["verified"]
-        # DEVRALINAN KUSUR AYRI BILDIRILIR.
-        #
-        # Kurucu kendi slaytlarini EKLIYOR; kaynak dosyada ne varsa oldugu gibi
-        # kaliyor ve o da ogrenciye gidiyor. Olculdu: bir kursta 14 bos slayt
-        # ve 33 kopuk tetikleyici vardi, HEPSI kaynak sablondan geliyordu ve
-        # hicbir kontrol saymiyordu. Silmek kullanicinin karari -- ama sessiz
-        # kalmak, bos bir sahneyi kursun parcasi yapmak demek.
+        _push_event({"kind": "step", "text": f"Dosya kaydedildi. Doğrulama: {'✓ Başarılı' if verified.get('ok') else '✗ Sorun var'}"})
         inherited = report.get("inherited") or {}
         note = ""
         if inherited.get("empty_slides"):
@@ -212,9 +202,6 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
         if inherited.get("dangling_triggers"):
             note += (f" {inherited['dangling_triggers']} tetikleyicinin hedefi "
                      "yok (Storyline'da 'unassigned' görünür).")
-        # Kurs kuruldu ama tamamlanmadi: bu slaytlarda ayrilmis bir alan var ve
-        # icine ne konacagi yalnizca sekmede yaziyor. Burada soylenmezse kimse
-        # sekmeye bakmaz ve bos alan kursla birlikte gider.
         if report.get("medya_istekleri"):
             note += (f" {report['medya_istekleri']} slayt için görsel/video "
                      "isteniyor — GÖRSEL & VİDEO sekmesinde yazıyor.")
@@ -229,13 +216,21 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
             "output_path": report["written"],
         })
     except Exception as exc:  # noqa: BLE001
-        # KIRPILIR. Bazi istisnalarin metni CAGRIYI tasiyor (subprocess'in
-        # TimeoutExpired'i tam komut satirini, yani binlerce karakterlik
-        # istemi) ve panele oldugu gibi basildiginda kullanicinin gordugu sey
-        # ne oldugunu soyleyen bir cumle degil, kendi brief'inin kacisli hali
-        # oluyor -- olculdu 2026-08-29. Kirpma cozumun kendisi degil, ikinci
-        # savunma: mesaji kisa tutmak once istisnayi atanin isi.
+        import traceback
         metin = " ".join(f"{type(exc).__name__}: {exc}".split())
+        # Log the build failure to production log
+        try:
+            production.record(
+                path,
+                "build_failed",
+                {"verified": {"ok": False, "problems": [metin[:200]]}},
+                context={
+                    "error": metin[:300],
+                    "traceback": traceback.format_exc()[:500],
+                },
+            )
+        except Exception:
+            pass  # If logging fails, still show error to user
         _push_event({"kind": "error",
                      "text": metin[:400] + ("…" if len(metin) > 400 else "")})
     finally:
@@ -445,6 +440,7 @@ class Api:
             pkg = StoryPackage(path)
             result = media.add_image(pkg, slide, chosen[0], x=x, y=y, w=w)
             report = pkg.save(Path(path), backup=True)
+            production.record(path, "add_image", report, {"slide": slide})
             return {**result, "verified": report["verified"]}
         finally:
             if reopen_after:
@@ -499,6 +495,12 @@ class Api:
         source = Path(path)
         target = source if in_place else source.with_suffix(".edited.story")
         report = pkg.save(target, backup=True)
+        production.record(
+            target,
+            "apply",
+            report,
+            {"operation_count": len(operations), "in_place": in_place},
+        )
         return {"results": results, **report}
 
     def _run_one(self, pkg: StoryPackage, index: int, op: dict) -> dict:
@@ -522,7 +524,14 @@ class Api:
         result = apply_text_edits(pkg, edits)
         source = Path(path)
         target = source if in_place else source.with_suffix(".edited.story")
-        return {**result, **pkg.save(target, backup=True)}
+        report = pkg.save(target, backup=True)
+        production.record(
+            target,
+            "replace_all",
+            report,
+            {"query": query[:50], "replacements": len(edits), "in_place": in_place},
+        )
+        return {**result, **report}
 
     # --------------------------------------------------------------- js capabilities
 
@@ -565,7 +574,14 @@ class Api:
         result = jscat.uygula(pkg, slide, capability, params=params, event=event)
         source = Path(path)
         target = source if in_place else source.with_suffix(".edited.story")
-        return {**result, **pkg.save(target, backup=True)}
+        report = pkg.save(target, backup=True)
+        production.record(
+            target,
+            "add_js_capability",
+            report,
+            {"slide": slide, "capability": capability, "in_place": in_place},
+        )
+        return {**result, **report}
 
     @guarded
     def add_custom_js_trigger(
@@ -584,7 +600,14 @@ class Api:
         )
         source = Path(path)
         target = source if in_place else source.with_suffix(".edited.story")
-        return {**result, **pkg.save(target, backup=True)}
+        report = pkg.save(target, backup=True)
+        production.record(
+            target,
+            "add_custom_js_trigger",
+            report,
+            {"slide": slide, "event": event, "code_length": len(code), "in_place": in_place},
+        )
+        return {**result, **report}
 
     # --------------------------------------------------------------- donor pool
 
@@ -608,12 +631,17 @@ class Api:
 
     @guarded
     def agent_available(self) -> dict:
-        cli, flavor = find_cli_info()
-        return {
-            "available": cli is not None,
-            "path": str(cli) if cli else None,
-            "flavor": flavor,
-        }
+        # TEK MOTOR. Panel bir sure find_cli_info() cagiriyordu ve o, hangi
+        # CLI'ya dusuldugunu soyleyen bir "flavor" dondururdu -- Antigravity
+        # (agy) yedegi icin. Yedek 2026-09-04'te SOKULDU (gerekcesi
+        # agent.find_cli'nin belge dizesinde: agy, panelin dayandigi MCP arac
+        # yuzeyini hic tasimiyordu, yani oraya dusen kosu hicbir sey
+        # uretmiyordu) ama BU CAGRI GERIDE KALDI ve panel hic acilmaz oldu:
+        # ImportError, pythonw altinda hicbir yere dusmez -- cift tiklayan
+        # kullanici HICBIR SEY gorur.
+        cli = find_cli()
+        return {"available": cli is not None,
+                "path": str(cli) if cli else None}
 
     @guarded
     def run_command(
@@ -624,9 +652,10 @@ class Api:
         if not command.strip():
             raise RuntimeError("Komut bos.")
         if find_cli() is None:
-            raise RuntimeError(
-                "Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi."
-            )
+            # Mesaj da yedekle birlikte gitti: olmayan bir ikinci motoru
+            # aramaya cagirmak, kullaniciyi bulunamayacak bir sey aramaya
+            # yollar.
+            raise RuntimeError("Claude Code CLI bulunamadi.")
         if _ACTIVE_RUN and _ACTIVE_RUN.process and _ACTIVE_RUN.process.poll() is None:
             raise RuntimeError("Zaten calisan bir komut var.")
 
@@ -676,6 +705,27 @@ class Api:
     def reveal(self, path: str) -> str:
         os.startfile(str(Path(path).parent))  # noqa: S606
         return str(Path(path).parent)
+
+    # --------------------------------------------------------------- production log
+
+    @guarded
+    def production_log(self, count: int = 20) -> dict:
+        """Retrieve the most recent save operations and their validation results."""
+        return {
+            "entries": production.latest(count),
+            "summary": production.summary(),
+        }
+
+    @guarded
+    def production_log_text(self, count: int = 20) -> str:
+        """Retrieve production log as human-readable text."""
+        entries = production.latest(count)
+        if not entries:
+            return "Henüz üretim günlüğü yok."
+        lines = ["Üretim Günlüğü (en yeni ilk):", ""]
+        for entry in reversed(entries):
+            lines.append(production.format_entry(entry))
+        return "\n".join(lines)
 
 
 def main() -> None:

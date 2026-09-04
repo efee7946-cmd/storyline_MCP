@@ -199,34 +199,70 @@ def _question_from_seed(
                         for i, t in enumerate(choices)]}
 
 
-def _drop_dangling_triggers(pkg: StoryPackage, root: ET.Element) -> int:
-    """Hedefi cozulmeyen tetikleyicileri siler, kac tane oldugunu doner.
+def guids_within(shape: ET.Element) -> set[str]:
+    """Bir seklin ve BUTUN torunlarinin guid'leri.
 
-    Bilinen kume slaydin TAMAMI arti story.xml: katman guid'leri
-    sldLayerLst'te, degisken guid'leri story.xml'de yasiyor. Ikisini de
-    disarida birakmak olculmus kusurlar uretti -- birincisi "Dogru Cevap
-    katmanini goster"i sildirdi, ikincisi metin girisi kutusunun degiskene
-    baglantisini sildirirdi (o yuzden baglama bu supurgeden ONCE kosar).
-
-    Iki cagirani var (tohum uyarlama ve metin slaydi), ve tek yerde durmasi
-    gerekiyor: bu supurgeyi her cagiranin kendi icine yazmasi, kuralin
-    birinde unutulmasi demek.
+    Torunlar sart: silinen bir grubun cocuguna bakan tetikleyici, grubun
+    kendi guid'ini hic gecirmez.
     """
-    known = {e.get("g") for e in root.iter() if e.get("g")}
-    try:
-        known |= {e.get("g") for e in pkg.parse(STORY_PART).iter()
-                  if e.get("g")}
-    except Exception:
-        pass
+    return {e.get("g") for e in shape.iter() if e.get("g")}
+
+
+def _drop_dangling_triggers(pkg: StoryPackage, root: ET.Element,
+                            silinen: set[str]) -> int:
+    """BIZIM SILDIGIMIZ bir sekli isaret eden tetikleyicileri siler.
+
+    OLCUT DEGISTI (2026-09-05) ve gerekcesi olculdu. Onceki surum sunu
+    soruyordu: "bu tetikleyicideki her guid pakette cozuluyor mu?" Cozulmeyen
+    bir tanesi bile varsa tetikleyici siliniyordu.
+
+    O oncul YANLIS. Bagis havuzundaki -- yani Storyline'in KENDI yazdigi ve
+    sorunsuz acilan -- dosyalarda tetikleyici nitelikleri paketin tamamina
+    karsi olculdu:
+
+        showG        56 cozulur /  80 COZULMEZ   (%59)
+        actionG      14 cozulur /  14 COZULMEZ   (%50)
+        varG2        72 cozulur /  32 COZULMEZ   (%31)
+        moveG        19 cozulur /   5 COZULMEZ   (%21)
+        shapeG       90 cozulur /  22 COZULMEZ   (%20)
+
+    Yani cozulmeyen guid, calisan Storyline dosyalarinda OLAGAN. Onu yetimlik
+    kaniti saymak, saglam tetikleyicileri sildiriyordu.
+
+    BEDELI OLCULDU. Dokuz soru tohumunun dokuzunda `submitInteraction`
+    tetikleyicisi, tohumun ICINDE BILE hicbir seye cozulmeyen tek bir
+    `actionG` tasiyor (`ded656e9-...`, tum tohumda bir kez gecer, hasat
+    edildigi kurstan kalma olu bir kimlik). Supurge her seferinde GONDER
+    tetikleyicisini siliyordu -- yani uretilen her kursta, her soru tipinde,
+    ogrenci cevabini gonderemiyordu. Dosya gecerli, kontroller sessiz.
+
+    Dogru soru "cozuluyor mu" degil, "BIZ mi sildik". Cagiran ne sildigini
+    zaten biliyor; `silinen` o kumedir (bkz. guids_within). Boylece:
+
+      * silinen bir sekle bakan tetikleyici gider     -- supurgenin asil isi
+      * katman goster/gizle kalir                     -- katmani silmiyoruz
+      * degiskene yazan tetikleyici kalir             -- degiskeni silmiyoruz
+      * olu bir `actionG` artik kimseyi sildirmez
+
+    Ilk surumun belge dizesindeki iki olculmus kusur (katman tetikleyicisi ve
+    metin girisi baglantisi) bu olcutle KENDILIGINDEN gecer: ikisi de
+    silinmemis seyleri isaret ediyordu.
+
+    Iki cagirani var (tohum uyarlama ve metin slaydi) ve `silinen` ZORUNLU
+    parametre: varsayilani bos kume yapmak, cagiranin unutmasi halinde
+    supurgeyi sessizce etkisiz birakirdi.
+    """
+    hedef = {g for g in silinen if g and not g.startswith("00000000")}
+    if not hedef:
+        return 0
     dangling = 0
     for owner in [root] + list(root.iter()):
-        trig_list = owner.find("trigLst") if owner is not root else root.find("trigLst")
+        trig_list = owner.find("trigLst")
         if trig_list is None:
             continue
         for trig in list(trig_list):
             raw = ET.tostring(trig, encoding="unicode")
-            refs = {g for g in _GUID_RE.findall(raw)
-                    if not g.startswith("00000000") and g not in known}
+            refs = {g for g in _GUID_RE.findall(raw)} & hedef
             refs -= {trig.get("g") or "", trig.get("verG") or ""}
             if refs:
                 trig_list.remove(trig)
@@ -315,6 +351,12 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
     removed: list[str] = []
 
     # 1. ANATOMI DISINDA HER SEY GIDER.
+    #
+    # NE SILDIGIMIZ KAYDEDILIYOR: asagidaki 2. adim tetikleyicileri tam
+    # olarak bu kumeye gore ayikliyor. "Pakette cozulmeyen guid" olcutu
+    # denendi ve saglam tetikleyicileri sildiriyordu (gerekcesi
+    # _drop_dangling_triggers'in belge dizesinde).
+    silinen: set[str] = set()
     for shape in list(shape_list):
         guid = shape.get("g") or ""
         if shape is intr or shape.tag.endswith("Intr"):
@@ -323,6 +365,7 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
             continue
         text = model.shape_text(root, guid).strip() if guid else ""
         removed.append(f"{shape.tag}: {text[:24]!r}" if text else shape.tag)
+        silinen |= guids_within(shape)
         shape_list.remove(shape)
 
     # 1a. SICAK NOKTA TOHUMU METIN LISTESINE UYARLANIR -- SILMEDEN SONRA.
@@ -415,7 +458,7 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
     #    ve onlari disarida birakmak "Dogru Cevap katmanini goster"
     #    tetikleyicisini de sildiriyordu -- olculdu, soru geri bildirim
     #    veremez hale gelmisti.
-    dangling = _drop_dangling_triggers(pkg, root)
+    dangling = _drop_dangling_triggers(pkg, root, silinen)
     if dangling:
         removed.append(f"{dangling} kopuk tetikleyici")
 
@@ -1337,6 +1380,117 @@ def _ovali_kapsullestir(root, choice_guids) -> int:
     return uyarlanan
 
 
+def _seed_submit_trigger(tag: str) -> ET.Element | None:
+    """Gomulu tohumlardan bir GONDER tetikleyicisi getirir (kopya).
+
+    Elle yazilmiyor, KOPYALANIYOR -- bu projenin kurali: Storyline'in kendi
+    yazdigi bir govdeyi al, guid'lerini yenile. Tohumlarin dokuzunun
+    dokuzunda bu tetikleyici var ve hepsi ayni bicimde.
+
+    Ayni etkilesim ailesinden olani tercih edilir; yoksa herhangi biri, cunku
+    tetikleyicinin govdesi aileye gore degismiyor -- degisen tek sey
+    baglandigi `submitG`.
+    """
+    adaylar = []
+    for yol_listesi in question_seeds().values():
+        adaylar.extend(yol_listesi)
+    # Ailesi eslesenler basa
+    adaylar.sort(key=lambda p: (tag.lower() not in p.name.lower(), p.name))
+    for yol in adaylar:
+        try:
+            kok = ET.fromstring(yol.read_text(encoding="utf-8"))
+        except (OSError, ET.ParseError):
+            continue
+        for trig in kok.iter("trig"):
+            data = trig.find("data")
+            if data is not None and data.get("action") == "submitInteraction":
+                return _copy.deepcopy(trig)
+    return None
+
+
+def ensure_submit_trigger(pkg: StoryPackage, part: str) -> dict:
+    """Slaytta CALISIR bir gonder tetikleyicisi olmasini garanti eder.
+
+    PUANLAMA ZINCIRININ BIRINCI HALKASI, ve register_question'in belge
+    dizesindeki "bir slayda freePickOneIntr koymak soruyu CEVAPLANABILIR
+    yapar" cumlesi onsuz DOGRU DEGIL: gonder tetikleyicisi yoksa oynaticinin
+    Submit dugmesinin ateslecegi hicbir sey yoktur. Ogrenci cevabini isaretler,
+    tusa basar, hicbir sey olmaz.
+
+    OLCULDU (2026-09-05, kullanici bildirdi ve iki ayri sebep cikti):
+
+      1. TOHUM YOLU. Dokuz tohumun dokuzunda gonder tetikleyicisi VAR, ama
+         hepsi cozulmeyen bir `actionG` tasiyor ve eski supurge onu yetimlik
+         kaniti sayip tetikleyiciyi siliyordu. (Supurgenin olcutu degisti.)
+
+      2. SABLON YOLU -- ve uretimde ISIRAN bu. add_question, projede soru
+         slaydi varsa gomulu tohumu DEGIL o slaydi klonluyor; taban paketin
+         (test/bos.story) alti soru slaydinin ALTISINDA da gonder
+         tetikleyicisi yok. O yolda adapt_seeded_slide hic kosmuyor, yani
+         onarim adimi da kosmuyor. Yalnizca supurgeyi duzeltmek uretimde
+         HICBIR SEYI cozmezdi.
+
+    Iki durum, tek sozlesme:
+      * tetikleyici varsa `submitG` bu slaydin etkilesimine ONARILIR
+      * yoksa tohumdan KLONLANIR (elle yazilmaz)
+
+    `copiedG` slaydin kendi guid'i olur: dokuz tohumun altisinda o alan
+    `sld`'yi, ucunde gonder butonunu gosteriyor. Tetikleyici slaydin
+    trigLst'inde yasadigi icin slayt dogru olan.
+
+    Olu `actionG` OLDUGU GIBI birakilir. Tohumlar Storyline'in kendi
+    ciktisi ve o alan onlarda da cozulmuyor; temizlemek olculmemis bir
+    degisiklik olurdu ve supurge artik ona bakmiyor.
+    """
+    root = pkg.parse(part)
+    tag, intr = _find_interaction(root)
+    if intr is None:
+        return {"submit": "etkilesim yok", "added": 0, "repaired": 0}
+    hedef = intr.get("g") or ""
+
+    mevcut = []
+    for owner in root.iter():
+        trig_list = owner.find("trigLst")
+        if trig_list is None:
+            continue
+        for trig in trig_list:
+            data = trig.find("data")
+            if data is not None and data.get("action") == "submitInteraction":
+                mevcut.append(trig)
+
+    if mevcut:
+        onarilan = 0
+        for trig in mevcut:
+            for el in trig.iter():
+                if el.get("submitG") is not None and el.get("submitG") != hedef:
+                    el.set("submitG", hedef)
+                    onarilan += 1
+        if onarilan:
+            pkg.replace_xml(part, root)
+        return {"submit": "vardi", "added": 0, "repaired": onarilan}
+
+    trig = _seed_submit_trigger(tag)
+    if trig is None:
+        # Sessiz gecmez: gonderilemeyen bir soru, cevaplanamayan bir sorudur.
+        return {"submit": "tohumda gonder tetikleyicisi bulunamadi",
+                "added": 0, "repaired": 0}
+
+    trig.set("g", clone.new_guid())
+    trig.set("verG", clone.new_guid())
+    trig.set("copiedG", root.get("g") or "")
+    for el in trig.iter():
+        if el.get("submitG") is not None:
+            el.set("submitG", hedef)
+
+    trig_list = root.find("trigLst")
+    if trig_list is None:
+        trig_list = ET.Element("trigLst")
+        shapes.insert_in_order(root, trig_list)
+    trig_list.append(trig)
+    pkg.replace_xml(part, root)
+    return {"submit": "eklendi", "added": 1, "repaired": 0}
+
+
 def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
     """Soruyu quiz'e kaydet -- yoksa cevap alinir, skor gitmez.
 
@@ -1356,13 +1510,24 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
     DEGIL <item> METNINDE duruyor, ve story duzeyindeki lmsResultSlideG
     quiz'in kendi resultSldG'siyle AYNI slayda isaret ediyor.
     """
+    # BIRINCI HALKA ONCE, ve her erken donusten ONCE. Gonder tetikleyicisi
+    # quiz kaydindan BAGIMSIZ: quizMgr olmayan bir pakette bile ogrencinin
+    # cevabini gonderebilmesi gerekir. Asagidaki iki erken donusun arkasina
+    # konsaydi, tam da o paketlerde sessizce atlanirdi.
+    gonder = {"submit": "slayt bulunamadi", "added": 0, "repaired": 0}
+    part = next((p for p, r in model.slide_index(pkg).items()
+                 if r.guid == slide_guid), None)
+    if part is not None:
+        gonder = ensure_submit_trigger(pkg, part)
+
     story = pkg.parse(STORY_PART)
     manager = story.find("quizMgr")
     if manager is None:
-        return {"registered": False, "why": "quizMgr yok"}
+        return {"registered": False, "why": "quizMgr yok", "gonder": gonder}
     quiz = next(iter(story.iter("quiz")), None)
     if quiz is None:
-        return {"registered": False, "why": "quizLst icinde quiz yok"}
+        return {"registered": False, "why": "quizLst icinde quiz yok",
+                "gonder": gonder}
 
     id_list = quiz.find("questionIdLst")
     if id_list is None:
@@ -1370,7 +1535,7 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
         id_list = ET.Element("questionIdLst")
         quiz.insert(0, id_list)
     if any((el.text or "").strip() == slide_guid for el in id_list):
-        return {"registered": True, "why": "zaten kayitli"}
+        return {"registered": True, "why": "zaten kayitli", "gonder": gonder}
     item = ET.SubElement(id_list, "item")
     item.text = slide_guid
 
@@ -1388,7 +1553,7 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
 
     pkg.replace_xml(STORY_PART, story)
     return {"registered": True, "why": "kaydedildi",
-            "lms_tracking_set": changed_tracking}
+            "lms_tracking_set": changed_tracking, "gonder": gonder}
 
 
 def add_question(
@@ -1762,6 +1927,7 @@ def _adapt_text_slide(pkg: StoryPackage, part: str, *,
     stem = _stem_shape_guid(root, [entry_guid])
 
     removed: list[str] = []
+    silinen: set[str] = set()
     for shape in list(shape_list):
         guid = shape.get("g") or ""
         if shape is entry or guid == stem:
@@ -1770,13 +1936,15 @@ def _adapt_text_slide(pkg: StoryPackage, part: str, *,
             if graded:
                 continue
             removed.append(f"{shape.tag} (taahhut kipi: puanlama yok)")
+            silinen |= guids_within(shape)
             shape_list.remove(shape)
             continue
         text = model.shape_text(root, guid).strip() if guid else ""
         removed.append(f"{shape.tag}: {text[:24]!r}" if text else shape.tag)
+        silinen |= guids_within(shape)
         shape_list.remove(shape)
 
-    dangling = _drop_dangling_triggers(pkg, root)
+    dangling = _drop_dangling_triggers(pkg, root, silinen)
     if dangling:
         removed.append(f"{dangling} kopuk tetikleyici")
     if palette:
@@ -2116,11 +2284,54 @@ def add_results_slide(
     result = clone.install_slide(
         pkg, seed.read_text(encoding="utf-8"), scene=scene, name=name
     )
+    baglanan = _sonuc_degiskenlerini_bagla(pkg, result["part"])
     return {
         **result,
+        "score_vars_rebound": baglanan,
         "note": ("Slayt eklendi ve dosya acilir durumda. Puanlama, devraldigi quiz "
                  "baglantilarina bagli; yayinlamadan dogrulanamaz."),
     }
+
+
+# Tohumun HASAT EDILDIGI projeye ait skor degisken GUID'leri. Bunlar slaydin
+# icinde degil story.xml'de yasayan YERLESIK degiskenler, dolayisiyla
+# install_slide'in GUID yenilemesi onlara dokunmaz -- tohum yabanci GUID'i
+# oldugu gibi taşır ve hedef pakette karsiligi YOKTUR.
+#
+# OLCULDU 2026-09-04: kurulan sonuc slaydinda iki trigCond'un varG'si pakette
+# bulunmuyordu. Sonuc: slayt goruntuleniyor, gectiniz/kaldiniz katmanlarini
+# aciracak kosullar HIC dogru donmuyor. Tam olarak projenin "sessizce
+# calismayan tetikleyici" sinifi -- dosya acilir, panel tetikleyiciyi
+# gosterir, calisma aninda hicbir sey olmaz.
+#
+# ROLE gore eslesiyor, ada gore degil: iki GUID'in hangi degisken oldugu
+# tohumun kendi kosullarindan okundu (dataType="var", skor >= gecme puani).
+SONUC_TOHUM_DEGISKENLERI = {
+    "903b3800-3db5-4484-bd3c-16161372579b": "Results.ScorePoints",
+    "d0d815e0-8c34-48ce-b1f0-8bd2ae7ee506": "Results.PassPoints",
+}
+
+
+def _sonuc_degiskenlerini_bagla(pkg: StoryPackage, part: str) -> list[str]:
+    """Tohumun yabanci skor GUID'lerini hedef paketinkilerle degistirir.
+
+    Hedefte degisken yoksa (quiz'i olmayan bir proje) SESSIZ GECILMEZ:
+    baglanamayan ad geri dondurulur ve cagiran raporlar.
+    """
+    hedef = {v["name"]: v["guid"] for v in model.variables(pkg)}
+    root = pkg.parse(part)
+    baglanan: list[str] = []
+    degisti = False
+    for cond in root.iter("trigCond"):
+        for alan in ("varG", "varG2"):
+            ad = SONUC_TOHUM_DEGISKENLERI.get(cond.get(alan) or "")
+            if ad and hedef.get(ad):
+                cond.set(alan, hedef[ad])
+                baglanan.append(ad)
+                degisti = True
+    if degisti:
+        pkg.replace_xml(part, root)
+    return sorted(set(baglanan))
 
 
 def add_decoration(

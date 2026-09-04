@@ -60,113 +60,15 @@ def find_claude_cli() -> Path | None:
     return None
 
 
-def find_agy_cli() -> Path | None:
-    on_path = shutil.which("agy") or shutil.which("antigravity")
-    if on_path:
-        return Path(on_path)
-
-    for extra in (
-        Path(os.environ.get("LOCALAPPDATA", "")) / "agy" / "bin" / "agy.exe",
-        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Antigravity" / "bin" / "antigravity.cmd",
-        Path.home() / ".local" / "bin" / "agy",
-    ):
-        if extra.is_file():
-            return extra
-    return None
-
-
-_CLAUDE_TESTED: bool = False
-_CLAUDE_DISABLED: bool = False
-
-
-def disable_claude_cli() -> None:
-    global _CLAUDE_DISABLED, _CLAUDE_TESTED
-    _CLAUDE_DISABLED = True
-    _CLAUDE_TESTED = True
-
-
-def is_claude_disabled() -> bool:
-    return _CLAUDE_DISABLED
-
-
-def check_claude_working() -> bool:
-    global _CLAUDE_TESTED, _CLAUDE_DISABLED
-    if _CLAUDE_DISABLED:
-        return False
-    if _CLAUDE_TESTED:
-        return not _CLAUDE_DISABLED
-
-    claude = find_claude_cli()
-    if not claude:
-        _CLAUDE_DISABLED = True
-        _CLAUDE_TESTED = True
-        return False
-
-    try:
-        res = subprocess.run(
-            [str(claude), "-p", "hi", "--output-format", "json"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=6,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        out = (res.stdout or "") + (res.stderr or "")
-        if res.returncode != 0 or "disabled" in out.lower() or "subscription" in out.lower() or "403" in out or "api_error" in out:
-            _CLAUDE_DISABLED = True
-        else:
-            _CLAUDE_DISABLED = False
-    except Exception:
-        _CLAUDE_DISABLED = True
-
-    _CLAUDE_TESTED = True
-    return not _CLAUDE_DISABLED
-
-
-ROOT = Path(__file__).resolve().parent.parent
-_AGY_MCP_REGISTERED: bool = False
-
-
-def ensure_agy_mcp_registered() -> None:
-    global _AGY_MCP_REGISTERED
-    if _AGY_MCP_REGISTERED:
-        return
-    agy = find_agy_cli()
-    if not agy:
-        return
-
-    server_script = ROOT / "storyline_mcp" / "server.py"
-    python_exe = sys.executable
-    if server_script.exists() and Path(python_exe).exists():
-        try:
-            subprocess.run(
-                [str(agy), "mcp", "add", "storyline", str(python_exe), str(server_script)],
-                capture_output=True, text=True, timeout=5,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-            _AGY_MCP_REGISTERED = True
-        except Exception:
-            pass
-
-
-def find_cli_info() -> tuple[Path, str] | tuple[None, None]:
-    """Locate available CLI: Claude Code first (if operational), Antigravity (agy) fallback second."""
-    if check_claude_working():
-        claude = find_claude_cli()
-        if claude:
-            return claude, "claude"
-
-    agy = find_agy_cli()
-    if agy:
-        ensure_agy_mcp_registered()
-        return agy, "agy"
-
-    claude = find_claude_cli()
-    if claude:
-        return claude, "claude"
-    return None, None
-
-
 def find_cli() -> Path | None:
-    path, _ = find_cli_info()
-    return path
+    """The one CLI this panel drives. There is no second engine to fall back to.
+
+    An Antigravity (agy) fallback lived here until 2026-09-04 and was removed:
+    it never carried the MCP tool surface this panel depends on, so a run that
+    landed on it lost every storyline tool and produced nothing -- a slower
+    path to the same failure, announced in the UI as a recovery.
+    """
+    return find_claude_cli()
 
 TOOLS = [
     "story_info", "list_slides", "extract_text", "search_text",
@@ -186,6 +88,12 @@ TOOLS = [
     "list_button_states", "set_button_state",
     "list_layers", "add_layer",
     "add_variable", "add_trigger",
+    # HAREKET. Bunlar 2026-09-04'te yazildi ve bir sure YALNIZCA builder.build
+    # yoluna baglandi; komut yolu (bu ajan) hicbirini goremiyordu. Olculdu
+    # 2026-09-05: ajanin urettigi fm.story'de 13 slaydin 13'u hareketsiz ve
+    # ajan bunu dogru gerekcelendirdi -- prompt "timeline animasyonu
+    # yapilamaz" diyordu ve araclar zaten izin listesinde yoktu.
+    "animate_slide", "list_animations", "animation_effects",
     # JS yetenekleri. Bunlar bir sure MCP'de VARDI ama izin listesinde YOKTU,
     # yani `--strict-mcp-config` altinda ajan onlari hic cagiramiyordu --
     # arac vardi, tek gercek cagiran ona ulasamiyordu.
@@ -197,7 +105,10 @@ ALLOWED = [f"{TOOL_PREFIX}{name}" for name in TOOLS]
 # Substituted with str.replace, not str.format: the prompt contains literal
 # JSON braces as examples, and format() reads those as placeholders and raises
 # KeyError before the CLI is ever launched -- a command that simply never runs.
-import ogretim
+try:
+    from . import ogretim
+except ImportError:  # pragma: no cover - script execution fallback
+    import ogretim
 
 PATH_TOKEN = "__STORY_PATH__"
 
@@ -292,6 +203,22 @@ basligin ustunde mi altinda mi durdugunu degistirir -- rengi degil.
 - style ile variant ayni sey degil: style kurs boyunca SABIT kalir (kursu
 digerlerinden ayirir), variant her slaytta DEGISIR (slayti bir oncekinden
 ayirir).
+
+Hareket (varsayilan ACIK, kapatmak icin acikca istenmeli):
+- Kursun TAMAMINI kurdukten SONRA bir kez animate_slide(path, preset="sakin")
+cagir. slide vermezsen butun slaytlara ve katmanlarina uygulanir; tek tek
+gezmek gereksiz ve bir slayti atlamana yol acar.
+- preset: sakin (her sey solarak girer -- guvenli varsayilan), anlatim
+(susleme silinir, blok kayar, yazi solar), vurgulu (yazi da kayar; yogun
+slaytta cok olur). BIR KURSTA TEK preset kullan.
+- Bunu atlarsan kursta HICBIR hareket olmaz: her nesne ayni anda, aninda
+belirir. Olculdu 2026-09-05 -- bu satir yokken uretilen bir kursta 13
+slaydin 13'u hareketsizdi.
+- Soru govdeleri ve zemin bilerek disarida kalir; sen ayrica ugrasma.
+- Alternatif: her compose_slide cagrisina motion="sakin" gecirebilirsin, ama
+o yalnizca ICERIK slaytlarini kurgular -- soru, sonuc ve ilerleme slaytlari
+baska yollardan kuruluyor ve hareketsiz kalir. Tek cagrilik animate_slide
+tercih edilir.
 
 Gorsel kullanimi (kaliteyi en cok bu yukseltir):
 - Elinde bir gorsel varsa compose_slide'i image_area=true ile cagir ve
@@ -414,7 +341,9 @@ Su an YAPILAMAYANLAR (istenirse acikca soyle, uydurma):
 - Internetten gorsel/video indirme, ve gorsel/video URETME. add_image ve
 add_video DISKTEKI bir dosyayi alir. Dosya yoksa dogru cevap "yapilamiyor"
 degil, request_media ile siparis birakmaktir.
-- Timeline animasyonlari (62 dosya tarandi, klonlanacak calisan ornek yok).
+- Hareket YOLU (motion path) ve slayt GECISI. Giris animasyonu yapilir
+(asagiya bak); nesneyi bir yol boyunca tasimak ve slaytlar arasi gecis
+yazmak henuz olculmedi.
 - Soru bankasi (Question Bank) yapilari. Desteklenen soru tipleri: Tek/Cok Secmeli (add_question), Surukle-Birak (add_drag_question), Metin Girisi (add_text_question) ve Sicak Nokta (add_hotspot_question).
 """
 
@@ -512,17 +441,16 @@ class AgentRun:
     def _run(self) -> None:
         config: Path | None = None
         try:
-            cli, flavor = find_cli_info()
+            cli = find_cli()
             if cli is None:
-                raise RuntimeError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
+                raise RuntimeError("Claude Code CLI bulunamadi.")
 
             sys_prompt = (
                 SYSTEM_PROMPT.replace(PATH_TOKEN, self.story_path)
                 + self._palette_note()
             )
 
-            if flavor == "claude":
-                config = _mcp_config()
+            def build_argv(use_resume: bool = True) -> list[str]:
                 argv = [
                     str(cli), "-p", self.command,
                     "--mcp-config", str(config),
@@ -533,56 +461,23 @@ class AgentRun:
                     "--model", self.model,
                     "--append-system-prompt", sys_prompt,
                 ]
-                if self.resume:
+                if use_resume and self.resume:
                     argv[2:2] = ["--resume", self.resume]
-            else:
-                # Antigravity (agy) CLI fallback
-                ensure_agy_mcp_registered()
-                full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
-                argv = [
-                    str(cli), "-p", full_prompt,
-                    "--output-format", "stream-json",
-                    "--dangerously-skip-permissions",
-                ]
+                return argv
 
+            config = _mcp_config()
+            argv = build_argv()
             code, stderr = self._kos(argv)
 
-            if code != 0 and self.resume and not self._final_gorundu and flavor == "claude":
+            if code != 0 and self.resume and not self._final_gorundu:
                 self.on_event({
                     "kind": "step",
                     "text": "Onceki komutun baglami suruyordu ama acilamadi; "
                             "komut baglamsiz yeniden calistiriliyor.",
                 })
                 self.resume = None
-                temiz, atla = [], False
-                for a in argv:
-                    if atla:
-                        atla = False
-                        continue
-                    if a == "--resume":
-                        atla = True
-                        continue
-                    temiz.append(a)
-                argv = temiz
+                argv = build_argv(use_resume=False)
                 code, stderr = self._kos(argv)
-
-            # RUNTIME LIMIT / FAILURE FALLBACK TO ANTIGRAVITY (AGY)
-            if code != 0 and flavor == "claude" and not self._final_gorundu:
-                disable_claude_cli()
-                agy_cli = find_agy_cli()
-                if agy_cli:
-                    err_msg = (stderr or "").strip()
-                    self.on_event({
-                        "kind": "step",
-                        "text": f"Claude Code erişimi engellendi/limit doldu — Otomatik olarak Antigravity (agy) CLI fallback'ine geçiliyor...",
-                    })
-                    full_prompt = f"System instructions:\n{sys_prompt}\n\nUser command:\n{self.command}"
-                    argv = [
-                        str(agy_cli), "-p", full_prompt,
-                        "--output-format", "stream-json",
-                        "--dangerously-skip-permissions",
-                    ]
-                    code, stderr = self._kos(argv)
 
             if code != 0:
                 self.on_event({
@@ -620,40 +515,6 @@ class AgentRun:
 
     def _dispatch(self, event: dict) -> None:
         """Translate the CLI's stream into something the page can render."""
-        # Handle agy stream-json format
-        if "event" in event:
-            evt_name = event.get("event")
-            if evt_name == "step_update":
-                step = event.get("step_update", {})
-                if step.get("step_type") == "agent_response":
-                    text_delta = step.get("text_delta", "").strip()
-                    if text_delta:
-                        self.on_event({"kind": "text", "text": text_delta})
-                elif step.get("step_type") == "tool_call":
-                    tool_calls = step.get("tool_calls", [])
-                    for call in tool_calls:
-                        name = call.get("name", "")
-                        self.on_event({
-                            "kind": "tool",
-                            "name": name.replace(TOOL_PREFIX, ""),
-                            "input": self._brief(call.get("args", {})),
-                        })
-            elif evt_name == "result":
-                self._final_gorundu = True
-                res = event.get("result", {})
-                resp_text = res.get("response", "") or res.get("result", "")
-                written = Path(self.output_path)
-                self.on_event({
-                    "kind": "final",
-                    "error": res.get("status") == "ERROR",
-                    "text": resp_text,
-                    "duration_ms": int(res.get("duration_seconds", 0) * 1000),
-                    "turns": res.get("num_turns"),
-                    "output_path": str(written) if written.exists() else None,
-                    "session_id": res.get("conversation_id"),
-                })
-            return
-
         kind = event.get("type")
         # Her olayda gelebilir; sonuncusu tutulur.
         if event.get("session_id"):
