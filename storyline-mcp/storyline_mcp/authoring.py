@@ -199,6 +199,34 @@ def _question_from_seed(
                         for i, t in enumerate(choices)]}
 
 
+def _kutu(shape: ET.Element) -> tuple[float, float, float, float] | None:
+    """Seklin kutusu, KOSELERI SIRALANMIS halde.
+
+    Siralama sart: tohumda b < t olan bir kutu olculdu ('Guvenlik Skoru'
+    etiketi, t=40 b=-2). Ham degerlerle yapilan bir kapsama testi onu hic
+    yakalamazdi.
+    """
+    loc = shape.find("loc")
+    if loc is None:
+        return None
+    try:
+        l, t, r, b = (float(loc.get(k, 0)) for k in ("l", "t", "r", "b"))
+    except (TypeError, ValueError):
+        return None
+    return (min(l, r), min(t, b), max(l, r), max(t, b))
+
+
+def _icinde(kucuk, buyuk, pay: float = 0.8) -> bool:
+    """kucuk kutunun alaninin en az `pay` kadari buyuk kutunun icinde mi."""
+    gx = max(0.0, min(kucuk[2], buyuk[2]) - max(kucuk[0], buyuk[0]))
+    gy = max(0.0, min(kucuk[3], buyuk[3]) - max(kucuk[1], buyuk[1]))
+    alan = (kucuk[2] - kucuk[0]) * (kucuk[3] - kucuk[1])
+    if alan <= 0:
+        # Yukseklikisiz/genisliksiz sekil: yalnizca kesisim varsa say.
+        return gx > 0 and gy >= 0
+    return (gx * gy) / alan >= pay
+
+
 def guids_within(shape: ET.Element) -> set[str]:
     """Bir seklin ve BUTUN torunlarinin guid'leri.
 
@@ -368,6 +396,72 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
         silinen |= guids_within(shape)
         shape_list.remove(shape)
 
+    # 1-KATMAN. AYNI KURAL KATMANLARDA DA ISLER.
+    #
+    # Yukaridaki 1. adim "anatomi disinda her sey gider" diyor ama yalnizca
+    # slaydin kendi shapeLst'inde yuruyordu. Katmanlar hic temizlenmiyordu ve
+    # tohumun hasat edildigi kursun icerigi oradan ogrenciye ULASIYORDU --
+    # olculdu 2026-09-05, question_freePickOneIntr_3'un Cevap katmanlari:
+    #
+    #     group     (metinsiz rozet)         <- kullanicinin gordugu sey
+    #     textBox   'Guvenlik Skoru'          <- donorun etiketi
+    #     textBox   '%GuvenlikSkoru%'         <- BU PROJEDE OLMAYAN degisken
+    #
+    # Sonuncusu en kotusu: oynatici cozemedigi degisken adini oldugu gibi
+    # yazar. Kullanici bunu "baska slayttan klonlanmis guvenlik skoru" diye
+    # bildirdi ve teshis dogruydu.
+    #
+    # OLCUT DAR TUTULDU, cunku katmanda neyin anatomi oldugu slayttaki kadar
+    # net degil: yalnizca (a) kod tabaninin katmanda HIC uretmedigi `group`
+    # sekilleri ve (b) bu projede karsiligi olmayan %degisken% referansi
+    # tasiyan metinler gider. Geri bildirim yazisi, butonu ve paneli
+    # DOKUNULMADAN kalir -- onlari compose_feedback_layers yeniden yaziyor.
+    proje_degiskenleri = {v["name"] for v in model.variables(pkg)}
+    for _kat_adi, katman in model.layers(root):
+        kat_liste = katman.find("shapeLst")
+        if kat_liste is None:
+            continue
+        # ROZET TEK SEKIL DEGIL, KUME. Olculdu (freePickOneIntr_3, Cevap1):
+        #     group      %80..%97 x , %-0..%11 y
+        #     roundRect  %80..%97   , %4..%11
+        #     textBox    %80..%91   , %4..%-0     'Guvenlik Skoru'
+        #     textBox    %81..%93   , %4..%10     '%GuvenlikSkoru%'
+        # Dorduu de sag ust kosede, ayni kutunun icinde. Gercek geri bildirim
+        # icerigi (anlatim metni %16..%66, buton %50..%73) tamamen ayri yerde.
+        #
+        # O yuzden olcut GEOMETRIK ve kendini sinirlar: silinen group'un
+        # kutusunun icinde kalan komsulari da gider. Group yoksa hicbir sey
+        # silinmez -- kural kendiliginden kapanir.
+        rozet_kutulari = []
+        for shape in list(kat_liste):
+            g = shape.get("g") or ""
+            neden = None
+            if shape.tag == "group":
+                neden = "donor rozeti (group)"
+                kutu = _kutu(shape)
+                if kutu:
+                    rozet_kutulari.append(kutu)
+            else:
+                metin = model.shape_text(katman, g).strip() if g else ""
+                bilinmeyen = [ad for ad in _DEGISKEN_REF.findall(metin)
+                              if ad not in proje_degiskenleri]
+                if bilinmeyen:
+                    neden = f"cozulmeyen degisken referansi %{bilinmeyen[0]}%"
+            if neden:
+                removed.append(f"katman {_kat_adi!r}: {shape.tag} -- {neden}")
+                silinen |= guids_within(shape)
+                kat_liste.remove(shape)
+
+        for shape in list(kat_liste):
+            kutu = _kutu(shape)
+            if not kutu or not any(_icinde(kutu, r) for r in rozet_kutulari):
+                continue
+            metin = model.shape_text(katman, shape.get("g") or "").strip()
+            removed.append(f"katman {_kat_adi!r}: {shape.tag} -- rozet kumesi "
+                           f"{metin[:20]!r}")
+            silinen |= guids_within(shape)
+            kat_liste.remove(shape)
+
     # 1a. SICAK NOKTA TOHUMU METIN LISTESINE UYARLANIR -- SILMEDEN SONRA.
     #
     # MEKANIZMA OLCULEREK COZULDU (2026-08-19), ve uc kez yanlis yere
@@ -519,21 +613,41 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
     root = pkg.parse(part)
     ground_paint = preview.slide_ground(root, [])
     ground = rgb(ground_paint) if (ground_paint or "").startswith("#")         else rgb(palette.get("bg", "#0E1B3D"))
+    # KATMANLAR DA BOYANIR. Bir sure yalnizca slaydin kendi shapeLst'i
+    # geziliyordu; katman sekilleri `top` icinde bulunmadigi icin sahipleri
+    # cozulemiyor ve SESSIZCE atlaniyordu. Sonucu ekranda: slayt kursun
+    # temasini giyerken geri bildirim pop-up'i tohumun renklerinde kaliyordu
+    # (kullanici bildirdi 2026-09-05; olculdu: uretilen kurslarda katman
+    # sekillerinin hicbirinde ne dolgu ne acik yazi rengi vardi).
+    #
+    # Govde listesi model.bodies'ten gelir -- ayni kural animasyonda ve tohum
+    # temizliginde de unutulmustu, o yuzden arama tek yerde durur.
     wanted: dict[str, str] = {}
-    for shape in list(root.find("shapeLst") or []):
-        guid = shape.get("g") or ""
-        if not guid:
-            continue
-        own = preview._fill_of(shape, [])
-        behind = rgb(own) if (own or "").startswith("#") else ground
-        options = [palette.get("text", "#FFFFFF"),
-                   palette.get("on_accent", "#10141B"),
-                   palette.get("accent_text", palette.get("accent", "#FFC72C"))]
-        wanted[guid] = max(options,
-                           key=lambda c: _contrast(rgb(c), behind))
+    top: dict[str, ET.Element] = {}
+    for _ad, govde in model.bodies(root):
+        # Katmanin KENDI zemini varsa o gecerli; yoksa slaydinki gorunur.
+        zemin = ground
+        if govde is not root:
+            try:
+                kat = preview.slide_ground(govde, [])
+            except Exception:
+                kat = None
+            if (kat or "").startswith("#"):
+                zemin = rgb(kat)
+        for shape in list(govde.find("shapeLst") or []):
+            guid = shape.get("g") or ""
+            if not guid:
+                continue
+            own = preview._fill_of(shape, [])
+            behind = rgb(own) if (own or "").startswith("#") else zemin
+            options = [palette.get("text", "#FFFFFF"),
+                       palette.get("on_accent", "#10141B"),
+                       palette.get("accent_text", palette.get("accent", "#FFC72C"))]
+            wanted[guid] = max(options,
+                               key=lambda c: _contrast(rgb(c), behind))
+            top[guid] = shape
 
     parents = model._parent_map(root)
-    top = {s.get("g"): s for s in (root.find("shapeLst") or []) if s.get("g")}
     touched = 0
     for shp, text_el, _doc, _state in model._iter_text_shapes(root):
         node, owner = shp, None
@@ -567,6 +681,10 @@ def _restyle_shape_text(root: ET.Element, guid: str, *, size: float) -> None:
 _GUID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+# Oynatici %AD% bicimindeki degisken referansini metin icinde COZER; adi
+# bilmiyorsa oldugu gibi YAZAR. Tohumdan gelen bir referans bu projede
+# yoksa ogrenci ekranda "%GuvenlikSkoru%" okur -- olculdu 2026-09-05.
+_DEGISKEN_REF = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)%")
 
 
 def _protected(shape, keep: set, intr) -> bool:

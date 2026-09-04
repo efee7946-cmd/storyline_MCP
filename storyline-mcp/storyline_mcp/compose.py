@@ -1349,6 +1349,20 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
                 shapes.set_fill(shape, colors["accent"])
             olceklenen += _olcege_al(shape)
 
+        # PANEL DE BOYANIR. `paneller` hesaplaniyordu ve HIC KULLANILMIYORDU
+        # -- olu degisken. Sonucu ekranda gorunuyordu: slayt kursun temasini
+        # giyerken geri bildirim kutusu tohumun koyu grisinde kaliyor, mor
+        # bir kursun ustunde yabanci bir dikdortgen olarak duruyordu
+        # (kullanici bildirdi 2026-09-05, olculdu: uretilen kurslarda katman
+        # sekillerinin hicbirinde dolgu yok).
+        #
+        # "surface", paletin KART yuzeyi -- compose_slide kartlari da onunla
+        # boyuyor, yani pop-up kursun kendi kart diliyle konusur.
+        for shape, _t in paneller:
+            if palette:
+                shapes.set_fill(shape, colors["surface"])
+            olceklenen += _olcege_al(shape)
+
         if metinler:
             baslik = next((s for s, _t in metinler
                            if (s.get("name") or "") == "&Title"), None)

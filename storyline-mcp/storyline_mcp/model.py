@@ -345,6 +345,41 @@ def triggers(pkg: StoryPackage, slide: str | None = None) -> list[dict]:
 # dogrulanmadi, tahmin olarak duruyorlar ve bu yuzden burada isaretliler.
 # Biri elde bir ornekle dogrulanana kadar, o tiplerden birinin sessizce
 # gorunmez olmasi HALA mumkun.
+# BIR SLAYDIN GOVDELERI. Katman, kendi tmCtxLst'i, bg'si ve shapeLst'i olan
+# KUCUK BIR SLAYT -- olculdu: <sldLayer> ve <feedBackLayer> cocuklari
+# tmProps, tmCtxLst, sz, bg, shapeLst, trigLst, trans. Yani slaytta gecerli
+# olan her kural katmanda da gecerli, ve `root.find("shapeLst")` uzerinde
+# yuruyen her kod katmani ATLAR.
+#
+# ETIKET IKI TANE ve bu kural DORT KEZ unutuldu (olculdu 2026-09-04/05):
+#     animasyon      yalnizca sldLayer arandi -> feedBackLayer hareketsiz kaldi
+#     anim.clear     ayni eksik
+#     boyama         _recolour_for_palette hic katmana inmiyordu
+#     tohum temizligi adapt_seeded_slide hic katmana inmiyordu
+# Her cagiranin kendi aramasini yazmasi, dorduncude de birinin unutmasi
+# demekti. Arama BURADA durur; cagiran `bodies()` ya da `layers()` cagirir.
+LAYER_TAGS = ("sldLayer", "feedBackLayer")
+
+
+def layers(root: ET.Element) -> list[tuple[str, ET.Element]]:
+    """Slaydin katmanlari: (ad, govde). Iki etiketi de bulur."""
+    holder = root.find("sldLayerLst")
+    if holder is None:
+        return []
+    return [(el.get("name", "") or el.tag, el)
+            for el in holder if el.tag in LAYER_TAGS]
+
+
+def bodies(root: ET.Element) -> list[tuple[str | None, ET.Element]]:
+    """Slaydin KENDISI arti katmanlari -- shapeLst tasiyan her govde.
+
+    Ilk oge her zaman (None, slaydin kendisi). Katman adi None DEGIL, cunku
+    "slaytta mi katmanda mi" ayrimi cagiranlar icin anlamli (olcum raporu,
+    zamanlama sifiri, hata mesaji).
+    """
+    return [(None, root)] + list(layers(root))
+
+
 INTERACTION_TAGS = (
     "freePickOneIntr",
     "freePickManyIntr",

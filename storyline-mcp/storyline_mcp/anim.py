@@ -82,6 +82,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
+from . import model
 from .package import StoryPackage, StoryError
 
 # Fiil -> o fiile OZGU nitelikler. Ortak dortlu (dur, lvl, easingDir,
@@ -107,16 +108,11 @@ VIDEO_TAG = "vidTmCtx"
 # daha gec girer.
 MIN_TAIL_MS = 2000
 
-# KATMAN ETIKETLERI IKI TANE, ve bu tek bir yerde yaziyor. Ilk surumde
-# yalnizca `sldLayer` araniyordu ve geri bildirim pop-up'lari sessizce
-# disarida kaliyordu: olculdu 2026-09-04, uretilen bir kursta sldLayerLst
-# cocuklari 25 sldLayer (100 sekil) ve 10 feedBackLayer (28 sekil) --
-# yani "katmanlar da kurgulandi" demek, sorularin dogru/yanlis ekranlari
-# icin YANLIS olurdu.
-#
-# Ikisinin yapisi ayni (tmProps, tmCtxLst, sz, bg, shapeLst, trigLst,
-# trans), o yuzden ayirt etmeye gerek yok -- yalnizca ikisini de bulmaya.
-LAYER_TAGS = ("sldLayer", "feedBackLayer")
+# KATMAN ARAMASI BURADA DEGIL: model.layers tek yetkili yer. Bir sure bu
+# modulun kendi kopyasi vardi ve ayni kural boyama ile tohum temizliginde
+# ayrica unutuldu -- yani kopya, unutmayi onlemedi. Ad geriye donuk uyum
+# icin duruyor.
+LAYER_TAGS = model.LAYER_TAGS
 
 # Zemin animasyonlanmaz: slayt bos baslar ve arka plan "ucarak" gelirdi.
 GROUND_NAMES = frozenset({"Arka Plan"})
@@ -158,22 +154,6 @@ def effect_element(verb: str, *, seconds: float = 0.75, easing: str = "lin",
                              f"{', '.join(DIRECTIONS)}")
         attrs["dir"] = direction
     return ET.Element(verb, attrs)
-
-
-def layers(root: ET.Element) -> list[tuple[str, ET.Element]]:
-    """Slaydin katmanlari, ikisi de: (ad, govde).
-
-    Tek giris noktasi. Her cagiran kendi aramasini yazsaydi biri
-    feedBackLayer'i unuturdu -- ilk surumde tam olarak bu oldu.
-    """
-    out: list[tuple[str, ET.Element]] = []
-    holder = root.find("sldLayerLst")
-    if holder is None:
-        return out
-    for layer in holder:
-        if layer.tag in LAYER_TAGS:
-            out.append((layer.get("name", "") or layer.tag, layer))
-    return out
 
 
 def _anim_slot(shape: ET.Element) -> ET.Element:
@@ -475,7 +455,7 @@ def choreograph(pkg: StoryPackage, slide: str, *, preset: str = "sakin",
 
     katmanlar = []
     if include_layers:
-        for adi, layer in layers(root):
+        for adi, layer in model.layers(root):
             # Her katman KENDI sifirindan; slaydin start_ms'i tasinmaz.
             rapor = _apply(layer, plan, start_ms=0, **ortak)
             if rapor["animated"]:
@@ -526,7 +506,7 @@ def clear(pkg: StoryPackage, slide: str) -> dict:
     part = pkg.slide_part_for(slide)
     root = pkg.parse(part)
     count = _clear_host(root)
-    for _adi, layer in layers(root):
+    for _adi, layer in model.layers(root):
         count += _clear_host(layer)
     pkg.replace_xml(part, root)
     return {"slide": slide, "cleared": count, "length_ms": slide_length(root)}
@@ -544,7 +524,7 @@ def describe(pkg: StoryPackage, slide: str,
     out = []
     hosts = [(None, root)]
     if include_layers:
-        hosts += layers(root)
+        hosts += model.layers(root)
     for layer_name, host in hosts:
         out.extend(_describe_host(host, layer_name))
     return out
