@@ -10,9 +10,14 @@ Bu sonda ucunu ayirir, cunku ucu de "hareket yok" gibi gorunur:
     KURULMAMIS   animEffect bos VE her start=0.  Panelin bugune kadarki hali.
     YARIM        animasyon var ama kademelenme yok (hepsi start=0), ya da
                  tersi. Ikisi ayri yerde yaziliyor ve ayri ayri dusebilir.
-    KIRPILMIS    start+dur, slaydin uzunluguna ESIT DEGIL. anim.py'nin
+    KIRPILMIS    start+dur, govdenin uzunluguna ESIT DEGIL. anim.py'nin
                  belgeledigi kural bu; bozuldugunda nesne sonundan kesilir ve
                  dosya yine tamamen gecerli gorunur.
+    KATMANLAR OLU  Slayt kurulu, katmanlar hareketsiz. Ilk surumun kusuru
+                 buydu ve hicbir sayi gostermiyordu: slayt kokune bakan bir
+                 olcum "KURULU" der, ogrenci geri bildirim pop-up'inda
+                 hicbir hareket gormez. Olculdu -- bir kursta 128 katman
+                 sekli boyle sessizce disarida kalmisti.
 
 Kullanim:
     python tools/hareket.py KURS.story [...]
@@ -39,29 +44,47 @@ def olc(path: Path) -> dict:
     basla: Counter = Counter()
     hareketsiz_slayt = 0
 
+    katman_sekli = katman_animasyonlu = 0
+
     for part in pkg.slide_parts:
         kayitlar = anim.describe(pkg, part)
         if not kayitlar:
             continue
-        uzunluk = max((r["start_ms"] or 0) + (r["dur_ms"] or 0)
-                      for r in kayitlar)
-        slayt_animasyonlu = 0
+        # HER GOVDE KENDI UZUNLUGUNU TASIR. Katman, kendi zaman cizgisi olan
+        # ayri bir govde; hepsini tek havuzda toplayip tek bir uzunluk
+        # hesaplamak, katmani slaydin uzunluguna gore olcer ve dokunulmamis
+        # her katmani "KIRPILMIS" ilan ederdi.
+        govdeler: dict = {}
         for r in kayitlar:
-            if r["start_ms"] is None:
-                continue
-            sekil += 1
-            basla[r["start_ms"]] += 1
-            if r["start_ms"]:
-                kademeli += 1
-            if r["entrance"]:
-                animasyonlu += 1
-                slayt_animasyonlu += 1
-                efektler[r["entrance"]["effect"]] += 1
-            # Kirpilma yalnizca ZAMAN CIZGISINE OTURTULMUS nesnelerde
-            # anlamli: hic dokunulmamis bir slaytta sureler tohumdan gelir
-            # ve birbirinden farkli olmalari kusur degildir.
-            if r["start_ms"] and r["start_ms"] + (r["dur_ms"] or 0) != uzunluk:
-                kirpilmis.append(f"{Path(part).name}:{r['name'] or r['shape']}")
+            govdeler.setdefault(r.get("layer"), []).append(r)
+
+        slayt_animasyonlu = 0
+        for govde_adi, grup in govdeler.items():
+            uzunluk = max((r["start_ms"] or 0) + (r["dur_ms"] or 0)
+                          for r in grup)
+            for r in grup:
+                if r["start_ms"] is None:
+                    continue
+                sekil += 1
+                if govde_adi is not None:
+                    katman_sekli += 1
+                basla[r["start_ms"]] += 1
+                if r["start_ms"]:
+                    kademeli += 1
+                if r["entrance"]:
+                    animasyonlu += 1
+                    efektler[r["entrance"]["effect"]] += 1
+                    if govde_adi is None:
+                        slayt_animasyonlu += 1
+                    else:
+                        katman_animasyonlu += 1
+                # Kirpilma yalnizca ZAMAN CIZGISINE OTURTULMUS nesnelerde
+                # anlamli: hic dokunulmamis bir slaytta sureler tohumdan
+                # gelir ve birbirinden farkli olmalari kusur degildir.
+                if r["start_ms"] and r["start_ms"] + (r["dur_ms"] or 0) != uzunluk:
+                    yer = f"{Path(part).name}:{r['name'] or r['shape']}"
+                    kirpilmis.append(yer if govde_adi is None
+                                     else f"{yer} (katman {govde_adi})")
         if not slayt_animasyonlu:
             hareketsiz_slayt += 1
 
@@ -73,6 +96,12 @@ def olc(path: Path) -> dict:
         durum = "KIRPILMIS"
     elif not animasyonlu or not kademeli:
         durum = "YARIM"
+    elif katman_sekli and not katman_animasyonlu:
+        # Slayt kurulu, katmanlar olu. Ilk surumun kusuru tam olarak buydu
+        # ve hicbir sayi onu gostermiyordu: slayt kokune bakan bir olcum
+        # "KURULU" diyor, ogrenci geri bildirim pop-up'inda hicbir hareket
+        # gormuyordu.
+        durum = "KATMANLAR OLU"
     else:
         durum = "KURULU"
 
@@ -84,6 +113,8 @@ def olc(path: Path) -> dict:
         "sekil": sekil,
         "animasyonlu": animasyonlu,
         "kademeli": kademeli,
+        "katman_sekli": katman_sekli,
+        "katman_animasyonlu": katman_animasyonlu,
         "efektler": dict(efektler.most_common()),
         "start_dagilimi": dict(sorted(basla.items())),
         "kirpilmis": kirpilmis[:10],
@@ -108,12 +139,14 @@ def main() -> int:
         print(f"  slayt {r['slayt']} ({r['hareketsiz_slayt']} tanesi hareketsiz), "
               f"sekil {r['sekil']}")
         print(f"  animasyonlu {r['animasyonlu']}, kademeli (start>0) {r['kademeli']}")
+        print(f"  bunun KATMANLARDA olani: {r['katman_animasyonlu']}/"
+              f"{r['katman_sekli']} sekil")
         if r["efektler"]:
             print(f"  efektler: {r['efektler']}")
         print(f"  start dagilimi: {r['start_dagilimi']}")
         if r["kirpilmis_sayisi"]:
             print(f"  KIRPILMIS {r['kirpilmis_sayisi']} nesne: {r['kirpilmis']}")
-        if r["durum"] in ("KURULMAMIS", "YARIM", "KIRPILMIS"):
+        if r["durum"] in ("KURULMAMIS", "YARIM", "KIRPILMIS", "KATMANLAR OLU"):
             kotu += 1
     return 1 if kotu else 0
 

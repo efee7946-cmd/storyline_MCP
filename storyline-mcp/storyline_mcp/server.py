@@ -809,7 +809,13 @@ def animate_slide(
 
     Nesneler z-sirasinda, yani yerlestirildikleri sirada girer. Tekrar eden
     desenler (kart yigini, numarali adimlar) TEK VURUS sayilir: bes kart, on
-    bes parca degil bes adim halinde acilir.
+    bes parca degil bes adim halinde acilir. Ayni adin tekrari yigin sayilir,
+    grup degil -- bes ozdes kart bes ayri vurus.
+
+    KATMANLAR DA KURGULANIR (sldLayer ve feedBackLayer), her biri KENDI
+    sifirindan. Katman gosterildigi anda acilir; slaydin zaman cizgisine
+    gore geciktirmek, ogrenciyi actigi pop-up'ta bos ekrana baktirirdi.
+    include_layers=false yalnizca slayt kokunu kurgular.
 
     preset:
       sakin   - her sey solarak, 180 ms araliklarla. Hicbir nesne yerinden
@@ -823,10 +829,17 @@ def animate_slide(
     yaptigi olculmedi -- yanlis animasyonlanan bir soru cevaplanamayan bir
     sorudur. include_interactions=true bu korumayi kaldirir.
 
-    YOK: hareket yolu (motion path) ve slayt gecisi. Ikisi de bagis havuzunda
-    hic gecmiyor, yani nasil yazildiklari OLCULMEDI ve tahminle yazilmiyorlar.
+    YOK -- ve hepsinin sebebi ayni: OLCULMEDI, tahminle yazilmiyor.
+      cikis animasyonu  havuzdaki 214 slayt seklinin 214'u untilEnd="true",
+                        yani hicbiri zaman cizgisini erken terk etmiyor.
+                        Cikis ancak nesne cizgiden CIKINCA oynar; boyle bir
+                        nesneye cikis yazmak hic oynamayan efekt yazmaktir.
+      hareket yolu      havuzda VAR (shapePath, shapeG ile tasidigi sekli
+                        gosteriyor) ama kanit dar: 15 ornek, tek slayttan,
+                        hepsi dairesel. Cizgi/egri/serbest yol olculmedi.
+      slayt gecisi      havuzda yalnizca <none/> var.
 
-    Geri almak icin preset="yok"."""
+    Geri almak icin preset="yok" -- katmanlar dahil."""
     _guard(path)
     pkg = StoryPackage(path)
     targets = [pkg.slide_part_for(slide)] if slide else list(pkg.slide_parts)
@@ -875,8 +888,22 @@ def animation_effects() -> dict:
                     for name, plan in anim.PRESETS.items()},
         "preset_note": "animate_slide ayrica preset='yok' alir: kurguyu ve "
                        "kademelenmeyi birlikte geri alir",
-        "missing": ["hareket yolu (motion path)", "slayt gecisi (transition)"],
-        "missing_note": "bagis havuzunda ornegi yok; once Storyline'da prob "
+        "layer_tags": list(anim.LAYER_TAGS),
+        "missing": {
+            "cikis_animasyonu":
+                "havuzdaki 214 slayt seklinin 214'u untilEnd=true; nesne "
+                "zaman cizgisini hic terk etmiyor, yani cikis oynamaz. "
+                "Oynamasi icin gereken untilEnd=false + sonlu dur olculmedi.",
+            "hareket_yolu":
+                "havuzda VAR: <shapePath shapeG=... aniDur=PT0.1S "
+                "shapeType=cir easingType=cubic>. Ama 15 ornek, tek bagisin "
+                "tek slaydindan ve hepsi dairesel; cizgi/egri/serbest yol "
+                "olculmedi. Henuz yazilmiyor.",
+            "slayt_gecisi":
+                "havuzda yalnizca <trans><none/></trans> var; gercek bir "
+                "gecis tipi hic gecmiyor.",
+        },
+        "missing_note": "hicbiri tahminle yazilmaz; once Storyline'da prob "
                         "uretilip tools/paket_farki.py ile farki alinmali",
     }
 

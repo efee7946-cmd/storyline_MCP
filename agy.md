@@ -290,3 +290,62 @@ edilemez buldu. `anim.clear` ile geri alma tam: 304 nesne temizlendi ve dosya
 İkisi de tahminle yazılmadı. Yolu açık: Storyline'da geçişi/hareket yolunu elle
 kurulmuş bir dosya kaydedilir, `tools/paket_farki.py` ile taban pakete karşı
 farkı alınır, çıkan sözlük `anim.py`'ye eklenir.
+
+### 8.6. Takip: Katmanlar, gruplama kusuru ve iki düzeltilen iddia
+
+İlk sürüm yalnızca slayt kökündeki `shapeLst`'i kurguluyordu. Ölçüm:
+
+| Gövde | Şekil | İlk sürümde animasyonlanan |
+|---|---|---|
+| Slayt kökü | 360 | 304 |
+| `sldLayer` (25 adet) | 100 | **0** |
+| `feedBackLayer` (10 adet) | 28 | **0** |
+
+Yani geri bildirim ve reveal pop-up'ları — hareketin en çok işe yaradığı yer —
+tamamen hareketsizdi ve hiçbir sayı bunu göstermiyordu.
+
+**`feedBackLayer` ayrı bir etikettir.** `sldLayerLst` çocukları iki tag
+taşıyor: `sldLayer` (25) ve `feedBackLayer` (10). Yalnızca `sldLayer` arayan
+bir kod, soruların doğru/yanlış ekranlarını sessizce dışarıda bırakır. İkisinin
+yapısı birebir aynı (`tmProps, tmCtxLst, sz, bg, shapeLst, trigLst, trans`),
+yani katman kendi zaman çizgisi olan küçük bir slayt. Arama tek bir yere
+alındı (`anim.layers`) — üç ayrı çağıran kendi aramasını yazsaydı biri
+unuturdu.
+
+Katmanlar **kendi sıfırlarından** kurgulanır. Katman gösterildiği anda açılır;
+slaydın zaman çizgisine göre geciktirmek, öğrenciyi açtığı pop-up'ta boş
+ekrana baktırırdı.
+
+**Gruplama kusuru:** Aynı adın tekrarı `_cycle` tarafından yapısal grup
+sanılıyordu. Beş özdeş `Kart`, periyot 2 ile eşleşip `[2,2,1]` diye keyfi
+bölünüyordu; bir geri bildirim katmanında altı `Text Box` ikişerli
+gruplanmıştı. Periyodun en az iki farklı ad taşıması şartı eklendi —
+yapısal tekrar (`Kart+Kenar+Body`) korunur, özdeş yığın tek tek girer.
+
+**Düzeltilen iki iddia** (8.5'te yanlış yazılmıştı):
+
+1. **Hareket yolu havuzda VAR.** İlk taramada `shapePath` görülüp "geometri"
+   diye elenmişti; değil. Hareket yolu `shapeLst` içinde ayrı bir şekildir ve
+   taşıdığı şekli `shapeG` ile gösterir — `animEffect`'ten bağımsız bir
+   mekanizma: `<shapePath typeName="Circle_01" shapeG="…" aniDur="PT0.1S"
+   shapeType="cir" easingDir="inOut" easingType="cubic">`. Ama kanıt dar:
+   15 örnek, tek bağışın tek slaydından, hepsi dairesel. Çizgi/eğri/serbest
+   yol ölçülmedi. Yazılmıyor, ama artık ölçülebilir olduğu biliniyor.
+
+2. **Çıkış animasyonu "ucuz kablolama" değil.** Havuzdaki 214 slayt şeklinin
+   **214'ü** `untilEnd="true"` taşıyor — hiçbiri zaman çizgisini erken terk
+   etmiyor. Çıkış animasyonu ancak nesne çizgiden ÇIKINCA oynar; `untilEnd`
+   açık bir nesneye çıkış yazmak, hiç oynamayan bir efekt yazmaktır: dosya
+   geçerli, Storyline açıyor, hiçbir şey olmuyor. Oynaması için gereken
+   `untilEnd="false"` + sonlu `dur` bileşeninin havuzda örneği yok. Havuzdaki
+   tek çıkış örneklerinin 8'i durum gövdelerinin (Hover/Selected) içinde,
+   1'i bir slideLayout'ta — hiçbiri gerçek slayt çıkışı değil.
+   `set_effect(exit=…)` yazabiliyor ama araç yüzeyi sunmuyor; önce prob.
+
+**Sonda genişletildi.** `tools/hareket.py` artık her gövdeyi kendi uzunluğuna
+göre ölçüyor ve yeni bir durum ayırt ediyor: **`KATMANLAR OLU`** — slayt
+kurulu, katmanlar hareketsiz. İlk sürüm bu sondadan geçemiyor.
+
+**Doğrulama:** `katman2.story` (56 slayt, 432 nesne: 304 slayt + 128 katman)
+Storyline'da 15.0 sn'de açıldı, kanarya güvenilir. `anim.clear` 432'sini de
+geri aldı.
