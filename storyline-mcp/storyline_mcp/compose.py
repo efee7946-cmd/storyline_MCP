@@ -302,7 +302,12 @@ def fit_choices(labels: list[str], area_h: float, area_w: float, *,
         punto = asagi
 
 
-LAYOUTS = ("cover", "section", "content", "bullets", "steps", "statement", "menu")
+# "reveal": menu ile AYNI iskelet, farkli is. Menu SIRA sectirir
+# (tiklama baska slayda gider); reveal ICERIGI acar (tiklama katman
+# gosterir, ogrenci ayni slaytta kalir). Ayni bant kodunu paylasiyorlar
+# cunku ikisi de "basliklar sayfanin kendisidir" diyor.
+LAYOUTS = ("cover", "section", "content", "bullets", "steps", "statement",
+           "menu", "reveal")
 IMAGE_STYLES = ("panel", "bleed", "hero")
 
 # Structural variants. Each layout has one skeleton, which is what keeps a deck
@@ -1052,6 +1057,96 @@ def compose_text_frame(pkg: StoryPackage, part: str, *,
             "entry_height_pct": round(kutu_h, 1)}
 
 
+NULL_GUID = "00000000-0000-0000-0000-000000000000"
+
+# Geri bildirim katmani tasiyan etkilesimler. intrProps HEPSINDE var.
+_INTR_ETIKETLERI = ("freePickOneIntr", "freePickManyIntr", "dragDropIntr",
+                    "freeHotSpotIntr", "freeTextEntryIntr")
+
+
+def _rol_sozcugu(metin: str) -> bool:
+    """Metin bir ROL etiketi mi ("Dogru", "Yanlis"), yoksa cumle mi.
+
+    Rol etiketi her soruya uyar ve tohumdan geleni ezmek kayiptir; cumle ise
+    hasat edildigi kursa aittir ve mutlaka degismelidir. Ayrim ROL
+    COZUMLEYICININ kullandigi testin aynisi, bilerek: iki yerde iki farkli
+    "dogru sayilir mi" tanimi olsaydi biri digerini yanlislardi.
+    """
+    d = (metin or "").casefold().strip()
+    if not d or len(d) > 24:
+        return False
+    return any(k in d for k in ("dogru", "doğru", "yanl", "correct", "incorrect"))
+
+
+def geri_bildirim_rolleri(root) -> dict:
+    """katman GUID -> dogru mu (bool). TEK KARAR YERI.
+
+    NICIN BURADA VE TEK: bu soru uc yerde uc ayri sekilde cevaplaniyordu ve
+    ucu de eksikti --
+
+        compose_feedback_layers   katman ADINDAN     (pick tohumlarinda ad var)
+        compose_drag_feedback     katman METNINDEN   (drag tohumunda ad bos)
+        (hicbiri)                 pick-many          <- ikisi de yanlis cevap verir
+
+    freePickMany tohumunda ad BOS ve metin "dogru"/"yanlis" GECMIYOR
+    ("Bulamadigin ogeler var" / "Hepsini Buldun"). Ad yolu ikisini de
+    "yanlis" sayar; metin yolu `index == 0`a duser ve katman[0]'i DOGRU
+    sanir -- oysa olculdu (2026-09-04), intrProps katman[0] icin incFbG
+    diyor. Yani sirayla giden her yol o ailede TERS cevap veriyor.
+
+    YETKILI KAYNAK <intrProps>: Storyline'in KENDISI hangi katmani ne zaman
+    acacagini oradan okuyor.
+
+        <intrProps corFbG="..." incFbG="..." />
+
+    Cozulmezse ada, o da olmazsa metne, o da olmazsa siraya dusulur --
+    hepsi eskiden beri var olan yollar, yalnizca artik ARKA sirada.
+    """
+    roller: dict = {}
+    katman_listesi = root.find("sldLayerLst")
+    katmanlar = list(katman_listesi) if katman_listesi is not None else []
+    if not katmanlar:
+        return roller
+
+    intr = None
+    for etiket in _INTR_ETIKETLERI:
+        for x in root.iter(etiket):
+            intr = x
+            break
+        if intr is not None:
+            break
+    props = intr.find("intrProps") if intr is not None else None
+    if props is not None:
+        for alan, dogru_mu in (("corFbG", True), ("incFbG", False)):
+            guid = props.get(alan)
+            if guid and guid != NULL_GUID:
+                roller[guid] = dogru_mu
+
+    for index, katman in enumerate(katmanlar):
+        guid = katman.get("g") or ""
+        if guid in roller:
+            continue                       # intrProps zaten soyledi
+        ad = (katman.get("name") or "").casefold()
+        if "yanl" in ad or "incorrect" in ad:
+            roller[guid] = False
+            continue
+        if "dogru" in ad or "doğru" in ad or "correct" in ad:
+            roller[guid] = True
+            continue
+        sekil_listesi = katman.find("shapeLst")
+        birlesik = " ".join(
+            model.shape_text(katman, sh.get("g") or "").strip()
+            for sh in (list(sekil_listesi) if sekil_listesi is not None else [])
+        ).casefold()
+        if "yanl" in birlesik or "incorrect" in birlesik:
+            roller[guid] = False
+        elif "dogru" in birlesik or "doğru" in birlesik or "correct" in birlesik:
+            roller[guid] = True
+        else:
+            roller[guid] = index == 0
+    return roller
+
+
 def compose_drag_feedback(pkg: StoryPackage, part: str, *,
                           feedback: dict | None) -> dict:
     """Surukle-birak katmanlarina YAZARIN geri bildirimini yazar.
@@ -1081,6 +1176,11 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
     if layers is None:
         return {"drag_feedback": 0}
 
+    # ROL ARTIK BURADA COZULMUYOR: `geri_bildirim_rolleri` tek karar yeri ve
+    # yetkili kaynagi (intrProps) kullaniyor. Eski metin/sira sezgisi orada
+    # ARKA sirada duruyor, yani drag icin davranis degismiyor.
+    roller = geri_bildirim_rolleri(root)
+
     written = 0
     for index, layer in enumerate(list(layers)):
         shape_list = layer.find("shapeLst")
@@ -1090,13 +1190,7 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
         texts = [(t, g) for t, g in texts if t and g]
         if not texts:
             continue
-        birlesik = " ".join(t for t, _g in texts).casefold()
-        if "yanl" in birlesik or "incorrect" in birlesik:
-            is_correct = False
-        elif "dogru" in birlesik or "doğru" in birlesik or "correct" in birlesik:
-            is_correct = True
-        else:
-            is_correct = index == 0
+        is_correct = roller.get(layer.get("g") or "", index == 0)
         given = feedback.get("correct" if is_correct else "incorrect")
         if not given:
             continue
@@ -1199,12 +1293,13 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             n += 1
         return n
 
+    # ROL: tek karar yerinden. Eski "katman adindan cikar" yolu orada ARKA
+    # sirada duruyor, yani adi dolu tohumlarda davranis degismiyor.
+    roller = geri_bildirim_rolleri(root)
+
     olceklenen = 0
-    for layer in layers:
-        name = (layer.get("name") or "").casefold()
-        is_correct = ("dogru" in name or chr(100) + chr(111) + chr(287)
-                      + "ru" in name or "correct" in name) and \
-            "yanl" not in name and "incorrect" not in name
+    for index, layer in enumerate(layers):
+        is_correct = roller.get(layer.get("g") or "", False)
         head, body = FEEDBACK_DEFAULT[is_correct]
         if feedback:
             given = feedback.get("correct" if is_correct else "incorrect")
@@ -1212,6 +1307,7 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
                 body = str(given)
 
         shape_list = layer.find("shapeLst")
+        adaylar = []
         for shape in list(shape_list) if shape_list is not None else []:
             rect = shapes.shape_rect(shape)
             if not rect:
@@ -1224,11 +1320,75 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
                 continue
             if not text:
                 continue
-            if len(text) < 30:
-                # Devam butonu: metni korunur, rengi kursa cekilir.
+            adaylar.append((shape, text))
+
+        # SINIFLANDIRMA ETIKETTEN, METIN UZUNLUGUNDAN DEGIL.
+        #
+        # Eski olcut `len(text) < 30` idi: kisa metinli sekil "buton" sayilip
+        # ATLANIYORDU. Olculdu 2026-09-04 -- freePickMany tohumunun basligi
+        # "Bulamadigin ogeler var" (22 karakter) ve govdesi tek bir virgul,
+        # yani o ailenin HICBIR sekli yeniden yazilmadi ve ogrenci, tohumun
+        # hasat edildigi kursun metnini okudu. Ayni kusur drag icin
+        # 2026-08-30'da bulunmus ve AYRI BIR FONKSIYON yazilarak cozulmustu
+        # (compose_drag_feedback); pick-many o dalin disinda kalmisti.
+        #
+        # Etiketler Storyline'in KENDI adlari, olculdu:
+        #     feedbackTextBox  &Title / Feedback Text   metin
+        #     feedBackBtn                               geri bildirim butonu
+        #     roundRect / rect                          tek parcali panel
+        butonlar = [(s, t) for s, t in adaylar
+                    if s.tag in ("feedBackBtn", "btn", "rsltBtn")]
+        metinler = [(s, t) for s, t in adaylar if s.tag == "feedbackTextBox"]
+        paneller = [(s, t) for s, t in adaylar
+                    if s not in [x for x, _ in butonlar + metinler]]
+
+        for shape, _t in butonlar:
+            # Metni KORUNUR ("Devam", "Cevaplari Goster"): rolu tiklamak,
+            # aciklamak degil.
+            if palette:
+                shapes.set_fill(shape, colors["accent"])
+            olceklenen += _olcege_al(shape)
+
+        if metinler:
+            baslik = next((s for s, _t in metinler
+                           if (s.get("name") or "") == "&Title"), None)
+            govde = next((s for s, _t in metinler if s is not baslik), None)
+            if baslik is not None and govde is not None:
+                # BASLIK ROL SOZCUGUYSE KORUNUR. Ayrim, rol cozumleyicinin
+                # kullandigi testin aynisi: baslik "Dogru"/"Yanlis" gibi bir
+                # ROL etiketiyse tohumun yazdigi sey her soruya uyar ve
+                # ezmek kayiptir -- olculdu 2026-09-04, drag tohumunun
+                # duzgun Turkce "Dogru"/"Yanlis" basligi ASCII varsayilana
+                # dusuyordu. Ama freePickMany tohumunun basligi
+                # "Bulamadigin ogeler var": bu bir rol etiketi degil, HASAT
+                # EDILDIGI KURSUN cumlesi, ve mutlaka degismeli.
+                mevcut = model.shape_text(
+                    layer, baslik.get("g") or "").strip()
+                if not _rol_sozcugu(mevcut):
+                    set_shape_text(layer, baslik.get("g") or "", head)
+                set_shape_text(layer, govde.get("g") or "", body)
+                olceklenen += _olcege_al(baslik) + _olcege_al(govde)
+                rewritten += 1
+            else:
+                # Tek metin kutusu: tohumun DOGRU katmaninda govde sekli yok
+                # (olculdu: freePickMany'nin dogru katmani yalnizca &Title
+                # tasiyor). Basligi ve govdeyi ayni kutuya yazmak, govdeyi
+                # hic yazmamaktan iyi -- yazarin metni ogrenciye ulasir.
+                tek = baslik or metinler[0][0]
+                set_shape_text(layer, tek.get("g") or "",
+                               head + chr(10) + chr(10) + body)
+                olceklenen += _olcege_al(tek)
+                rewritten += 1
+
+        for shape, text in paneller:
+            if len(text) < 30 and not metinler:
+                # Etiketsiz kisa metin: eski davranis korunuyor. Bu dal
+                # yalnizca taninmayan bir tohum icin calisir.
                 if palette:
                     shapes.set_fill(shape, colors["accent"])
                 olceklenen += _olcege_al(shape)
+                continue
+            if len(text) < 30:
                 continue
             # Panel: cerceveye oturur, icerigi yeniden yazilir.
             shapes.set_loc(shape,
@@ -2004,6 +2164,7 @@ def compose_slide(
     variant: str | None = None,
     avoid_variant: str | list[str] | None = None,
     theme: str | None = None,
+    motion: str | None = None,
 ) -> dict:
     """Lay out a whole slide in one pass.
 
@@ -2026,6 +2187,12 @@ def compose_slide(
         is the part a repeat count cannot see. Where a layout has only one
         variant this cannot be honoured; the result then carries repeated=True
         instead of failing.
+    motion: the reveal choreography -- sakin | anlatim | vurgulu, or None for
+        none. Applied LAST, after the buttons, because it reads the finished
+        shapeLst: the order shapes were placed in is the order they enter.
+        Left unset a slide has no timeline at all -- every object at start=0,
+        every animEffect empty, which is what every produced course carried
+        (measured 2026-09-04: 360 shapes, 0 animations). See anim.py.
     """
     if layout not in LAYOUTS:
         raise StoryError(f"Bilinmeyen duzen: {layout!r}. Secenekler: {', '.join(LAYOUTS)}")
@@ -2478,7 +2645,7 @@ def compose_slide(
                 page.text(title, FLOOR - 6, role="eyebrow", x=tx, w=tw,
                           align=hiza, color=colors["accent_text"])
 
-    elif layout == "menu":
+    elif layout in ("menu", "reveal"):
         # Choices are the content: the buttons get the room, not the copy.
         # BUTON BANDI BASLIKTAN ONCE AYRILIR.
         #
@@ -2544,7 +2711,19 @@ def compose_slide(
             w=spec["w"], h=spec["h"], fill=spec["fill"], color=spec["color"],
             avoid_overlap=False, identity=identity, slot=spec.get("slot"),
         )
-        placed.append({"text": result["text"], "box": result["box_percent"]})
+        # GUID DE DONUYOR: reveal katmani butona `open_from` ile
+        # baglaniyor ve metinle eslestirme guvenilir degil (iki sik
+        # ayni kelimeyle baslayabilir).
+        placed.append({"text": result["text"], "box": result["box_percent"],
+                       "shape": result.get("shape", "")})
+
+    # Kurgu EN SONDA: butonlar add_button ile eklendi ve parcayi yeniden
+    # yazdi, yani buradan once okunan bir shapeLst butonsuz olurdu -- ve
+    # butonsuz bir kademelenme, slaydin son vurusunu kaybeder.
+    choreography = None
+    if motion:
+        from . import anim
+        choreography = anim.choreograph(pkg, slide, preset=motion)
 
     return {
         "slide": slide,
@@ -2557,6 +2736,7 @@ def compose_slide(
         "buttons": placed,
         "image_area": reserved,
         "image_style": image_style if reserved else None,
+        "motion": choreography,
     }
 
 

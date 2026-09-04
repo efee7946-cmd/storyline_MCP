@@ -15,8 +15,8 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
-from . import (authoring, compose, jscat, jscheck, logic, media, medya, model,
-               pedagogy, settings)
+from . import (anim, authoring, compose, jscat, jscheck, logic, media, medya,
+               model, pedagogy, settings)
 from .clone import clone_slide, create_scene
 from .edits import Edit, apply_text_edits
 from .package import STORY_PART, StoryPackage, StoryError, lock_state
@@ -712,6 +712,7 @@ def compose_slide(
     variant: str | None = None,
     avoid_variant: str | None = None,
     theme: str | None = None,
+    motion: str | None = None,
     output_path: str | None = None,
     in_place: bool = False,
 ) -> dict:
@@ -765,7 +766,17 @@ def compose_slide(
     siluete sahip olur ve kurs "sablon iki kez uygulanmis" gibi okunur; bunu
     engelleyen tek sey budur. Duzenin tek varyanti varsa yasak cignenir ve
     sonuc variant_repeated=true ile doner -- sessizce degil.
-    style'i sabit tutun, variant'i her slaytta degistirin."""
+    style'i sabit tutun, variant'i her slaytta degistirin.
+
+    HAREKET: motion, slaydin AcILIS kurgusudur -- nesneler zaman cizgisine
+    kademeli dizilir ve giris animasyonu alir. Verilmezse slayt hareketsizdir:
+    her nesne ayni anda, aninda belirir.
+      sakin   - her sey solarak girer, 180 ms araliklarla (guvenli varsayilan)
+      anlatim - susleme silinerek, blok yerine kayarak, yazi solarak
+      vurgulu - yazi da kayar; yogun slaytta cok olur
+    Kart ve adim yiginlari TEK VURUS sayilir: bes kart, on bes parca degil
+    bes adim halinde acilir. BIR KURSTAKI TUM SLAYTLARDA AYNI motion'i
+    kullanin. Sonradan degistirmek/kaldirmak icin animate_slide."""
     _guard(path)
     pkg = StoryPackage(path)
     if palette is None and brand:
@@ -775,9 +786,99 @@ def compose_slide(
         bullets=bullets, buttons=buttons, palette=palette,
         index=index, image_area=image_area, image_style=image_style,
         style=style, clear=clear, variant=variant, avoid_variant=avoid_variant,
-        theme=theme,
+        theme=theme, motion=motion,
     )
     return {**result, **_write(pkg, path, output_path, in_place)}
+
+
+@mcp.tool()
+def animate_slide(
+    path: str,
+    slide: str | None = None,
+    preset: str = "sakin",
+    step_ms: int | None = None,
+    start_ms: int = 0,
+    include_interactions: bool = False,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Slaydi zaman cizgisine dizer: kademeli giris + animasyon.
+
+    slide verilmezse KURSUN TAMAMI kurgulanir -- bir kursu tek cagriyla
+    hareketlendirmenin yolu budur.
+
+    Nesneler z-sirasinda, yani yerlestirildikleri sirada girer. Tekrar eden
+    desenler (kart yigini, numarali adimlar) TEK VURUS sayilir: bes kart, on
+    bes parca degil bes adim halinde acilir.
+
+    preset:
+      sakin   - her sey solarak, 180 ms araliklarla. Hicbir nesne yerinden
+                oynamaz; kurs geneline uygulanabilecek en guvenli kurgu.
+      anlatim - susleme silinerek (wipe), blok asagidan kayarak, yazi solarak
+      vurgulu - yazi da kayar; yogun slaytta cok olur
+    step_ms araligi ezer. start_ms kurgunun tamamini geciktirir.
+
+    ATLANANLAR: zemin ("Arka Plan"), video, ve SORU GOVDELERI. Sorunun
+    animEffect yuvasi soru kapsayicisindadir ve oraya yazmanin siklara ne
+    yaptigi olculmedi -- yanlis animasyonlanan bir soru cevaplanamayan bir
+    sorudur. include_interactions=true bu korumayi kaldirir.
+
+    YOK: hareket yolu (motion path) ve slayt gecisi. Ikisi de bagis havuzunda
+    hic gecmiyor, yani nasil yazildiklari OLCULMEDI ve tahminle yazilmiyorlar.
+
+    Geri almak icin preset="yok"."""
+    _guard(path)
+    pkg = StoryPackage(path)
+    targets = [pkg.slide_part_for(slide)] if slide else list(pkg.slide_parts)
+    slides = []
+    for part in targets:
+        if preset == "yok":
+            slides.append(anim.clear(pkg, part))
+        else:
+            slides.append(anim.choreograph(
+                pkg, part, preset=preset, step_ms=step_ms, start_ms=start_ms,
+                include_interactions=include_interactions))
+    return {
+        "preset": preset,
+        "slide_count": len(slides),
+        "animated": sum(s.get("animated", 0) for s in slides),
+        "cleared": sum(s.get("cleared", 0) for s in slides),
+        "slides": slides,
+        **_write(pkg, path, output_path, in_place),
+    }
+
+
+@mcp.tool()
+def list_animations(path: str, slide: str) -> list[dict]:
+    """Slayttaki her seklin zamanlamasi ve animasyonu -- oldugu gibi.
+
+    start_ms/dur_ms zaman cizgisindeki yeri, entrance/exit yazili efekti
+    verir. Hicbir sey yazilmamissa her sekil start=0 ve entrance=null gelir;
+    kursun hareketsiz oldugunu boyle gorursunuz."""
+    return anim.describe(StoryPackage(path), slide)
+
+
+@mcp.tool()
+def animation_effects() -> dict:
+    """Yazilabilen efektler ve kurgular -- OLCULEN sozluk, tahmin degil.
+
+    Her deger bagis havuzundaki gercek Storyline dosyalarindan sayildi. Burada
+    olmayan bir efekt "desteklenmiyor" demek degil, "nasil yazildigi henuz
+    olculmedi" demektir."""
+    return {
+        "effects": {verb: sorted(attrs) for verb, attrs in anim.EFFECTS.items()},
+        "directions": list(anim.DIRECTIONS),
+        "direction_note": "yon yalnizca fly icin olculdu",
+        "easings": sorted(anim.EASINGS),
+        "presets": {name: {"step_ms": plan["step"], "seconds": plan["seconds"],
+                           "easing": plan["easing"], "by_role": plan["by_role"]}
+                    for name, plan in anim.PRESETS.items()},
+        "preset_note": "animate_slide ayrica preset='yok' alir: kurguyu ve "
+                       "kademelenmeyi birlikte geri alir",
+        "missing": ["hareket yolu (motion path)", "slayt gecisi (transition)"],
+        "missing_note": "bagis havuzunda ornegi yok; once Storyline'da prob "
+                        "uretilip tools/paket_farki.py ile farki alinmali",
+    }
 
 
 @mcp.tool()

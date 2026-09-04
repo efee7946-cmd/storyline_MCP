@@ -269,6 +269,13 @@
             <option value="kapak">Yalnızca kapak</option>
             <option value="yok">İstenmesin</option>
           </select></div>
+        <div><label>Hareket</label>
+          <select id="pHareket">
+            <option value="sakin" selected>Sakin — sırayla belirir</option>
+            <option value="anlatim">Anlatım — bloklar kayarak girer</option>
+            <option value="vurgulu">Vurgulu — yazı da kayar</option>
+            <option value="yok">Yok — her şey aynı anda</option>
+          </select></div>
       </div>
       <div style="margin-top:10px">
         <label>Kullanılacak Soru &amp; Etkileşim Tipleri <span class="hint">— seçtiğiniz tipler modüle otomatik yerleştirilir</span></label>
@@ -306,8 +313,8 @@
     <div class="card sticky">
       <h2>Komut ver</h2>
       <div id="cliMissing" class="banner err hide">
-        Claude Code CLI veya Antigravity (agy) CLI bulunamadı — komut kutusu çalışmaz.
-        VS Code Claude Code eklentisi veya Antigravity CLI yüklü olmalıdır.
+        Claude Code CLI bulunamadı — komut kutusu çalışmaz.
+        VS Code Claude Code eklentisi yüklü olmalıdır.
       </div>
       <textarea id="cmdText" style="min-height:76px"
         placeholder="Ne yapılmasını istiyorsanız yazın. Örnek: SINAV bölümüne oltalama saldırılarıyla ilgili 3 soru ekle"></textarea>
@@ -840,6 +847,10 @@ function courseProfile() {
     // Kaç görsel isteneceğine panel karar verir; buradaki seçim yalnızca
     // "otomatik / yalnızca kapak / hiç" arasında.
     media: $("pMedya").value,
+    // Slaydin ACILIS kurgusu. "yok" da GONDERILIR: bos deger filtreleniyor
+    // ve varsayilan "sakin", yani hareketsiz kurs ancak acikca istenerek
+    // secilebilmeli.
+    motion: $("pHareket").value,
     // Tema birincil yol. "ozel" secildiginde iki renk gonderilir ve motor
     // kalan besini ZEMINDEN turetir -- once yalnizca bu ikisi gonderiliyordu
     // ve geri kalan renkler varsayilan lacivertte kaliyordu.

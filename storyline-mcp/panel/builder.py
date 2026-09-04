@@ -33,8 +33,30 @@ from pathlib import Path
 from storyline_mcp import authoring, compose, medya, model as sl_model, settings
 from storyline_mcp.package import StoryPackage, StoryError
 
-import ogretim
-from agent import find_cli, find_cli_info
+try:
+    from . import ogretim
+except ImportError:  # pragma: no cover - script execution fallback
+    import ogretim
+
+try:
+    from . import production
+except ImportError:  # pragma: no cover - script execution fallback
+    import production
+
+try:
+    from . import ilerleme
+except ImportError:  # pragma: no cover - script execution fallback
+    import ilerleme
+
+try:
+    from . import dallanma
+except ImportError:  # pragma: no cover - script execution fallback
+    import dallanma
+
+try:
+    from .agent import find_cli
+except ImportError:  # pragma: no cover - script execution fallback
+    from agent import find_cli
 
 OUTLINE_PROMPT = """\
 Asagidaki brief icin bir e-ogrenme kursu iskeleti tasarla.
@@ -58,6 +80,9 @@ Kurallar:
     steps      SIRALI adimlar; numaralanir, yani sira anlam tasiyorsa kullan
     statement  akilda kalmasi gereken TEK cumle; govdesi kisa olmali
     menu       ogrencinin secim yaptigi slayt; secenekler buttons alaninda
+    reveal     BIR SEFERDE OKUNMAYAN slayt: basliklar gorunur, aciklama
+               TIKLAYINCA acilir. Birbirinden ayri 3-5 kavram, belirti ya da
+               adim varsa BUNU kullan -- ogrenci her birini kendi acar.
 - kind: "content", "question", "drag" (gruplama), "commitment" (yazdirma) veya "hotspot" (sicak nokta)
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
 - Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
@@ -71,6 +96,10 @@ Kurallar:
   ayrac gibi gorunuyor. Olculdu 2026-08-29: kurulan 8 slaydin 5'i section'di,
   cunku alti sahnenin her biri zorunlu bir ayrac tasiyordu.
 - Ayni layout'u ust uste tekrarlama.
+- KURSTA EN AZ BIR REVEAL OLSUN (govde slaydi ucten fazlaysa). Gerekcesi
+  olculdu: kalan alti duzenin hepsi "sayfaya yerlestirilmis metin" ve ogrenci
+  onlarda ilerlemekten baska bir sey yapmiyor. Reveal, ogrencinin ELINI
+  isin icine sokan tek icerik duzeni.
 - GOVDE SLAYTLARINDA EN AZ UC FARKLI DUZEN KULLAN. Govde, cover ve section
   DISINDA kalanlardir. Hepsini content ve bullets yaparsan kurs bastan sona
   ayni gorunur -- olculdu 2026-08-29: uretilmis bir kursta 15 govde slaydi
@@ -102,6 +131,11 @@ Bicim:
    "title": "Kisa baslik", "bullets": ["Once sunu yap", "Sonra sunu"]},
   {"kind": "content", "layout": "statement", "eyebrow": "Akilda kalsin",
    "title": "Kisa baslik", "body": "Tek cumlelik, akilda kalacak fikir."},
+  {"kind": "content", "layout": "reveal", "eyebrow": "Belirtiler",
+   "title": "Kisa baslik", "body": "Tek cumlelik yonerge.",
+   "items": [{"label": "Kisa etiket", "detail": "Bir iki cumlelik aciklama."},
+             {"label": "Kisa etiket", "detail": "Bir iki cumlelik aciklama."},
+             {"label": "Kisa etiket", "detail": "Bir iki cumlelik aciklama."}]},
   {"kind": "content", "layout": "content", "eyebrow": "Ornek",
    "title": "Kisa baslik", "body": "Bir iki cumle.",
    "medya": {"tur": "video", "saniye": 20,
@@ -125,6 +159,10 @@ Bicim:
 Kurallar:
 - Slayt sirasi ve layout degerleri asagidaki plana uysun.
 - HER DUZEN KENDI ALANINI ISTER, yoksa slayt bos cikar:
+    reveal     -> items (3-5 tane), her biri label + detail. bullets DEGIL.
+                  label TEK SATIRLIK bir ad (en fazla 30 karakter, cumle
+                  degil); detail bir iki cumle. Etiket sigmazsa slayt bos
+                  bir bant olur.
     steps      -> bullets (en az iki madde). body degil.
     statement  -> kisa bir body. bullets degil.
     bullets    -> bullets.
@@ -243,17 +281,13 @@ def slide_budget(options: dict, fallback: int = 18) -> int:
         return fallback
 
 
-def _cli_json(cli, flavor: str, prompt: str, model: str, timeout: float,
+def _cli_json(cli, prompt: str, model: str, timeout: float,
               on_progress=None, deneme: int = 2):
     """CLI'i cagir; zaman asiminda bir kez daha dene."""
     for kalan in range(deneme - 1, -1, -1):
         try:
-            if flavor == "claude":
-                cmd = [str(cli), "-p", prompt, "--output-format", "json", "--model", model]
-            else:
-                cmd = [str(cli), "-p", prompt, "--output-format", "json"]
             return subprocess.run(
-                cmd,
+                [str(cli), "-p", prompt, "--output-format", "json", "--model", model],
                 capture_output=True, text=True, encoding="utf-8",
                 errors="replace", timeout=timeout,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -286,74 +320,40 @@ MEDYA_SURESI = 300.0
 def _run_json(prompt: str, model: str = "sonnet", timeout: float = ICERIK_SURESI,
               on_progress=None, deneme: int = 2) -> dict:
     """Ask the model for JSON, with no tools attached."""
-    cli, flavor = find_cli_info()
+    cli = find_cli()
     if cli is None:
-        raise StoryError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
-    
-    result = None
+        raise StoryError("Claude Code CLI bulunamadi.")
+
     try:
-        result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
+        result = _cli_json(cli, prompt, model, timeout, on_progress, deneme)
     except subprocess.TimeoutExpired:
-        if flavor == "claude":
-            from agent import find_agy_cli
-            agy_cli = find_agy_cli()
-            if agy_cli:
-                if on_progress:
-                    on_progress("Claude Code zaman aşımına uğradı — Antigravity (agy) CLI ile tekrar deneniyor...")
-                cli, flavor = agy_cli, "agy"
-                result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
-        if result is None:
-            raise StoryError(
-                f"Model {int(timeout)} saniyede yanit vermedi. Kursa hicbir sey "
-                "yazilmadi; komutu yeniden calistirabilirsiniz.") from None
-
-    # Automatic runtime fallback if Claude Code fails (limit reached, error, disabled, etc.)
-    has_err = False
-    if result and result.stdout:
-        try:
-            payload = json.loads(result.stdout)
-            if payload.get("is_error") or payload.get("api_error_status") or "disabled" in str(payload.get("result", "")).lower():
-                has_err = True
-        except json.JSONDecodeError:
-            pass
-
-    if (result is None or result.returncode != 0 or has_err) and flavor == "claude":
-        from agent import disable_claude_cli, find_agy_cli
-        disable_claude_cli()
-        agy_cli = find_agy_cli()
-        if agy_cli:
-            if on_progress:
-                on_progress("Claude Code erişimi engellendi/limit doldu — Antigravity (agy) CLI fallback'ine geçiliyor...")
-            cli, flavor = agy_cli, "agy"
-            result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
+        raise StoryError(
+            f"Model {int(timeout)} saniyede yanit vermedi. Kursa hicbir sey "
+            "yazilmadi; komutu yeniden calistirabilirsiniz.") from None
 
     if result is None or result.returncode != 0:
-        err_msg = (result.stderr or "").strip()[:200] if result else "CLI yanıt vermedi"
+        err_msg = (result.stderr or "").strip()[:200] if result else "CLI yanit vermedi"
         raise StoryError(f"Icerik uretilemedi: {err_msg}")
 
     try:
         payload = json.loads(result.stdout)
         text = payload.get("result", "") or payload.get("response", "")
     except json.JSONDecodeError:
-        text = result.stdout
+        payload, text = None, result.stdout
+
+    # SIFIR CIKIS KODU BASARI DEMEK DEGIL. Claude Code limit dolduğunda ya da
+    # erisim kapandiginda 0 ile cikip hatayi govdeye yaziyor. Bu bir zamanlar
+    # agy'ye gecis isaretiydi; artik tek motor var, o yuzden ISARET HATA OLARAK
+    # SOYLENIR -- yoksa asagidaki JSON aramasi bos donup kullaniciya sebebi
+    # gizleyen "Yanitta JSON bulunamadi" hatasi verirdi.
+    if isinstance(payload, dict):
+        if (payload.get("is_error") or payload.get("api_error_status")
+                or "disabled" in str(payload.get("result", "")).lower()):
+            raise StoryError(
+                "Claude Code istegi reddetti (limit dolmus ya da erisim kapali "
+                f"olabilir): {str(text)[:200]}")
 
     match = re.search(r"\{.*\}", text, re.S)
-    if not match and flavor == "claude":
-        from agent import find_agy_cli
-        agy_cli = find_agy_cli()
-        if agy_cli:
-            if on_progress:
-                on_progress("Claude Code çıktısından JSON alınamadı — Antigravity (agy) CLI ile tekrar deneniyor...")
-            cli, flavor = agy_cli, "agy"
-            result = _cli_json(cli, flavor, prompt, model, timeout, on_progress, deneme)
-            if result.returncode == 0:
-                try:
-                    payload = json.loads(result.stdout)
-                    text = payload.get("response", "") or payload.get("result", "")
-                    match = re.search(r"\{.*\}", text, re.S)
-                except json.JSONDecodeError:
-                    text = result.stdout
-
     if not match:
         raise StoryError(f"Yanitta JSON bulunamadi: {text[:200]}")
     return json.loads(match.group(0))
@@ -400,6 +400,130 @@ def _content_template(pkg: StoryPackage) -> str:
     if not candidates:
         raise StoryError("Klonlanacak bir icerik slaydi yok.")
     return min(candidates, key=lambda t: t["text_shapes"])["slide"]
+
+
+def _geri_bildirim_yazildi_mi(spec: dict, made: dict | None) -> str | None:
+    """Yazarin geri bildirimi ISTENDI ama YAZILAMADI mi -- adiyla soyler.
+
+    NICIN: soru kurucular geri bildirimi yazamadiklarini ZATEN raporluyor
+    (`rewritten` / `drag_feedback` sifir doner) ama kurucu bakmıyordu ve
+    kayip SESSIZ gecıyordu. Olculdu 2026-09-04: freeHotSpot tohumunda hic
+    geri bildirim katmani YOK (bos bir <sldLayer /> var ve intrProps'un
+    corFbG/incFbG'si tohumda bulunmayan katmanlari gosteriyor). Yani model
+    geri bildirim yaziyor, kurucu geciriyor, hicbir yere konmuyor ve
+    hicbir satir bunu soylemiyor.
+
+    Bu fonksiyon KAYBI ONLEMEZ, GORUNUR KILAR. Onlemek tohuma katman
+    klonlamak demek ve o ayri bir is.
+    """
+    if not (spec.get("feedback") or {}):
+        return None
+    if made is None:
+        return None
+    # IKI YERE BAKILIR. Soru kurucular iki ayri yoldan geciyor ve sayilar
+    # ayni yerde DURMUYOR: `add_question` sonuclari duzlestirip ust duzeye
+    # koyuyor, `add_hotspot_question` ise adapt_seeded_slide'in ciktisini
+    # `adapted` altinda tasiyor. Yalnizca ust duzeye bakan bir kontrol,
+    # tam da kaybin YASANDIGI aileyi (hotspot) gormezdi.
+    icice = made.get("adapted") or {}
+    for kaynak in (made, icice):
+        yazilan = kaynak.get("rewritten")
+        if yazilan is None:
+            yazilan = kaynak.get("drag_feedback")
+        if yazilan is not None:
+            break
+    if yazilan is None:
+        return None                      # kurucu bildirmiyor; iddia etmeyelim
+    if yazilan:
+        return None
+    return (f"{(spec.get('prompt') or spec.get('title') or 'soru')[:44]}: "
+            f"geri bildirim yazildi ama slayda KONMADI "
+            f"({spec.get('kind')})")
+
+
+def _reveal_katmanlari(pkg: StoryPackage, slide: str, items: list[dict],
+                       laid: dict) -> int:
+    """Her etiketi kendi katmanina baglar: tikla, acilsin.
+
+    NICIN VAR: ilk teshis (2026-09-04) su satirdi -- slayt sozlugunun
+    yedisinden altisi "sayfaya yerlestirilmis metin". Ogrenci ilerlemekten
+    baska bir sey yapmiyorsa, kapilarin hepsinden gecen bir kurs yine de
+    sayfa cevirmektir. `reveal` o sozluge BIR SEFERDE OKUNAMAYAN ilk duzeni
+    ekliyor: basliklar gorunur, aciklama tiklayinca gelir.
+
+    MEKANIZMA YENI DEGIL, IKI OLCULMUS PARCANIN BILESIMI:
+        compose_slide(layout="reveal")   menu ile ayni bant iskeleti
+        authoring.add_layer(open_from=)  tiklayinca acilan katman
+
+    ESLESME INDISLE, METINLE DEGIL: iki etiket ayni kelimeyle baslayabilir
+    ve `add_layer` metinle de eslestirebiliyor -- yanlis butona baglanmis
+    bir katman, disaridan dogru gorunur ve yanlis seyi acar. compose_slide
+    buton GUID'ini `laid["buttons"][i]["shape"]` icinde donduruyor.
+    """
+    butonlar = laid.get("buttons") or []
+    kurulan = 0
+    for item, buton in zip(items, butonlar):
+        guid = (buton or {}).get("shape")
+        detay = (item or {}).get("detail")
+        if not guid or not detay:
+            continue
+        try:
+            authoring.add_layer(pkg, slide,
+                                str(item.get("label") or "Ayrinti")[:40],
+                                text=str(detay), open_from=guid)
+            kurulan += 1
+        except StoryError:
+            # Katman kurulamazsa slayt YINE CALISIR: butonlar duruyor,
+            # yalnizca acilacak bir sey yok. Kursu dusurmek, calisan bir
+            # slaydi yok saymak olurdu.
+            continue
+    return kurulan
+
+
+def _otomatik_ilerlemeyi_kaldir(pkg: StoryPackage, slide: str) -> int:
+    """Klonlanan icerik slaydindan "acilir acilmaz sonrakine atla"yi siler.
+
+    NICIN: `_content_template` sablonu "en az metin sekli olan" olcutuyle
+    seciyor ve bu olcut DAVRANISA BAKMIYOR. Olculdu 2026-09-04, test/bos.story
+    uzerinde: secilen sablon slide.xml idi ve slayt duzeyinde
+
+        event=OnStart  action=jumpToSlide  actSubType=next
+
+    tasiyordu. add_slide tetikleyicileri de klonladigi icin kurucunun urettigi
+    HER icerik slaydi bunu devraldi -- uretilmis kursta 34 slayt. Sonuc:
+    ogrenci bir icerik slaydina girer girmez bir sonrakine atiliyor ve zincir,
+    boyle bir tetikleyicisi olmayan ilk slayda -- yani sahnenin sonundaki soru
+    slaydina -- kadar suruyor.
+
+    Kullanicinin bildirdigi bicimiyle: "herhangi bir slayda basinca o sahnedeki
+    son slayta atiyor". Yazilan icerik hic gorunmuyordu.
+
+    KAPSAM DAR, bilerek: yalnizca OnStart + jumpToSlide, yalnizca SLAYT
+    duzeyinde, yalnizca kurucunun kendi olusturdugu slaytta.
+      * OnNextButtonClick -> jumpToSlide DOKUNULMAZ: o, ogrencinin ileri
+        tusuna basmasi -- gezinmenin kendisi.
+      * Sekil uzerindeki tetikleyiciler DOKUNULMAZ: bir butonun atlamasi
+        istenen davranis olabilir.
+      * Devralinan slaytlar DOKUNULMAZ: kullanicinin dosyasindaki slaytlar
+        onun (ayni sozlesme `_inherited` icin de gecerli).
+    """
+    part = pkg.slide_part_for(slide)
+    root = pkg.parse(part)
+    trig_list = root.find("trigLst")
+    if trig_list is None:
+        return 0
+    silinen = 0
+    for trig in list(trig_list):
+        data = trig.find("data")
+        if data is None:
+            continue
+        if (data.get("event") == "OnStart"
+                and data.get("action") == "jumpToSlide"):
+            trig_list.remove(trig)
+            silinen += 1
+    if silinen:
+        pkg.replace_xml(part, root)
+    return silinen
 
 
 def _sorular_kapali(options: dict) -> bool:
@@ -538,7 +662,8 @@ def _kadans_yamasi(scenes: list[dict], options: dict) -> list[str]:
 # Govde slaytlari: kapak ve bolum ayraci HARIC. Ikisi de kadansin zorunlu
 # kildigi slaytlar -- her sahnede bir section, kursta bir cover -- yani
 # "cesitlilik" sayarken onlari saymak, zorunlu tekrari cesitlilik sanmaktir.
-GOVDE_DUZENLERI = ("content", "bullets", "steps", "statement", "menu")
+GOVDE_DUZENLERI = ("content", "bullets", "steps", "statement", "menu",
+                   "reveal")
 
 
 def _govde(scenes: list[dict], anahtar: str) -> list[dict]:
@@ -1315,6 +1440,10 @@ def build(
     varyant_gecmisi: list[str] = []
     variant_log: list[dict] = []
     kurulan_sahneler: list[str] = []
+    # YAZILIP KONMAYAN GERI BILDIRIMLER. Sessiz kayip bu projenin
+    # bilinen kusuru: model yaziyor, kurucu geciriyor, tohumda
+    # konacak yer yok ve hicbir satir bunu soylemiyor.
+    geri_bildirim_dusenler: list[str] = []
     # Yapay zekanin istedigi ama veremedigi seyler. Kurs onlari beklemez:
     # slayt alani ayrilmis olarak kurulur, istek `<kurs>.medya.json` icinde
     # bekler ve panelin "Gorsel & Video" sekmesinde kullaniciya gorunur.
@@ -1344,6 +1473,9 @@ def build(
                         eyebrow=scene.get("title") or scene_name,
                         palette=palette, points=10,
                         feedback=spec.get("feedback"))
+                    _d = _geri_bildirim_yazildi_mi(spec, made)
+                    if _d:
+                        geri_bildirim_dusenler.append(_d)
                     questions += 1
                 except StoryError as exc:
                     # Gruplama REDDEDILEBILIR (etiket hucreye sigmazsa) ve
@@ -1357,8 +1489,16 @@ def build(
                         "why": str(exc)[:160], "resolved": False})
                 continue
             if spec.get("kind") == "commitment":
+                # `accept` GECIRILIR. add_text_question `graded = bool(accept)`
+                # diyor: accept yoksa etkilesim cikarilir ve slayt bir taahhut
+                # kutusuna doner. Buradan hic gecirilmedigi icin kurucu PUANLI
+                # metin sorusu URETEMIYORDU -- yani `freeTextEntryIntr` bicimi
+                # kurucunun hicbir yolundan cikmiyordu. Olculdu 2026-09-04:
+                # bicim kapsami 5'te 4'te takildi ve sebebi buydu.
+                # Verilmedigindeki davranis DEGISMEZ (None -> taahhut).
                 made = authoring.add_text_question(
                     pkg, spec.get("prompt", "Tek somut adimini yaz."),
+                    spec.get("accept"),
                     scene=scene_name,
                     eyebrow=scene.get("title") or scene_name,
                     palette=palette)
@@ -1370,6 +1510,9 @@ def build(
                     eyebrow=scene.get("title") or scene_name,
                     palette=palette, points=10,
                     feedback=spec.get("feedback"))
+                _d = _geri_bildirim_yazildi_mi(spec, made)
+                if _d:
+                    geri_bildirim_dusenler.append(_d)
                 questions += 1
                 continue
             if spec.get("kind") == "question":
@@ -1408,6 +1551,9 @@ def build(
                     )
                     varyant_gecmisi.append(
                         (made.get("adapted") or {}).get("variant") or "")
+                    _d = _geri_bildirim_yazildi_mi(spec, made)
+                    if _d:
+                        geri_bildirim_dusenler.append(_d)
                     # TEK YERLESIM OTORITESI: compose_question_frame.
                     #
                     # Burada bir zamanlar `apply_choice_plan` dali vardi ve
@@ -1507,15 +1653,32 @@ def build(
             stil = _medya_stili(duzen) if istenen else "panel"
             new = authoring.add_slide(pkg, content_template, scene=scene_name,
                                       name=(spec.get("title") or "Slayt")[:60])
+            _otomatik_ilerlemeyi_kaldir(pkg, new["new_slide"])
+            # REVEAL'IN ETIKETLERI BUTON BANDINA GIDER. Duzen menu ile ayni
+            # iskeleti kullaniyor; fark, tiklamanin nereye gittigi. Etiket
+            # yoksa duzen bos bir bant olurdu, o yuzden items bos gelirse
+            # slayt normal content gibi kurulur.
+            reveal_items = (spec.get("items") or []) if duzen == "reveal" else []
+            butonlar = ([str(i.get("label") or "")[:40] for i in reveal_items]
+                        if reveal_items else spec.get("buttons"))
             laid = compose.compose_slide(
                 pkg, new["new_slide"], duzen,
                 title=spec.get("title"), eyebrow=spec.get("eyebrow"),
                 body=spec.get("body"), bullets=spec.get("bullets"),
-                buttons=spec.get("buttons"), palette=palette,
+                buttons=butonlar, palette=palette,
                 index=spec.get("index"), style=look["name"], clear=True,
                 identity=seed, avoid_variant=history,
                 image_area=bool(istenen), image_style=stil,
             )
+            if reveal_items:
+                _acilan = _reveal_katmanlari(pkg, new["new_slide"],
+                                             reveal_items, laid)
+                # SESSIZ DUSME OLMASIN: etiket kuruldu ama katman kurulmadiysa
+                # slayt tiklanabilir gorunur ve hicbir sey acmaz.
+                if _acilan < len(reveal_items):
+                    on_progress(
+                        f"reveal ({spec.get('title', '')}): "
+                        f"{len(reveal_items)} etiketin {_acilan} tanesi acildi")
             # KAYIT, AYRILMIS ALANA BAGLI. Kapi "yer var" dese bile yetkili
             # olan motorun donusudur; alan yoksa istek de yok, cunku dosya
             # geldiginde konacagi yer varsayilan bir kutuya duser ve o kutu
@@ -1548,6 +1711,48 @@ def build(
                                 "repeated": laid["variant_repeated"]})
             created += 1
 
+    # ILERLEME KATMANI: degisken, kosullu tetikleyici, sonuc slaydi, kilit.
+    # Slaytlar kuruldu ama kurs hala sayfa cevirmek -- degiskeni ve kosulu
+    # olmayan bir kurs PowerPoint'ten ayrilmiyor (gerekce panel/ilerleme.py).
+    #
+    # BURADA, promote_scenes'ten ONCE: sonuc slaydi kendi sahnesini kuruyor
+    # ve o sahne one alinacaklar listesine girmezse devralinan sahneler
+    # arasina, kursun arkasina duserdi.
+    #
+    # Konu sahnelerini IKINCI KEZ TANIMLAMIYORUZ: _konu_araligi yetkili
+    # (giris ve kapanis disi), ve ayri bir tanim yazmak kadans kapisiyla
+    # celisen bir ikinci gercek uretirdi.
+    konu_adlari = [scenes[i].get("name") or f"Bolum{i}"
+                   for i in _konu_araligi(scenes)]
+    ilerleme_raporu = ilerleme.kur(pkg, konu_adlari, on_progress=on_progress)
+    # DALLANMA ILERLEMEDEN SONRA: ikisi de ayni konu sahnesi listesini
+    # kullaniyor ve dallanma, ilerlemenin kurdugu sonuc slaydina degil
+    # yalnizca soru slaytlarina dokunuyor -- sira aralarinda bagimlilik
+    # kurmuyor, ama ikisi de ayni `konu_adlari`ni almali.
+    dallanma_raporu = dallanma.kur(
+        pkg, konu_adlari,
+        # Ogrenciye MAKINE ADI gosterilmez. `_sahne_basligi` zaten bu isi
+        # yapiyor (ayrac slaytlari icin yazilmisti) ve ikinci bir turetme
+        # yazmak, ayni sahnenin iki yerde iki farkli adla anilmasi olurdu.
+        basliklar={(s.get("name") or ""): _sahne_basligi(s) for s in scenes},
+        on_progress=on_progress)
+    # TEKRAR EKRANI: bayraklari OKUYAN taraf. Ilerleme (sonuc slaydi) ve
+    # dallanma (hata bayraklari) ikisi de kurulduktan SONRA calisir --
+    # ikisine de ihtiyaci var.
+    tekrar_raporu = dallanma.tekrar_ekrani(
+        pkg, ilerleme_raporu.get("sonuc_slaydi"),
+        dallanma_raporu.get("bayraklar") or [],
+        ilerleme_raporu.get("esik") or len(konu_adlari),
+        on_progress=on_progress)
+    if ilerleme_raporu.get("sonuc_sahnesi"):
+        from storyline_mcp.package import STORY_PART
+        _story = pkg.parse(STORY_PART)
+        _sonuc_sahne = next(
+            (s for s in (_story.find("sceneLst") or [])
+             if s.get("name") == ilerleme_raporu["sonuc_sahnesi"]), None)
+        if _sonuc_sahne is not None:
+            kurulan_sahneler.append(_sonuc_sahne.get("g"))
+
     # A2: kurs, ogrencinin gordugu ilk ekranda BOS olmasin. Kurucu kendi
     # sahnelerini sona ekliyordu ve kurs, sablondan devralinan bos bir slaytla
     # aciliyordu -- uretilen her sey bir alt siradaydi. Hicbir sey silinmez,
@@ -1556,7 +1761,74 @@ def build(
     from storyline_mcp.clone import promote_scenes
     siralama = promote_scenes(pkg, kurulan_sahneler)
 
-    report = pkg.save(Path(path), backup=True)
+    # HAREKET, EN SONDA VE KURSUN TAMAMINA. Tek tek compose_slide'a
+    # gecirilseydi yalnizca icerik slaytlari kurgulanirdi: soru slaytlari,
+    # sonuc slaydi ve ilerleme/dallanma ekranlari baska yollardan kuruluyor
+    # ve hepsi hareketsiz kalirdi -- kursun ucte biri.
+    #
+    # OLCULDU 2026-09-04: uretilen bir kursta (kosul_probu2.story) 360 seklin
+    # 360'i start=0 ve dolu animEffect sayisi 0. Yani panelin urettigi her
+    # slaytta her nesne ayni anda beliriyordu. Bu blok o kusuru kapatir.
+    from storyline_mcp import anim
+    hareket = (options.get("motion") or "sakin").strip()
+    # Bilinmeyen kurgu BIR KEZ soylenir. Dogrulama donguye birakilsaydi ayni
+    # hata her slayt icin bir kez, elli alti satir halinde yazilirdi ve
+    # ilerleme akisi okunmaz olurdu.
+    if hareket not in anim.PRESETS and hareket != "yok":
+        on_progress(f"bilinmeyen hareket kurgusu {hareket!r}; "
+                    f"'sakin' kullanildi")
+        hareket = "sakin"
+    _kurgulanan = 0
+    if hareket != "yok":
+        for _parca in list(pkg.slide_parts):
+            try:
+                _kurgulanan += anim.choreograph(pkg, _parca,
+                                                preset=hareket)["animated"]
+            except StoryError as exc:
+                # Tek slayt kurguyu reddederse kurs yine de kaydedilir;
+                # sessiz dusmesin diye ilerlemeye yazilir.
+                on_progress(f"hareket atlandi ({_parca}): {exc}")
+        on_progress(f"✓ Hareket kurgusu '{hareket}': "
+                    f"{_kurgulanan} nesne zaman cizgisine dizildi")
+
+    # SAVE WITH GUARANTEED LOGGING
+    try:
+        report = pkg.save(Path(path), backup=True)
+    except Exception as save_err:
+        # Log the save failure before re-raising
+        try:
+            production.record(
+                path,
+                "build_save_failed",
+                {"verified": {"ok": False, "problems": [str(save_err)]}},
+                context={"error": str(save_err)[:200], "brief": brief[:100]},
+            )
+        except Exception:
+            pass  # If logging itself fails, don't hide the original error
+        raise  # Re-raise the original save error
+
+    # Log successful save
+    try:
+        production.record(
+            path,
+            "build",
+            report,
+            context={
+                "brief": brief[:100],
+                "slide_budget": budget,
+                "scenes": len(scenes),
+                "slides_created": created,
+                "questions": questions,
+            },
+        )
+    except Exception as log_err:
+        # If logging fails, report it but don't fail the build
+        on_progress(f"⚠️ Günlük kaydı başarısız: {str(log_err)[:100]}")
+
+    on_progress(
+        f"✓ Kurs kaydedildi: {Path(path).name} "
+        f"({report['verified'].get('ok')} doğrulama başarılı)"
+    )
     # Defter kursla birlikte YENILENIR. Onceki kurulumun istekleri artik baska
     # slaytlari gosteriyor olurdu -- slayt dosyalari yeniden uretildi.
     if medya_istekleri:
@@ -1565,8 +1837,56 @@ def build(
                     "panelde 'Gorsel & Video' sekmesinde bekliyor")
     else:
         medya.temizle(path)
+
+    # OGRETIM OLCUSU, KAYDEDILMIS DOSYA UZERINDE. Bugune kadar raporun her
+    # alani BICIMI olcuyordu -- variety, question_looks, verified -- ve
+    # "bu kurs PowerPoint mu" sorusuna bakan hicbir sayi yoktu. pedagogy.olc
+    # yazilmisti ve uretim yolundan HIC cagrilmiyordu (olculdu 2026-09-04:
+    # builder.py'de `pedagogy` gecmiyordu).
+    #
+    # KAYDEDILEN DOSYA okunuyor, bellekteki pkg degil: ogrencinin aldigi sey
+    # diskteki dosya, ve ikisi ayrisirsa rapor yanlis olani anlatir.
+    #
+    # OLCU KAPI DEGIL. Dusuk cikan bir sayi kursu reddetmiyor; raporda
+    # duruyor. Kapiya cevirmek ayri bir karar ve once bu sayinin uretilen
+    # kurslarda ne dagilim verdigi gorulmeli.
+    try:
+        from storyline_mcp import pedagogy
+        _olcu = pedagogy.olc(StoryPackage(path))
+        ogretim_olcusu = {
+            "ardisik_etkilesimsiz_slayt":
+                _olcu["ardisik_etkilesimsiz_slayt"]["en_uzun"],
+            "etkilesimli_slayt":
+                _olcu["ardisik_etkilesimsiz_slayt"]["etkilesimli_slayt"],
+            "toplam_slayt":
+                _olcu["ardisik_etkilesimsiz_slayt"]["toplam_slayt"],
+            "sorusuz_sahneler": _olcu["sorusuz_sahneler"],
+            "sonuc_slaydi": bool(_olcu["sonuc_slaydi"]),
+            "toplam_tetikleyici":
+                _olcu["tetikleyici_cesitliligi"]["toplam_tetikleyici"],
+            "ayrik_tetikleyici_cifti":
+                _olcu["tetikleyici_cesitliligi"]["ayrik_cift"],
+        }
+    except Exception as exc:      # olcu kursu dusurmez
+        ogretim_olcusu = {"hata": str(exc)[:160]}
+        on_progress(f"ogretim olcusu alinamadi: {str(exc)[:100]}")
+
     return {
         "opens_on": siralama,
+        # ILERLEME KATMANI: kac degisken, kac tetikleyici, sonuc slaydi ve
+        # kilit kuruldu mu. Atlananlar listesi de icinde -- sessizce kurulmayan
+        # bir sonuc slaydi, kursun LMS'e hic puan raporlayamamasi demek.
+        "ilerleme": ilerleme_raporu,
+        # DALLANMA: yanlis cevap kac sahnede bir yere goturuyor, hangi
+        # yolla taninmis, ve NELER ATLANMIS. Atlananlar sayiya indirgenmiyor:
+        # "yanlis katman cozulemedi" ile "sahnede soru yok" ayri isler.
+        "dallanma": dallanma_raporu,
+        # TEKRAR EKRANI: hata bayraklarini OKUYAN taraf. Bayrak kurulup
+        # okunmadigi surece elde veri var ama ogrenci icin hicbir sey
+        # degismiyor; bu satir o halkanin kapandigini gosteriyor.
+        "tekrar_ekrani": tekrar_raporu,
+        # OGRETIM: kurs ogrenciye bir sey yaptiriyor mu. Biçim degil davranis.
+        "ogretim": ogretim_olcusu,
         # Kurs eksiksiz kuruldu ama TAMAMLANMADI: bu kadar slayt bir dosya
         # bekliyor. Sayi raporda durmazsa istek yalnizca sekmede kalir ve
         # kimse bakmadikca bos panel kursla birlikte yayina gider.
@@ -1579,6 +1899,11 @@ def build(
         # sağlam olduğu için hiçbir test bunu yakalayamaz; katalogun
         # yetersizleştiğini fark etmenin tek yolu bunu okumak.
         "question_refusals": refusals,
+        # YAZILIP KONMAYAN GERI BILDIRIM. Sayi degil GEREKCE: cikti
+        # saglam oldugu icin hicbir test bunu yakalamaz. Olculdu
+        # 2026-09-04: freeHotSpot tohumunda geri bildirim katmani hic
+        # yok ve o sorularda yazarin metni sessizce dusuyordu.
+        "feedback_dropped": geri_bildirim_dusenler,
         # HANGI GORUNUSLER KULLANILDI. Sayi degil kume: "8 soru" ile "8 soru,
         # 1 gorunus" ayni satirda ayni gorunuyordu ve tekduzelik tam olarak
         # ikincisi. Kutuphane buyudugunde bunun da buyumesi gerekir; buyumuyorsa
@@ -1601,6 +1926,10 @@ def build(
         "inherited": _inherited(path),
         "style": look["name"],
         "palette": palette or "varsayilan",
+        # HAREKET. Sayi ve kurgu birlikte: "sakin" yazip 0 nesne dizilmis bir
+        # kurs, hareketsiz bir kurstur ve rapor bunu ayirt edebilmeli.
+        "motion": hareket,
+        "motion_shapes": _kurgulanan,
         "verified": report["verified"],
         "written": report["written"],
     }
