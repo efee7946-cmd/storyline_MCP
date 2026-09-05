@@ -811,16 +811,42 @@ def compose_question_frame(pkg: StoryPackage, part: str, *,
 DRAG_ITEM_BAND_RANGE = (0.45, 0.76)
 
 
-def _drag_band_share(rows: int) -> float:
-    """Oge izgarasinin kalan banttan aldigi pay, SATIR SAYISINA GORE.
+def _drag_band_share(rows: int, en_dolu_kutu: int, kalan: float,
+                     ara: float) -> float:
+    """Oge izgarasinin kalan banttan aldigi pay -- KUTUNUN YUKUNE gore.
 
-    rows=2 -> 0.59, rows=3 -> 0.68, rows=4 -> 0.74. Iki satirda eski sabite
-    (0.52) yakin duruyor -- elle yapilmis kurs iki satirliydi ve oran oradan
-    okunmustu. Dorde cikildiginda izgara nefes aliyor, kuyu hala slaydin
-    yaklasik besde biri.
+    ESKI FORMUL `rows / (rows + 1.4)` IDI ve o 1.4 estetik bir sabitti:
+    kutunun kac oge alacagiyla hicbir iliskisi yoktu. Kuyu, artan yerdi.
+
+    OLCULDU 2026-09-05 (kullanicinin kursu, fm.story/slide4):
+
+        Davutpasa Kampusu   kutu 193.8 birim   alacagi 3 oge = 380.8
+                            -> 1.5 oge siginca
+                            -> yigilinca alt kenar 1180.6, slayt 1080
+
+    Yani ucuncu oge slaydin 100 birim ALTINA dusuyordu. Baslangic yerlesimi
+    kusursuzdu (kutu cakismasi 0, alt kenar tam FLOOR'da) ve butun statik
+    kontroller geciyordu -- cunku hepsi ETKILESIMDEN ONCEKI hali olcuyor.
+    Ogrenci birakmaya baslayinca bozulan bir duzeni hicbir sey gormuyordu.
+
+    YENI OLCUT: kutu, kendisine dusecek ogeleri ICINE ALABILMELI.
+
+        kutu_bandi >= en_dolu_kutu * cell_h,  cell_h = (oge_bandi - ara*(rows-1))/rows
+        kutu_bandi  = kalan - oge_bandi
+        => oge_bandi <= (rows*kalan + en_dolu_kutu*ara*(rows-1)) / (rows + en_dolu_kutu)
+
+    Yuk `pairs`'ten sayilir; yani cevap zaten elimizdeydi ve hic sorulmuyordu.
+
+    ESTETIK ARALIK ARTIK YALNIZCA TAVAN. DRAG_ITEM_BAND_RANGE'in alt ucu
+    uygulanmiyor: kapasite gerektirdiginde izgara daha az yer almalidir ve
+    "en az %45" demek, tam da bu kusuru geri getirmek olurdu. Ust uc duruyor
+    -- kuyunun tamamen yok olmasini engelliyor.
     """
-    alt, ust = DRAG_ITEM_BAND_RANGE
-    return max(alt, min(ust, rows / (rows + 1.4)))
+    _alt, ust = DRAG_ITEM_BAND_RANGE
+    if en_dolu_kutu <= 0 or kalan <= 0:
+        return min(ust, rows / (rows + 1.4))
+    tavan = (rows * kalan + en_dolu_kutu * ara * (rows - 1)) / (rows + en_dolu_kutu)
+    return max(0.0, min(ust, tavan / kalan))
 DRAG_GAP_X = 1.6          # sutunlar arasi, slayt GENISLIGININ yuzdesi
 
 # IKI BANT ARASI, SATIR ARASINDAN GENIS OLMAK ZORUNDA. Ilk surumde ikisi de
@@ -924,24 +950,59 @@ def compose_drag_frame(pkg: StoryPackage, part: str, *,
     # kurstaki 3x3 izgaranin aynisi -- goz ustteki sutunla alttaki kutuyu
     # esler. Tavan 4: besinci sutunda hucre genisligi bir cumleyi tasimiyor
     # (compose_question_frame'de yatay sira ayni sebeple reddedilmisti).
-    cols = max(2, min(len(zones), 4))
-    cols = min(cols, len(items))
-    rows = -(-len(items) // cols)
-    oge_bandi = kalan * _drag_band_share(rows)
-    kutu_bandi = kalan - oge_bandi
-    cell_w = (CONTENT_W - DRAG_GAP_X * (cols - 1)) / cols
-    cell_h = (oge_bandi - ara * (rows - 1)) / rows
+    # EN DOLU KUTUNUN YUKU. Kuyu bandi bundan turer; `pairs` zaten hangi
+    # ogenin hangi kutuya dusecegini soyluyor ve bu sayi hic sorulmuyordu.
+    yuk: dict[str, int] = {}
+    for item_guid, zone_guid in pairs:
+        if item_guid in by_guid and zone_guid in by_guid:
+            yuk[zone_guid] = yuk.get(zone_guid, 0) + 1
+    en_dolu_kutu = max(yuk.values()) if yuk else 1
 
-    size, need = _shrink_to_cells(root, page, by_guid, items,
-                                  TYPE_SCALE["body"],
-                                  cell_w / 100 * width, cell_h / 100 * height)
-    if need > cell_h / 100 * height + FIT_TOLERANCE / 100 * height:
+    # SUTUN SAYISI KUTU SAYISINDAN BASLAR ama SABIT DEGIL.
+    #
+    # Uc kutu icin uc sutun, elle yapilmis kurstaki 3x3 izgaranin aynisi --
+    # goz ustteki sutunla alttaki kutuyu esler. Tavan 4: besinci sutunda
+    # hucre genisligi bir cumleyi tasimiyor.
+    #
+    # AMA SIGMIYORSA DARALTILIR. Once sabitti ve sigmadiginda soru REDDEDILIP
+    # menuye dusuyordu; oysa AYNI icerik daha az sutunla rahat siğiyor:
+    # olculdu, bes uzun Turkce etiket iki sutunda taban puntoda bile
+    # sigmazken tek sutunda tam genislik sayesinde tek satira iniyor
+    # (gereken %4.5, yer %6.6). Bir menuye dusmek yerine izgarayi daraltmak,
+    # ogrenciye SORUYU verir.
+    tercih = min(max(2, min(len(zones), 4)), len(items))
+    denemeler: list[str] = []
+    secim = None
+    for cols in range(tercih, 0, -1):
+        rows = -(-len(items) // cols)
+        oge_bandi = kalan * _drag_band_share(rows, en_dolu_kutu, kalan, ara)
+        kutu_bandi = kalan - oge_bandi
+        cell_w = (CONTENT_W - DRAG_GAP_X * (cols - 1)) / cols
+        cell_h = (oge_bandi - ara * (rows - 1)) / rows
+        size, need = _shrink_to_cells(root, page, by_guid, items,
+                                      TYPE_SCALE["body"],
+                                      cell_w / 100 * width, cell_h / 100 * height)
+        etiket_sigar = need <= cell_h / 100 * height + FIT_TOLERANCE / 100 * height
+        kutu_sigar = kutu_bandi + FIT_TOLERANCE >= en_dolu_kutu * cell_h
+        if etiket_sigar and kutu_sigar:
+            secim = (cols, rows, oge_bandi, kutu_bandi, cell_w, cell_h, size)
+            break
+        denemeler.append(
+            f"{cols}x{rows}: etiket %{need / height * 100:.2f}/%{cell_h:.2f}"
+            f"{'' if etiket_sigar else ' TASAR'}"
+            f", kuyu %{kutu_bandi:.1f}/%{en_dolu_kutu * cell_h:.1f}"
+            f"{'' if kutu_sigar else ' YETMEZ'}")
+
+    if secim is None:
+        # SESSIZ KALMAZ. Gecerli bir dosya uretip ogrenciyi ucuncu ogeyi
+        # slaydin disina birakirken birakmak, reddetmekten kotudur.
         raise ChoiceLabelsTooLong(
-            f"{len(items)} surukleme etiketi taban puntoda ({size:.0f}pt) bile "
-            f"{cols}x{rows} izgaraya sigmiyor: hucreye "
-            f"%{cell_h:.2f} kaliyor, en uzun etiket "
-            f"%{need / height * 100:.2f} istiyor. Etiketleri kisaltin ya da "
-            f"oge sayisini dusurun.")
+            f"{len(items)} oge / {len(zones)} kutu hicbir sutun sayisinda "
+            f"sigmadi (en dolu kutuya {en_dolu_kutu} oge dusuyor). "
+            f"Denenenler -- {'; '.join(denemeler)}. Etiketleri kisaltin, "
+            f"oge sayisini dusurun ya da ogeleri kutulara daha dengeli dagitin.")
+
+    cols, rows, oge_bandi, kutu_bandi, cell_w, cell_h, size = secim
 
     for index, guid in enumerate(items):
         row, col = divmod(index, cols)
