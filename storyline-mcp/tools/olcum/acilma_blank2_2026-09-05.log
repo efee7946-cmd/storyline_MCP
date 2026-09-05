@@ -1,0 +1,11 @@
+1 dosya denenecek. Storyline acilip kapanacak, dosya basina 100 sn'ye kadar surebilir.
+exe: C:\Program Files\Articulate\360\Storyline 64-bit\Storyline.exe
+
+kanarya: saglam=acildi  bozuk=acilmadi  [GUVENILIR]
+
+dosya                                        ACILDI   sn      baslik
+------------------------------------------------------------------------------------------------
+bos.story                                    EVET     12.0    'bos.story'
+
+Hepsi acildi.
+EXIT: 0

@@ -301,3 +301,70 @@ Ham cikti: `acilma_kapi_2026-09-05.log`
 
 `panel/app.py`'de sokumden kalmis bir mesaj duzeltildi: `build_course`
 kullaniciya artik kodda olmayan Antigravity CLI'yi kurmasini soyluyordu.
+
+---
+
+# KUSUR 1 (kontrast) KAPANDI — ve sebebi tema degil FIKSTURDU (2026-09-05)
+
+## Sonuc
+
+    themes_check   24 sorun -> GECTI: 6 tema, 0 sorun
+    produced.py    kontrast 4 -> 0   (kalan tek kusur: 3 slayt kurulamadi)
+    temizlenmis bos.story  ACILDI: EVET 12.0 sn  [kanarya guvenilir]
+
+## Sebep
+
+`test/bos.story` bos sablon DEGILDI: 37 slayt, 22 fakeTrigger, alti soru ve
+bir surukle-birak slaydi -- silinen `panel/debug_build.py`'nin artigi.
+
+O devralinan surukle-birak slaydinin grup kutulari `<schemeClr val="accent1"/>`
+ile temaya bagli; tema yuvasi yazilmadigi icin Office mavisinde (#4F81BD)
+kaliyor ve uzerlerindeki beyaz yazi 4.03 veriyordu. `themes_check` blank'i
+kopyalayip PAKETIN TAMAMINI olctugu icin ALTI temada da ayni dort uyari
+cikiyordu: 24 "sorun", tek bir devralinan slayttan.
+
+`produced.py`'nin dort kontrast kusuru da ayni slayttaydi (`slide18.xml`).
+Yani urun yolu HIC kirik degildi.
+
+## Iki yanlis yol (ikisini de olcum kesti)
+
+1. **Tema yuvasini global boyamak** (`set_theme_colors` builder'da). Kontrasti
+   4->0 yapti AMA olculdu: uyarlanmayan devralinan slaytlarin dolgusu da
+   degisiyor, yazilari yeniden secilmiyor. Acik vurgulu temalarda DAHA KOTU:
+   gece 4.03 -> 1.56, orman 4.03 -> 1.88. Geri alindi.
+2. **Uyarlanan slaytta dolguyu boyamak.** Hic atesLenmiyordu: besteci kutulari
+   `_recolour_for_palette`'ten ONCE duz renge boyuyor. Kaldirildiginda hicbir
+   sayi degismedi -- olu koddu.
+
+Kodda kalan tek degisiklik `_recolour_for_palette`'in `schemeClr` dolguyu
+okuyabilmesi. Gercek bir okuma kusuru, ama BUGUN bir kusuru yakalamiyor ve
+yorumuna bu acikca yazildi.
+
+## Temizlik ve ucuncu K33 ornegi
+
+`tools/blank_temizle.py` yazildi (tek seferlik). Tuttugu olcut: adsiz +
+etkilesimsiz + fakeTrigger'siz slaytlar. 37 -> 9 slayt, 56 parca ve 7 bosalan
+sahne cikarildi, boyut 720x540 korundu.
+
+ILK DENEME `verify()`'dan TEMIZ gecti ve Storyline ACMADI. Sebep yine kendi
+gunlugundeydi:
+
+    System.Xml.XmlException: Required Types tag not found. Line 1, position 57
+      at ContentTypeHelper.ParseContentTypesFile(...)
+
+`[Content_Types].xml` ElementTree ile parse edilip geri yazilinca varsayilan ad
+alani onekliye donuyor:
+
+    once  : <Types xmlns="...">
+    sonra : <ns0:Types xmlns:ns0="...">
+
+XML olarak esdeger ve kusursuz bicimli -- verify() hicbir sey gormez. OPC
+okuyucusu ise `Types` kok etiketini birebir ariyor.
+
+Kod tabani kurali ZATEN biliyordu: `clone._register_content_type` ve
+`_register_story_rel` bu iki dosyaya `replace_raw` ile METIN olarak dokunuyor.
+Arac o yola cevrildi, ustune bir kapi kondu: yazmadan once kok etiket
+dogrulanir, bozuksa dosyaya DOKUNULMAZ.
+
+Yedek: `test/bos.story.kirli-yedek`
+Ham cikti: `acilma_blank_2026-09-05.log` (basarisiz), `acilma_blank2_2026-09-05.log` (basarili)
