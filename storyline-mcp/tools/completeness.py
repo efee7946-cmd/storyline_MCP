@@ -72,6 +72,38 @@ GUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
                   r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 
+# ISARETCILER, KARA LISTEYLE DEGIL BEYAZ LISTEYLE -- ve liste OLCULDU
+# (2026-09-06). Kalibrasyon noktasi: INSAN YAPIMI, CALISAN kurslar. Alti
+# donor kursu artı elle yapilmis `0_duz_kopya.story` tarandi ve her `*G`
+# oznitelıgının kac degerinin pakette cozuldugu sayildi.
+#
+# IYI KURSTA %100 COZULENLER  (bir basarisizlik GERCEKTEN kirikliktir):
+#
+#     jumpG      20 / 0      "su slayda/sahneye git"
+#     setStateG 132 / 0      "su seklin durumunu degistir"
+#     submitG    13 / 0      "su etkilesimi gonder"
+#     hideG       8 / 0      "su katmani gizle"
+#
+# IYI KURSTA BILE COZULMEYENLER (bunlari kirik saymak YANLIS):
+#
+#     verG        0 / 628    SURUM DAMGASI -- hicbir zaman cozulmez
+#     showG     113 / 86     yerlesik/oynatici katmanlarini da gosteriyor
+#     actionG    30 / 41     Storyline'in KENDI eylem sabitleri
+#     varG      155 / 10     yerlesik degiskenler pakette durmaz
+#     varG2      74 / 32     shapeG 90/22, moveG 19/5, motionPathG 19/5
+#
+# NICIN BEYAZ LISTE. Once kara liste denendi (`g`, `verG`, `copiedG` dislandi)
+# ve YETMEDI: calisan bir donor kursu hala 80 "kopuk" gosteriyordu. Sebep,
+# testin kendisinin gecersiz olmasi -- Storyline'in pakette DURMAYAN yerlesik
+# nesneleri var (yerlesik degiskenler, eylem sabitleri, oynatici katmanlari)
+# ve "pakette cozulmuyor" onlar icin kusur demek degil.
+#
+# BEDELI OLCULDU: eski sayac uretilmis kursta 44 "kopuk" gosteriyordu ve o
+# sayi 2026-09-06'da iki kez yanlis teshise goturdu -- bir kez yanlis sinifa
+# yazdirdi, bir kez de Storyline'in kendi sabitini "onarmaya" gonderiyordu.
+_ISARETCILER = frozenset({"jumpG", "setStateG", "submitG", "hideG"})
+
+
 def dangling_in_slide(root: ET.Element, known: set) -> list[str]:
     """Hedefi çözülemeyen tetikleyiciler. **Tek otorite.**
 
@@ -94,24 +126,49 @@ def dangling_in_slide(root: ET.Element, known: set) -> list[str]:
         if trig_list is None:
             continue
         for trig in trig_list:
-            refs = {g for g in GUID.findall(ET.tostring(trig, encoding="unicode"))
-                    if not g.startswith("00000000") and g not in known}
-            refs -= {trig.get("g") or "", trig.get("verG") or ""}
-            if refs:
+            kopuk = set()
+            for el in trig.iter():
+                for ad, deger in el.attrib.items():
+                    if ad not in _ISARETCILER:
+                        continue
+                    if not GUID.fullmatch(deger or ""):
+                        continue
+                    if deger.startswith("00000000") or deger in known:
+                        continue
+                    kopuk.add(deger)
+            if kopuk:
                 out.append(trig.get("evt") or trig.get("name") or "?")
     return out
 
 
+def paket_guidleri(pkg: StoryPackage) -> set:
+    """Paketteki BUTUN `g` degerleri. Cozulme kararinin bilinen kumesi.
+
+    Slayt+story YETMIYOR: bir tetikleyici master ya da layout parcasindaki
+    bir seyi gosterebilir. Olculdu (2026-09-06, alti donor kursu): dar
+    kumeyle `jumpG` 4 cozulen / 7 cozulmeyen, genis kumeyle 11 / 0.
+    """
+    out: set = set()
+    for ad in list(pkg._order):
+        if not ad.endswith(".xml"):
+            continue
+        try:
+            kok = pkg.parse(ad)
+        except Exception:
+            continue
+        out |= {e.get("g") for e in kok.iter() if e.get("g")}
+    return out
+
+
 def dangling_triggers(pkg: StoryPackage) -> list[tuple[str, str]]:
-    """Kurstaki bütün kopuk tetikleyiciler: (slayt, olay)."""
+    """Kurstaki butun kopuk tetikleyiciler: (slayt, olay)."""
     index = model.slide_index(pkg)
-    story_guids = {e.get("g") for e in pkg.parse("story/story.xml").iter()
-                   if e.get("g")}
+    bilinen = paket_guidleri(pkg)
     out: list[tuple[str, str]] = []
     for part, ref in index.items():
         root = pkg.parse(part)
-        known = {e.get("g") for e in root.iter() if e.get("g")} | story_guids
-        out += [(ref.basename, evt) for evt in dangling_in_slide(root, known)]
+        out += [(ref.basename, evt)
+                for evt in dangling_in_slide(root, bilinen)]
     return out
 
 
@@ -156,8 +213,23 @@ def _tracking(pkg: StoryPackage, index: dict) -> dict:
 def survey(pkg: StoryPackage) -> dict:
     """Kursun işlevsel envanteri. Hiçbir şey değiştirmez."""
     index = model.slide_index(pkg)
-    story_guids = {e.get("g") for e in pkg.parse("story/story.xml").iter()
-                   if e.get("g")}
+    # BILINEN KUME PAKETIN TAMAMI, slayt+story degil -- OLCULDU 2026-09-06.
+    #
+    # Once yalnizca slaydin kendisi ve story.xml taraniyordu. Ama bir
+    # tetikleyici MASTER ya da LAYOUT parcasindaki bir seyi de gosterebilir
+    # ve o parcalar kumeye girmiyordu. Insan yapimi donor kurslarinda
+    # olculdu: dar kumeyle `jumpG` 4 cozulen / 7 cozulmeyen, GENIS kumeyle
+    # 11 / 0. Yani "kopuk atlama" diye sayilanlarin tamami saglamdi ve
+    # kusur sayacin kendisindeydi.
+    story_guids = set()
+    for _ad in list(pkg._order):
+        if not _ad.endswith(".xml"):
+            continue
+        try:
+            _kok = pkg.parse(_ad)
+        except Exception:
+            continue
+        story_guids |= {e.get("g") for e in _kok.iter() if e.get("g")}
 
     empty, dangling, scored, unscored = [], [], [], []
     scenes: dict[str, dict] = {}
@@ -199,17 +271,14 @@ def survey(pkg: StoryPackage) -> dict:
                 unscored.append((ref.basename, len(targets)))
 
         known = {e.get("g") for e in root.iter() if e.get("g")} | story_guids
-        for owner in root.iter():
-            trig_list = owner.find("trigLst")
-            if trig_list is None:
-                continue
-            for trig in trig_list:
-                refs = {g for g in GUID.findall(ET.tostring(trig, encoding="unicode"))
-                        if not g.startswith("00000000") and g not in known}
-                refs -= {trig.get("g") or "", trig.get("verG") or ""}
-                if refs:
-                    dangling.append((ref.basename,
-                                     trig.get("evt") or trig.get("name") or "?"))
+        # TEK OTORITEYE SORULUYOR. Burada bir IKINCI uygulama duruyordu ve
+        # `dangling_in_slide`in belge dizesi tam bunu yasakliyor ("bu sayi
+        # bir donem IKI YERDE hesaplaniyordu ve iki farkli cevap veriyordu").
+        # Nitekim yine ayristi: beyaz liste 2026-09-06'da tek otoriteye
+        # eklendi, buradaki kopya eski haliyle kaldi ve ayni dosya icin
+        # kapi 42, yardimci 0 dedi.
+        dangling += [(ref.basename, evt)
+                     for evt in dangling_in_slide(root, known)]
 
     izleme = _tracking(pkg, index)
     kayitli = izleme["registered"]
@@ -339,7 +408,10 @@ SAGLAM = ROOT.parent / "test" / "0_duz_kopya.story"
 
 BEKLENEN_BOZUK = {
     "bos slayt": 14,
-    "kopuk tetikleyici": 43,
+    # 43'ten 20'ye dustu (2026-09-06): sayac artik OLCULMUS bir isaretci
+    # beyaz listesi kullaniyor. Eski sayi surum damgalarini ve Storyline'in
+    # kendi sabitlerini de "kopuk" sayiyordu.
+    "kopuk tetikleyici": 20,
     "etkilesim tasiyan": 5,
     "quiz'e kayitli": 0,
     "kayitsiz soru": 5,

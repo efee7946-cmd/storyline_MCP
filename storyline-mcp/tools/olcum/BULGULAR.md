@@ -1048,3 +1048,62 @@ sinyali uretiyor. Kapi olarak (iki yonlu, sabitlik bekleyen) hala ise yarar --
 nitekim 53 -> 44 dususunu yakaladi. Ama adi yaniltiyor ve bu turda iki kez
 yanlis teshise yol acti. Duzeltmesi: `verG` ve bilinen Storyline sabitlerini
 dislamak. TABANI DEGISTIRECEGI icin ayri bir is ve olculerek yapilmali.
+
+## 2026-09-06 (dorduncu tur) — "kopuk tetikleyici" sayaci kalibre edildi
+
+Onceki turda sayacin kusur saymadigi ortaya cikmisti. Bu turda duzeltildi ve
+duzeltme OLCULEREK yapildi.
+
+### Test gecersizdi, esik degil
+
+Once kara liste denendi: `g`, `verG`, `copiedG` dislandi. YETMEDI -- calisan
+bir donor kursu (Accordion) hala 80 "kopuk" gosteriyordu.
+
+Sebep testin kendisiydi. "Pakette cozulmuyor" bir kiriklik testi DEGIL:
+Storyline'in pakette DURMAYAN yerlesik nesneleri var (yerlesik degiskenler,
+eylem sabitleri, oynatici katmanlari). Insan yapimi, calisan kurslarda bile
+her isaretci sinifinda bir miktar cozulmeyen deger var.
+
+### Kalibrasyon noktasi: iyi kurslar SIFIR vermeli
+
+Alti donor kursu artı elle yapilmis `0_duz_kopya.story` tarandi; her `*G`
+oznitelıgının kac degerinin cozuldugu sayildi.
+
+    IYI KURSTA %100 COZULEN          IYI KURSTA BILE COZULMEYEN
+    jumpG      20 / 0                verG        0 / 628
+    setStateG 132 / 0                showG     113 / 86
+    submitG    13 / 0                actionG    30 / 41
+    hideG       8 / 0                varG      155 / 10
+                                     varG2      74 / 32
+                                     shapeG     90 / 22
+
+Sayac artik BEYAZ LISTE kullaniyor: yalnizca ilk sutun. Bir basarisizlik
+orada GERCEKTEN kirikliktir.
+
+### Ikinci kusur: bilinen kume fazla dardi
+
+Kume yalnizca slayt + `story.xml` idi; master ve layout parcalari disardaydi.
+Olculdu: dar kumeyle `jumpG` 4 cozulen / 7 cozulmeyen, GENIS kumeyle 11 / 0.
+Yani "kopuk atlama" diye sayilanlarin tamami saglamdi. Kume paketin tamamina
+genisletildi -- hem sayacta hem `clone.py`deki KENDI onarimimda (dar kumeyle
+onarmak SAGLAM bir atlamayi "sonraki slayt"a cevirebilirdi).
+
+### Ucuncu kusur: sayi yine IKI YERDE hesaplaniyordu
+
+`dangling_in_slide`in belge dizesi "TEK OTORITE" diyor ve nicin oldugunu
+anlatiyor. Ama `survey()` kendi kopyasini tasiyordu. Beyaz liste otoriteye
+eklendi, kopya eski kaldi ve AYNI DOSYA icin kapi 42, yardimci 0 dedi.
+Kopya kaldirildi, `survey` otoriteye soruyor.
+
+### Sonuc
+
+    Accordion, ButtonChallenge, ButtonKit, Dials, DragDrop,
+    Tabcordion, 0_duz_kopya            HEPSI 0     <- kalibrasyon
+    bos.story                                0     <- "12 devralinan kir" GURULTUYMUS
+    uretilmis.story                          0     <- onarimlar tuttu
+    savunma.story                            3     <- kullanicinin 1 numarali bulgusu
+    referans.story                          20     <- bilerek bozuk cipa
+
+`produced.py` tabani artik 0, ve bu bir temenni degil: yedi calisan kursta
+ULASILDIGI olculmus bir hedef. Onceki "sifir beklenmemeli, kaynak 12
+tasiyor" gerekcesi yanlisti -- kaynak 12 tasimiyordu, sayac oyle saniyordu.

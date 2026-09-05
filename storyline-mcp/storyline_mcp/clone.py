@@ -307,7 +307,19 @@ def install_slide(
     # `_kopuk_atlamalari_onar`in belge dizesinde; ozeti: tohum, hasat
     # edildigi kursun sahne GUID'ini tasiyor ve burada hicbir seye
     # cozulmuyor. Bilinen kume = hedef kursun story.xml'i + slaydin kendisi.
-    _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
+    # GENIS KUME, ve bu bir DUZELTME (2026-09-06). Once yalnizca story.xml
+    # taraniyordu; olculdu ki bir hedef MASTER/LAYOUT parcasinda da
+    # durabiliyor ve dar kume onu "kopuk" gosteriyor. Dar kumeyle onarmak,
+    # SAGLAM bir atlamayi "sonraki slayt"a cevirme riski tasirdi.
+    _bilinen = set()
+    for _ad in list(pkg._order):
+        if not _ad.endswith(".xml"):
+            continue
+        try:
+            _k = pkg.parse(_ad)
+        except Exception:
+            continue
+        _bilinen |= {e.get("g") for e in _k.iter() if e.get("g")}
     _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
     new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
     new_raw, _olu_var = _olu_degisken_tetikleyicileri(new_raw, _bilinen)
@@ -431,7 +443,19 @@ def clone_slide(
     # cogu zaman hicbir sey yapmaz. Is gordugu yer, kaynak slaydin ZATEN
     # kopuk bir hedef tasidigi durum: devralinan kir orada durur ve klon
     # onu aynen tasirdi.
-    _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
+    # GENIS KUME, ve bu bir DUZELTME (2026-09-06). Once yalnizca story.xml
+    # taraniyordu; olculdu ki bir hedef MASTER/LAYOUT parcasinda da
+    # durabiliyor ve dar kume onu "kopuk" gosteriyor. Dar kumeyle onarmak,
+    # SAGLAM bir atlamayi "sonraki slayt"a cevirme riski tasirdi.
+    _bilinen = set()
+    for _ad in list(pkg._order):
+        if not _ad.endswith(".xml"):
+            continue
+        try:
+            _k = pkg.parse(_ad)
+        except Exception:
+            continue
+        _bilinen |= {e.get("g") for e in _k.iter() if e.get("g")}
     _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
     new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
     new_raw, _olu_var = _olu_degisken_tetikleyicileri(new_raw, _bilinen)

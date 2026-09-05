@@ -49,12 +49,17 @@ import completeness
 import inventory
 
 # Ureticinin urettigi kursta hedefi cozulmeyen tetikleyici sayisi.
-# 2026-09-06'da olculdu: kaynak bos.story 12 tasiyor, urun 44 -- yani
-# uretici 32 ekliyor. (Ilk olcumde 53'tu; tohumun tasidigi kopuk sahne
-# hedefi ve olu puan degiskeni onarilinca 44'e dustu ve KAPI BUNU
-# YAKALADI: 'DUSTU: taban yeniden yazilmali'. Ciftyonluluk ilk turda
-# ise yaradi.) Gerekce ve iki yonluluk asagida, kullanildigi yerde.
-KOPUK_TABAN = 44
+#
+# ARTIK SIFIR BEKLENIYOR, ve bu bir kazanc. Sayi once 53, sonra 44'tu ve
+# "sifir beklenmemeli, kaynak bos.story kendisi 12 tasiyor" diye yazilmisti.
+# O gerekce YANLISTI: sayacin kendisi bozuktu. 2026-09-06'da isaretci beyaz
+# listesi olculunce bos.story 12'den 0'a, uretilmis kurs 44'ten 0'a dustu --
+# yani "devralinan kir" diye sayilan seyin tamami surum damgasi ve
+# Storyline'in kendi sabitleriymis.
+#
+# Kalibrasyon: alti donor kursu artı 0_duz_kopya.story'nin HEPSI sifir.
+# Yani sifir, ulasilabilir oldugu OLCULMUS bir hedef -- temenni degil.
+KOPUK_TABAN = 0
 
 BLANK = ROOT.parent / "test" / "bos.story"
 WORK = ROOT.parent / "test" / "_canary" / "uretilmis.story"
@@ -362,11 +367,6 @@ def main() -> int:
     # tabanin eskimesi demektir ve ikisi de bagirmali (completeness'in
     # BEKLENEN_BOZUK cipasindaki ayni gerekce).
     #
-    # 44 BIR HEDEF DEGIL, BIR BORC. Ureticinin ekledigi 32'nin tamami
-    # silinmis geri bildirim katmanlarina isaret eden corFbG/incFbG
-    # referanslarindan geliyor (olculdu). O sinif duzeltilince bu sayi
-    # DUSECEK ve burasi bagiracak -- dogrusu da bu: taban o zaman yeniden
-    # yazilir.
     kopuk = len(found_dangling := survey["dangling"])
     print(f"\n  kopuk     {kopuk}/{KOPUK_TABAN}"
           f"    {'temiz' if kopuk == KOPUK_TABAN else 'SAPMA'}"
