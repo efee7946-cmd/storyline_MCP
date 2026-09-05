@@ -890,3 +890,100 @@ Soru artik su sekle geldi ve bir sonraki tur oradan baslamali: *bu arac,
 Storyline'in kendisinin hic yazmadigi bir seyi (durakli Default ortusu)
 tohumlardan tasiyip uretime koyuyor.* Bu bir kusur MU, olculmedi -- ama
 "olculemeyen 91 sekil"in kaynagi artik biliniyor ve tahmin degil.
+
+## 2026-09-06 — Kullanicinin urettigi kurs (savunma.story): 24 bulgu, ve kapilar yesildi
+
+Erman panelden `savunma.story`yi uretti ve elle bastan sona denetledi. Cikan
+liste agir: kirik sahne atlamalari, quiz'e baglanmamis sonuc slaydi, tanimsiz
+degiskene yazan puanlama, baska kurstan kalma icerik, Turkce buyuk harf
+hatalari, karma koordinat uzayi.
+
+**On uc kapi yesilken bu kurs cikti.** Asagidakiler olculdu, tartisilmadi.
+
+### 1. Olcu zaten goruyordu; kapi degildi
+
+`tools/completeness.py savunma.story` en agir uc bulguyu HEMEN buluyor:
+
+    3 soru quiz'e kayitli degil -- cevap alinir, skor LMS'e gitmez
+    lmsResultSlideG bos -- LMS'e bildirilecek sonuc slaydi secilmemis
+    21 kopuk tetikleyici
+
+Yani olcu vardi. Eksik olan, uretilen kursa KAPI olarak kosulmasiydi:
+`produced.py` `kayitsiz`, `lms_bos` ve `scored` uzerinde duruyor ama
+`dangling` uzerinde HIC durmuyor (grep: sifir gecis).
+
+### 2. Kapinin kendi artefakti 58 kopuk tasiyordu
+
+    bos.story (kaynak)     12 kopuk
+    savunma.story          21 kopuk   -> en az 9'u URETICININ ekledigi
+    uretilmis.story        58 kopuk   -> kapinin KENDI ciktisi, ve YESIL
+
+`uretilmis.story` suitin her kosusunda yeniden uretiliyor ve "olculen her
+sinifta temiz" deniyor. Sinif olculmuyordu.
+
+### 3. Rapor kusuru URETICIDEN KULLANICIYA aktariyordu
+
+`completeness` ciktisi 21 kopugun HEPSINI "DEVRALINAN (kaynak dosyadan
+gelen, ele alinmayan)" basligi altinda sayiyor. Kaynak `bos.story`de 12
+var, urunde 21 -- yani en az 9'u devralinmis DEGIL. Etiket, aracin kendi
+kusurunu kullanicinin dosyasina yaziyor. (Bu tur DUZELTILMEDI, kayda
+gecti.)
+
+### 4. Kok neden bulundu ve kanitlandi
+
+Kullanicinin verdigi GUID (`dd05cd82-4a3c-41bc-88ff-25ba701966c2`) tam iki
+yerde geciyor: `seeds/question_freePickManyIntr_5.xml` ve `_5_2.xml`. Yani
+tohum, HASAT EDILDIGI donor kursun sahne GUID'ini tasiyor.
+
+`clone.install_slide` slaydin TANIMLADIGI GUID'leri yeniliyor (`g`/`verG`),
+REFERANSLARINA dokunmuyor -- ve belge dizesi bunun NICIN dogru oldugunu da
+yaziyor: layout ve master referanslari hedefte ayni GUID'lerle duruyor,
+cunku Storyline'in varsayilan sablonu paylasiliyor. O gerekce SAHNE HEDEFI
+icin yanlis: sahne kursa ozgudur.
+
+Tohumlarda ayni sinif ALTI yerde:
+
+    question_freePickManyIntr_5      jumpToScene  dd05cd82...  (x2)
+    question_freePickManyIntr_5_2    jumpToScene  dd05cd82...  (x2)
+    question_dragDropIntr_9          jumpToScene  65265cc6...
+    results.xml                      jumpToSlide  8de22be5...
+
+Sonuncusu kullanicinin "Sinavi Yeniden Dene var olmayan slayda atliyor"
+bulgusunun ta kendisi.
+
+### 5. Duzeltildi: hedefte cozulmeyen atlama, atlama degildir
+
+`_kopuk_atlamalari_onar` eklendi. Cevrilen bicim UYDURULMADI, ureticinin
+KENDI calisan ciktisindan alindi (savunma.story/slidea.xml):
+
+    action="jumpToSlide" actSubType="next"  +  <slide showNav="false"/>
+
+Bu bicim hedef GUID istemez, yani kursa ozgu hicbir sey tasimaz -- bir
+tohumun tasiyabilecegi tek guvenli gezinme budur.
+
+Olculdu: `bos.story`ye bes sikli soru eklendiginde onarim iki atlamayi
+yakaliyor (`onarilan_atlama=2`), ve `uretilmis.story`de kopuk sayisi
+**58 -> 53** dustu.
+
+SINIR SAKLANMIYOR: `results.xml`in "Yeniden Dene" dugmesi de bu yoldan
+geciyor ve "sonraki slayt" onun icin ANLAMCA yanlis. Kirik biraktan iyi
+ama dogrusu degil; dogrusu sonuc slaydinin gercek bir quiz'e baglanmasi
+ve o ayri bir is.
+
+### 6. Ikinci sinif ayrildi (DUZELTILMEDI)
+
+Onarimdan sonra da soru eklemek iki kopuk uretiyor: `SubmitInteraction` ve
+bir adsiz tetikleyici. Bunlar `intrProps corFbG`/`incFbG` -- yani SILINMIS
+geri bildirim katmanlarina isaret eden referanslar. Kullanicinin 5 numarali
+bulgusuyla ayni sey: kurucu tohumun geri bildirim katmanlarini kaldirip
+yerine kendi katmanlarini koyuyor ama referanslari guncellemiyor.
+
+Ayri kok neden, ayri is.
+
+### Kendi hatam, kayda geciyor
+
+Onarimin donus degerini yanlis fonksiyonun (`clone_slide`) sozlugune de
+yazdim; `_onarilan_atlama` orada tanimli degil. `produced` NameError ile
+yuksek sesle dustu, `invariants` ise SESSIZCE: fikstuur kurucular da
+`clone_slide` kullaniyor, havuz bozulunca "40 harf: havuz 2 adaya dustu"
+sapmasi cikti. Ayni hata, iki farkli ses. Duzeltilince ikisi de gecti.

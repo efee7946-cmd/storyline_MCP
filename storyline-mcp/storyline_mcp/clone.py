@@ -90,6 +90,67 @@ def _remap_guids(raw: str, mapping: dict[str, str]) -> str:
     return raw
 
 
+def _kopuk_atlamalari_onar(raw: str, bilinen: set[str]) -> tuple[str, int]:
+    """Hedefte COZULMEYEN gezinme tetikleyicilerini "sonraki slayt"a cevirir.
+
+    NICIN GEREKLI. `install_slide` slaydin TANIMLADIGI GUID'leri yeniliyor
+    (`g`/`verG`), REFERANSLARINA dokunmuyor -- ve bu, belge dizesinde
+    yazili gerekceyle dogru: layout ve master referanslari hedefte de ayni
+    GUID'lerle duruyor, cunku Storyline'in varsayilan sablonu paylasiliyor.
+
+    O gerekce SAHNE HEDEFI icin YANLIS. Bir `jumpToScene`in hedefi kursa
+    OZGUDUR; tohum onu hasat edildigi donor kurstan tasir ve hedefte
+    hicbir seye cozulmez. Olculdu (2026-09-06, kullanicinin urettigi
+    savunma.story): `question_freePickManyIntr_5` tohumunun iki "Continue"
+    tetikleyicisi `dd05cd82-4a3c-41bc-88ff-25ba701966c2` sahnesine
+    atliyordu; o sahne projede YOK. Ogrenci soruyu bitirdikten sonra
+    Kapanis sahnesine HIC ULASAMIYORDU -- kurs orada duruyordu.
+
+    Ayni kusur alti yerde: `question_freePickManyIntr_5` (x2), `_5_2` (x2),
+    `question_dragDropIntr_9`, `results.xml`.
+
+    CEVRILEN BICIM UYDURULMADI. Ureticinin KENDI calisan ciktisindan
+    alindi (savunma.story/slidea.xml, geri bildirim katmaninin devam
+    dugmesi):
+
+        action="jumpToSlide" actSubType="next"   ve <slide showNav="false"/>
+
+    Bu bicim HEDEF GUID'i ISTEMEZ, yani kursa ozgu hicbir sey tasimaz --
+    tohumun tasiyabilecegi tek guvenli gezinme budur.
+
+    SINIR, ve saklanmiyor: `results.xml`in "Sinavi Yeniden Dene" dugmesi de
+    bu yoldan geciyor ve "sonraki slayt" onun icin ANLAMCA yanlis (yeniden
+    denemek ileri gitmek degildir). Yine de kirik biraktan iyidir: bugun
+    var olmayan bir slayda atliyor ve hicbir sey yapmiyor. Dogrusu, sonuc
+    slaydinin gercek bir quiz'e baglanmasidir; o ayri ve daha buyuk bir is
+    (sonuc slaydi bugun hicbir quiz'e kayitli degil).
+    """
+    sayac = 0
+
+    def _duzelt(m: re.Match) -> str:
+        nonlocal sayac
+        blok = m.group(0)
+        hedefler = re.findall(rf'jumpG="({GUID})"', blok)
+        kopuk = [g for g in hedefler if g != NULL_GUID and g not in bilinen]
+        if not kopuk:
+            return blok
+        sayac += 1
+        blok = re.sub(r'action="jump(?:ToScene|ToSlide)"',
+                      'action="jumpToSlide"', blok, count=1)
+        if 'actSubType=' in blok:
+            blok = re.sub(r'actSubType="[^"]*"', 'actSubType="next"',
+                          blok, count=1)
+        for g in kopuk:
+            blok = blok.replace(f'jumpG="{g}"', f'jumpG="{NULL_GUID}"')
+        return blok
+
+    # <data ...> acilisindan tetikleyicinin sonuna kadar olan blok: hedef
+    # dugumu (<scene jumpG=...>) `data`nin COCUGU, oznitelik degil.
+    desen = re.compile(r'<data[^>]*action="jump(?:ToScene|ToSlide)"[^>]*>'
+                       r'.*?</data>', re.S)
+    return desen.sub(_duzelt, raw), sayac
+
+
 def _rewrite_root_attr(raw: str, attr: str, value: str) -> str:
     """Set an attribute on the slide's root element, touching nothing else."""
     start = raw.index("<", raw.index("?>") + 2)
@@ -198,6 +259,14 @@ def install_slide(
     """
     mapping = {old: new_guid() for old in _defined_guids(raw)}
     new_raw = _remap_guids(raw, mapping)
+
+    # HEDEFTE COZULMEYEN ATLAMA, ATLAMA DEGILDIR. Gerekce
+    # `_kopuk_atlamalari_onar`in belge dizesinde; ozeti: tohum, hasat
+    # edildigi kursun sahne GUID'ini tasiyor ve burada hicbir seye
+    # cozulmuyor. Bilinen kume = hedef kursun story.xml'i + slaydin kendisi.
+    _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
+    _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
+    new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
     slide_guid = re.search(rf'<sld[^>]*\sg="({GUID})"', new_raw)
     if slide_guid is None:
         raise StoryError("Slayt XML'inde kok GUID bulunamadi.")
@@ -268,6 +337,10 @@ def install_slide(
         "slide_guid": new_slide_guid,
         "scene": scene_el.get("name", ""),
         "guids_regenerated": len(mapping),
+        # Kac kopuk atlama onarildi. SIFIR OLMAYAN DEGER SESSIZ KALMAZ:
+        # cagiran bunu rapora yazar, cunku tohumun tasidigi her kopuk
+        # hedef bir sonraki hasatta yeniden gelir.
+        "onarilan_atlama": _onarilan_atlama,
         "added_to_menu": in_menu,
         "source": "bundled",
     }
