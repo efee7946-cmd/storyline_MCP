@@ -1287,6 +1287,66 @@ def geri_bildirim_rolleri(root) -> dict:
     return roller
 
 
+def intrprops_baglan(root) -> int:
+    """intrProps'un corFbG/incFbG'sini BU slaydin katmanlarina baglar.
+
+    NICIN GEREKLI. Tohumun `intrProps`i, hasat edildigi kursun geri bildirim
+    katmanlarini gosteriyor -- ve o katmanlar tohumla birlikte GELMEDI.
+    `install_slide`in GUID yenilemesi bunu duzeltmez: o yalnizca slaydin
+    TANIMLADIGI GUID'leri (`g`/`verG`) yeniler, `corFbG` bir REFERANSTIR.
+    Slayt icindeki bir katmani gosterseydi zaten remap edilirdi; sorun tam
+    da disariyi gostermesi.
+
+    Olculdu ve zaten kayitli (2026-09-05, bos.story/slide14): corFbG ve
+    incFbG "o slaytta HICBIR katmana cozulmuyor". Kod bunu bir SEZGI
+    zincirine duserek tolere ediyordu (sik eslemesi -> ad -> metin -> sira)
+    ve olcum tarafi dogru calisiyordu. Ama STORYLINE o sezgileri bilmiyor:
+    submit aninda `intrProps`e bakar, hicbir katman bulamaz ve HICBIR SEY
+    gostermez.
+
+    Kullanicinin denetiminde 5 numarali bulgu buydu: "soru hic submit
+    edilmiyor, cevap degistirilemiyor, Submit dugmesi islevsiz kaliyor".
+    Yani bu, gorunmez bir referans kusuru degil; ogrencinin ekraninda
+    calismayan bir dugme.
+
+    ROL SORULMUYOR, `geri_bildirim_rolleri`ye SORULUYOR -- o, bu dosyadaki
+    TEK karar yeri ve kendi belge dizesinde nicin tek oldugu yaziyor.
+
+    COZULEN REFERANSA DOKUNULMAZ. Zaten bu slaydin bir katmanini gosteren
+    bir corFbG dogrudur ve yeniden yazmak, dogru bir degeri tahminle
+    degistirmek olurdu.
+    """
+    katman_listesi = root.find("sldLayerLst")
+    katmanlar = list(katman_listesi) if katman_listesi is not None else []
+    if not katmanlar:
+        return 0
+    icerideki = {k.get("g") for k in katmanlar if k.get("g")}
+
+    intr = None
+    for etiket in _INTR_ETIKETLERI:
+        for x in root.iter(etiket):
+            intr = x
+            break
+        if intr is not None:
+            break
+    props = intr.find("intrProps") if intr is not None else None
+    if props is None:
+        return 0
+
+    roller = geri_bildirim_rolleri(root)
+    degisen = 0
+    for alan, dogru_mu in (("corFbG", True), ("incFbG", False)):
+        mevcut = props.get(alan)
+        if mevcut and mevcut != NULL_GUID and mevcut in icerideki:
+            continue                      # zaten cozuluyor
+        aday = next((k.get("g") for k in katmanlar
+                     if roller.get(k.get("g")) is dogru_mu), None)
+        if aday:
+            props.set(alan, aday)
+            degisen += 1
+    return degisen
+
+
 def compose_drag_feedback(pkg: StoryPackage, part: str, *,
                           feedback: dict | None) -> dict:
     """Surukle-birak katmanlarina YAZARIN geri bildirimini yazar.
@@ -1341,6 +1401,7 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
         set_shape_text(layer, guid, str(given))
         written += 1
     if written:
+        intrprops_baglan(root)
         pkg.replace_xml(part, root)
     return {"drag_feedback": written}
 
@@ -1572,8 +1633,10 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
                            head + chr(10) + chr(10) + body)
             olceklenen += _olcege_al(shape)
             rewritten += 1
+    baglanan = intrprops_baglan(root)
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
+            "intrprops_baglanan": baglanan,
             "olcege_alinan": olceklenen}
 
 

@@ -987,3 +987,64 @@ yazdim; `_onarilan_atlama` orada tanimli degil. `produced` NameError ile
 yuksek sesle dustu, `invariants` ise SESSIZCE: fikstuur kurucular da
 `clone_slide` kullaniyor, havuz bozulunca "40 harf: havuz 2 adaya dustu"
 sapmasi cikti. Ayni hata, iki farkli ses. Duzeltilince ikisi de gecti.
+
+## 2026-09-06 (ucuncu tur) — intrProps baglandi, ve "kopuk tetikleyici" sayacinin YALANI olculdu
+
+### Duzeltilen: submit aninda hicbir katman acilmiyordu
+
+Kullanicinin 5 numarali bulgusu: `intrProps corFbG`/`incFbG` slaytta VAR
+OLMAYAN katmanlari gosteriyor; sonucu "soru hic submit edilmiyor, Submit
+dugmesi islevsiz".
+
+Kod bunu bir SEZGI zinciriyle tolere ediyordu (sik eslemesi -> ad -> metin
+-> sira) ve OLCUM tarafi dogru calisiyordu. Ama Storyline o sezgileri
+bilmiyor: submit aninda `intrProps`e bakar, hicbir katman bulamaz, hicbir
+sey gostermez.
+
+`compose.intrprops_baglan` eklendi ve iki kurucuya da baglandi
+(`compose_feedback_layers`, `compose_drag_feedback`). Rol sorulmuyor,
+`geri_bildirim_rolleri`ye soruluyor -- o, bu dosyadaki TEK karar yeri.
+Cozulen referansa dokunulmuyor.
+
+Olculdu: iki yeni soru slaydinda `corFbG` ve `incFbG` artik slaydin KENDI
+katmanlarina cozuluyor (once ikisi de cozulmuyordu).
+
+### Olculen: sayac kusur saymiyor
+
+Onarimdan sonra kopuk sayisi DEGISMEDI (12 -> 14). Yani kalan kopuklari
+`corFbG`/`incFbG`ye baglamak YANLISTI: `intrProps` bir tetikleyici degil ve
+o sayaca hic girmiyordu. Onceki turda "kalan 32'nin tamami corFbG/incFbG"
+diye yazmistim; bu YANLIS ve burada duzeltiliyor.
+
+`uretilmis.story`nin 44 kopugu ayristirildi:
+
+    actionG  jumpToSlide / submitInteraction   29
+    verG     showSubSlide / adjustVar          11
+    jumpG    jumpToScene / jumpToSlide          6
+
+**`actionG` Storyline'in KENDI SABITI.** `ded656e9-96d2-4bb0-825c-2290fa8c4a2b`
+on tohumun her birinde birer kez geciyor -- ama DONORLERDE DE var, ustelik
+Storyline'in kendi `slideLayout*.xml` parcalarinda, ve orada da cozulmuyor.
+Yani donor artigi degil, "standart Submit eylemi" demek. Onu onarmak Submit'i
+duzeltmez, BOZARDI.
+
+**`verG` bir SURUM DAMGASI, isaretci degil.** `dangling_in_slide` yalnizca
+tetikleyicinin KENDI `g`/`verG`sini disliyor; ic elemanlarin `verG`leri
+referans sayiliyor ve hicbiri hicbir zaman cozulmez.
+
+Geriye kalan GERCEK sinif alti `jumpG`.
+
+### Iki kez yanlis yola saptim, ikisini de KORPUS durdurdu
+
+Once kalan 32'yi yanlis sinifa yazdim (sayaca bakarak, ayristirmadan).
+Sonra Storyline'in kendi sabitini "kopuk donor referansi" sanip onarmaya
+gidiyordum; donorlerde de bulununca durdu. Ikisinin ortak dersi: sayacin
+ADI ("kopuk tetikleyici") ne saydigini soylemiyor.
+
+### Sirada: sayacin kendisi
+
+`completeness.dangling_triggers` bugunku haliyle kusur saymiyor, KARSILASTIRMA
+sinyali uretiyor. Kapi olarak (iki yonlu, sabitlik bekleyen) hala ise yarar --
+nitekim 53 -> 44 dususunu yakaladi. Ama adi yaniltiyor ve bu turda iki kez
+yanlis teshise yol acti. Duzeltmesi: `verG` ve bilinen Storyline sabitlerini
+dislamak. TABANI DEGISTIRECEGI icin ayri bir is ve olculerek yapilmali.
