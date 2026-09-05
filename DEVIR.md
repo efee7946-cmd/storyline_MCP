@@ -540,6 +540,49 @@ içindeki her sembolün ayrı ölçüldüğünü göstermez. Onay listesinin ken
 `set_loc`, `_apply_text`, `height_for_label`, `grow_to_fit`, `fit_choices`,
 `compose_slide` çekirdektir.
 
+**K33 — Kapı, fikstürünün gezmediği yoldaki kusuru göremez — ve bunu sessizce yapar.**
+2026-09-04'te iki gerçek kusur bulundu. İkisi de haftalardır oradaydı, ikisi de
+kullanıcının işini bozuyordu ve suit **yeşildi**:
+
+- `seeds/question_freeHotSpotIntr_1.xml` içindeki bir `<dialData>`, `defVarG`
+  niteliğini taşımıyordu. Storyline onu `Guid`'e çevirmeye çalışıyor,
+  `ArgumentNullException` atıyor ve **dosyayı hiç açmıyor**. Oran: 592
+  `dialData`'dan **1** tanesi eksik → kursun tamamı ölü. Kullanıcının 43
+  dosyasından 8'i böyleydi — arıza değil, deterministik: hotspot sorusu konan
+  her kurs.
+- Aynı tohum, `question_freeTextEntryIntr_1.xml` ve `hotspot_ornek.xml`, adı
+  `fakeTrigger` olan bir tetikleyici taşıyordu:
+  `enabled="true" event="OnStart" action="jumpToSlide"`. Yani slayt kendini
+  atlıyordu; preview'da hotspot ve metin-girişi soruları hiç görünmüyordu.
+
+`verify()` ikisini de göremez ve bu bir eksiklik değil, tanım gereğidir: XML
+kusursuz biçimli, BOM yerinde, `.rels` var, `layoutG` geçerli. **`verified_ok:
+true` "Storyline bunu açar" demek değildir** — hiç öyle bir şey söylemedi.
+Gerçek kapı `tools/open_test.py`: Storyline'a soran tek kontrol, ve doğru
+soruyu soruyordu. Yanlış olan, **sorduğu kursta o yolların bulunmamasıydı** —
+`uretilmis.story` hotspot ve text-entry sorusu hiç içermiyordu.
+
+Aynı körlük bu dosyada daha önce bir kez yaşandı (çoktan seçmeli yol yoktu).
+Üçüncüsü için umut yerine ölçüm konuldu: `tools/produced.py` artık üretilen
+slaytlardaki `*Intr` biçimlerini tohum kütüphanesiyle karşılaştırıyor ve
+eksiği **kusur** olarak bildiriyor. Beklenen küme elle yazılmadı;
+`authoring.question_seeds()` ile diskten türetiliyor, yani kütüphaneye yeni
+bir tohum girdiğinde kapı onu kendiliğinden talep eder. Ölçüldü 2026-09-05:
+`biçim kapsamı 5/5`, ve hotspot + textEntry içeren fikstür Storyline'da
+açılıyor (9.0 sn, kanarya güvenilir).
+
+Kural: bir kapının verdiği yeşil, yalnızca **fikstürünün ürettiği yollar**
+kadar geniştir. Kapıyı kurarken "ne soruyor" kadar "neyin üzerinde soruyor"
+da yazılmalı — ve kapsam, elle tutulan bir listeden değil, kaynağın kendisinden
+türetilmeli.
+
+Bir de yöntem notu, aynı avdan: reddeden programın **kendi günlüğü** sebebi
+tek satırda söyledi (`%LOCALAPPDATA%\Articulate\360\Logs\Storyline_STABLE_*.log`,
+yığın izinde `DialData.ReadXElement`). Ondan önce dört yapısal hipotez
+ölçülüp elendi — boş `.rels`, `layoutG` çakışması, `sldId` bağ zinciri,
+content-types kapsamı; hepsi masum. Bir dosya reddedildiğinde, formatı tersine
+mühendislik etmeden önce uygulamanın log dizinine bak.
+
 ---
 
 ## 3. Kusurlar
