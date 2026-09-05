@@ -679,7 +679,7 @@ class Api:
         if not brief.strip():
             raise RuntimeError("Brief bos.")
         if find_cli() is None:
-            raise RuntimeError("Ne Claude Code CLI ne de Antigravity (agy) CLI bulunamadi.")
+            raise RuntimeError("Claude Code CLI bulunamadi.")
         _acilisi_bekle()
         threading.Thread(
             target=_run_builder,

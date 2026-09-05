@@ -6,7 +6,18 @@ requires-python = ">=3.10"
 # Pillow, alani dolduran gorselleri KIRPMAK icin (media._cover_crop).
 # Yoksa kod calisir ve sigdirmaya duser -- bozulmus bir kapak yerine
 # kenarda bosluk kalir; yani eksikligi bir kusur degil, bir kayip.
-dependencies = ["mcp[cli]>=1.2.0", "pillow>=10.0"]
+#
+# mcp TABANI SERT BIR TABAN, tercih degil. server.py `from mcp.server.mcpserver
+# import MCPServer` diyor ve o modul YALNIZCA 2.x'te var. Olculdu 2026-09-04,
+# PyPI tekerleri acilip icine bakilarak: 1.29.1'de mcpserver YOK/fastmcp VAR,
+# 2.0.0'da tam tersi -- yani 1.x ile 2.x arasindaki fark bir surum atlamasi
+# degil, modulun yer degistirmesi.
+#
+# Taban bir sure >=1.2.0 yaziyordu ve bu SESSIZ bir tuzakti: cozucu 1.x'e
+# dustugunde `pip install` BASARIYLA biter, hicbir uyari cikmaz, hata ancak
+# sunucu ilk kez calistirildiginda ImportError olarak gorunur. Yani kurulumun
+# kusuru kullanmanin kusuru gibi okunur.
+dependencies = ["mcp[cli]>=2.0", "pillow>=10.0"]
 
 # Panel AYRI BIR EKSTRA, ama BEYAN EDILMIS bir ekstra. pywebview bir sure
 # yalnizca README'de elle atilacak bir satirdi ve bu, panelin ana giris
