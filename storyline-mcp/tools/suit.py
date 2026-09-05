@@ -95,6 +95,16 @@ ADIMLAR = [
      False, False, "rapor: referans BILEREK bozuk, kirmizi olmasi beklenir"),
     ("produced",        [PY, "tools/produced.py"],
      True,  False, "builder ile kurs kurar (model cagrisi YOK)"),
+    # OGRETIM KAPISI. Ustteki kapilarin hepsi kursun NASIL GORUNDUGUNU
+    # olcuyor; bu, ogrencinin bir sey YAPIP yapmadigina bakan olcunun
+    # ayakta oldugunu olcer. `produced`tan SONRA, cunku rapor satiri
+    # ureticinin taze ciktisini okuyor.
+    #
+    # Ureticiyi degil OLCUYU koruyor: ogretim kalitesi modelin ciktisina
+    # bagli ve kapilar model cagirmaz. Korunan sey su -- olcu sessizce
+    # olurse her kurs temiz gorunur.
+    ("ogretim",         [PY, "tools/ogretim_kapi.py"],
+     True,  False, "OKUR: donors/* + referans; kanarya URETIR"),
     ("inventory",       [PY, "tools/inventory.py", REFERANS],
      False, False, "rapor: kusur sinifi x invaryant"),
     # KAPI DEGIL, FIKSTUR KURUCU -- ve bunu ilk --tam kosusu ogretti. canary.py

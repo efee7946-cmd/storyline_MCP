@@ -50,6 +50,44 @@ B'nin etkileşim kuralı şimdilik **ölçülmüş iki yola** sınırlı
 (`add_question`, `showSubSlide` katmanı) — gerekçe: JS_YOL_HARITASI.md'deki
 "kalan 15 event'in preview doğrulaması" maddesi.
 
+**2026-09-06 — B yapıldı, ama ÖLÇÜ KAPIYA BAĞLI DEĞİLDİ; şimdi bağlı.**
+Tabanın kendi gerekçesi *"iyileşme varsayılmaz, ölçülür"* diyordu, oysa
+2026-08-28'den sonra `panel/ogretim.py`'ye altı kural daha eklendi ve ölçü
+bir daha koşulmadı. Suite'in on iki kapısının hepsi kursun **nasıl
+göründüğünü** ölçüyordu; öğrencinin bir şey yapıp yapmadığına bakan tek sayı
+hiçbir karara girmiyordu.
+
+`tools/ogretim_kapi.py` eklendi ve suite'e bağlandı (`produced`'dan sonra,
+2.6 sn). **Üreticiyi değil ÖLÇÜYÜ koruyor** — öğretim kalitesi modelin
+çıktısına bağlı ve kapılar model çağırmaz; korunan şey şu: ölçü sessizce
+ölürse her kurs temiz görünür ve kimse bilmez.
+
+Üç ayak, ve üçüncüsü olmadan ilk ikisi atıl bir ölçü tarafından da geçilir
+(`completeness` kapısının öğrettiği ders):
+
+| ayak | ne soruyor | bugünkü değer |
+|---|---|---|
+| çıpa | donmuş dosyalarda sayılar tutuyor mu | 7 dosya, hepsi tutuyor |
+| kanarya | ekilen kusuru görüyor mu | 77 tetikleyici gezinmeye çevrildi, etkileşimli slayt 11→0 |
+| ayırt etme | iki küme ayrı mı | donör en yüksek 1 (tavan 4), anlatım en düşük 9 (taban 6) |
+
+Kanarya ekimi ölçünün **kendi iddiasını** hedefliyor: tetikleyiciyi silmiyor,
+`action`'ını gezinmeye çeviriyor. Silseydi sayıların düşmesi "ölçü
+tetikleyici sayıyor" ile de açıklanırdı; böyle tetikleyici SAYISI sabit
+kalıyor ve yalnızca ANLAMI değişiyor. Kapının kırmızıya dönebildiği iki
+yönde de kanıtlandı: çıpa bozulunca kırmızı, ölçü körleştirilince (gezinme
+ayrımı kaldırılınca) kanarya `12 → 12` deyip bağırıyor.
+
+Çıpa **2026-08-28 tabanı değil**: oradaki sekiz kursun yedisi artık diskte
+yok ve kaynağı kovalanmadı. Yeni çıpa `tools/ogretim_cipa.json`'da, tarihi
+içinde yazılı; eski taban kanıt olarak duruyor. `uretilmis.story` bilerek
+çıpa dışında — `produced.py` onu her koşuda yeniden üretiyor, yani sayıları
+üreticiyle birlikte kayar; rapor satırı olarak basılıyor ve dosya kilitliyse
+kapı düşmeden atlanıyor.
+
+**Kalan, aynı sınıftan:** `variety.py:180` deck ikizliğini hesaplayıp basıyor
+ama `191`'deki `ok` kararına katılmıyor (bkz. C4). Ölçü var, kapı yok.
+
 **B uygulandı (2026-08-28).** `SYSTEM_PROMPT`'a `Ogretim tasarimi:` bölümü
 eklendi (Sayfa tasarımı'ndan önce), artı üç cerrahi düzeltme: "parça parça"nın
 kapsamı daraltıldı (etkileşim kurmayı kapsamıyor — `add_question` ve

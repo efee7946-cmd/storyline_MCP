@@ -1,0 +1,56 @@
+{
+  "alindi": "2026-09-06",
+  "nicin": "Ogretim olcusunun CIPASI. 2026-08-28 tabanindaki sekiz kursun yedisi artik diskte yok; kaynagi kovalanmadi, mevcut ve DONMUS dosyalar uzerinde yeniden olculdu. Eski taban tools/ogretim_taban.json'da kanit olarak duruyor.",
+  "kapsam": "ETKILESIM = kullanici girdisiyle baslayan VE salt gezinme olmayan tetikleyici; arti uzerinde soru etkilesimi (freePickOne, dragDrop, textEntry...) bulunan her slayt. GEZINME BILEREK SAYILMIYOR: jumpToSlide, jumpToScene, jumpToNextSlide, jumpToPrevSlide, ReviewQuizSL, exitCourse -- MENU TIKLAMASI DA BUNA DAHIL (menu icerik degil sira secimidir; sayilsaydi tek menu slaydi butun kursu gecirirdi). showSubSlide (katman acma) BURADA SAYILIYOR ama audit'in slides_without_navigation olcutunde GEZINME sayiliyor: iki ayri soru, iki ayri kume, bilerek paylasilmiyor. OnStateChange ve OnVariableValueChange TEPKIdir, girdi degil -- onlari tetikleyen tiklama zaten sayildi. Sekil durumlari (hover/down) tek basina etkilesim SAYILMAZ: tetikleyicisi olmayan bir hover, ogrenciden karar istemez. TETIKLEYICI YAZILDIGI GIBI SAYILIYOR, ATESLEDIGI GIBI DEGIL. 17 event'in yalnizca 2'si (OnStart, OnVariableValueChange) preview'da tetiklendigi GORULEREK olculdu; kalan 15 icin kanit 'Storyline cokmuyor' seviyesinde (JS_YOL_HARITASI.md). Yoldas alan eksikligi yuzunden sessizce calismayan bir OnDrop burada ETKILESIM olarak sayilir ve calisma aninda hicbir sey yapmaz. SIFIR BULGU IYI KURS DEMEK DEGILDIR: bu olcu etkilesimin VARLIGINI sayar, ogretme degerini olcmez.",
+  "dosyalar": {
+    "Accordion.story": {
+      "ardisik": 0,
+      "etkilesimli": 1,
+      "slayt": 1,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "ButtonChallenge89-MontseAnderson.story": {
+      "ardisik": 0,
+      "etkilesimli": 1,
+      "slayt": 1,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "ButtonKit-v1_MONTSE.story": {
+      "ardisik": 1,
+      "etkilesimli": 0,
+      "slayt": 1,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "Dials_Starter_Kit_1a.story": {
+      "ardisik": 1,
+      "etkilesimli": 11,
+      "slayt": 12,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "DragDrop_5_vFINAL1.story": {
+      "ardisik": 1,
+      "etkilesimli": 1,
+      "slayt": 3,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "SL360-Tabcordion_MONTSE.story": {
+      "ardisik": 0,
+      "etkilesimli": 2,
+      "slayt": 2,
+      "sorusuz_sahne": 1,
+      "sonuc_slaydi": false
+    },
+    "referans.story": {
+      "ardisik": 9,
+      "etkilesimli": 25,
+      "slayt": 34,
+      "sorusuz_sahne": 4,
+      "sonuc_slaydi": true
+    }
+  }
+}
