@@ -32,7 +32,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import model, preview as _preview, shapes
-from .authoring import ChoiceLabelsTooLong, _apply_text, _ovali_kapsullestir
+from .authoring import (ChoiceLabelsTooLong, _apply_text,
+                        _choice_shape_guids, _ovali_kapsullestir)
 from .edits import set_shape_text
 from .package import StoryPackage, StoryError
 
@@ -1064,6 +1065,12 @@ _INTR_ETIKETLERI = ("freePickOneIntr", "freePickManyIntr", "dragDropIntr",
                     "freeHotSpotIntr", "freeTextEntryIntr")
 
 
+# Buton govdeleri. Rol cozumleyici bunlarin YAZISINI okumaz (bkz.
+# geri_bildirim_rolleri) ve compose_feedback_layers bunlari vurgu
+# rengiyle boyar; ikisi de ayni kumeye bakmali.
+_BUTON_ETIKETLERI = ("btn", "feedBackBtn", "rsltBtn")
+
+
 def _rol_sozcugu(metin: str) -> bool:
     """Metin bir ROL etiketi mi ("Dogru", "Yanlis"), yoksa cumle mi.
 
@@ -1122,10 +1129,43 @@ def geri_bildirim_rolleri(root) -> dict:
             if guid and guid != NULL_GUID:
                 roller[guid] = dogru_mu
 
+    # SIK -> KATMAN ESLEMESI. intrProps'tan sonra, sezgilerden ONCE.
+    #
+    # Dallanma sablonlarinda (Cevap1/Cevap2/Cevap3) her SIK kendi katmanini
+    # showSubSlide ile aciyor. O baglanti dosyada YAZILI ve sikkin dogrulugu
+    # da scoringData'da yazili -- yani "bu katman dogru mu" sorusunun tahmin
+    # gerektirmeyen bir cevabi var. Once bakilmiyordu.
+    #
+    # OLCULDU 2026-09-05, test/bos.story/slide14: intrProps'un corFbG ve
+    # incFbG'si o slaytta HICBIR katmana cozulmuyor (baska bir kursun
+    # guid'leri), yani yetkili kaynak sessiz kaliyor ve karar sezgilere
+    # dusuyordu. Sikler ise net: sik0(dogru)->Cevap1, sik1->Cevap2,
+    # sik2->Cevap3.
+    sik_guidleri = _choice_shape_guids(intr) if intr is not None else []
+    dogru_sikler = set()
+    if intr is not None:
+        secenekler = intr.find("choices")
+        for i, secenek in enumerate(list(secenekler) if secenekler is not None else []):
+            puan = secenek.find("scoringData")
+            if puan is not None and (puan.get("correct") or "").lower() == "true":
+                dogru_sikler.add(i)
+    for i, sik_guid in enumerate(sik_guidleri):
+        sekil = model._find_by_guid(root, sik_guid)
+        if sekil is None:
+            continue
+        for trig in sekil.iter("trig"):
+            data = trig.find("data")
+            if data is None or data.get("action") != "showSubSlide":
+                continue
+            hedef = data.find("sldLayer")
+            hedef_guid = hedef.get("showG") if hedef is not None else None
+            if hedef_guid and hedef_guid not in roller:
+                roller[hedef_guid] = i in dogru_sikler
+
     for index, katman in enumerate(katmanlar):
         guid = katman.get("g") or ""
         if guid in roller:
-            continue                       # intrProps zaten soyledi
+            continue                       # intrProps ya da sik eslemesi soyledi
         ad = (katman.get("name") or "").casefold()
         if "yanl" in ad or "incorrect" in ad:
             roller[guid] = False
@@ -1133,10 +1173,19 @@ def geri_bildirim_rolleri(root) -> dict:
         if "dogru" in ad or "doğru" in ad or "correct" in ad:
             roller[guid] = True
             continue
+        # BUTON YAZISI TARANMAZ. Buton etiketi bir ROL degil bir CAGRIDIR ve
+        # yanlis cevap katmanindaki cagri "Dogru Cevabi Gor" oluyor -- yani
+        # icinde "dogru" geciyor. Olculdu 2026-09-05, bos.story/slide14:
+        # Cevap3 (sik2, correct=false) tam bu yuzden DOGRU katman sayiliyordu
+        # ve yanlis cevap veren ogrenci "Dogru" ekranini goruyordu.
+        #
+        # "yanlis yaptin, dogru cevabi gormek icin tikla" cumlesi, katmanin
+        # dogru cevap katmani olduguna kanit sayilamaz.
         sekil_listesi = katman.find("shapeLst")
         birlesik = " ".join(
             model.shape_text(katman, sh.get("g") or "").strip()
             for sh in (list(sekil_listesi) if sekil_listesi is not None else [])
+            if sh.tag not in _BUTON_ETIKETLERI
         ).casefold()
         if "yanl" in birlesik or "incorrect" in birlesik:
             roller[guid] = False
