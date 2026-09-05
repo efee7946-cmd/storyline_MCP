@@ -1347,6 +1347,77 @@ def intrprops_baglan(root) -> int:
     return degisen
 
 
+def _katman_cikisi(katmanlar: dict, guid: str, gorulen=None) -> bool:
+    """Bu katmandan kursta ILERI gidilebiliyor mu (zincir izlenerek)."""
+    ILERI = {"jumpToSlide", "jumpToScene", "jumpToNextSlide"}
+    gorulen = gorulen if gorulen is not None else set()
+    if guid in gorulen or guid not in katmanlar:
+        return False
+    gorulen.add(guid)
+    acilan = set()
+    for tl in katmanlar[guid].iter("trigLst"):
+        for tr in tl:
+            d = tr.find("data")
+            if d is None:
+                continue
+            if d.get("action") in ILERI:
+                return True
+            if d.get("action") == "showSubSlide":
+                sl = d.find("sldLayer")
+                if sl is not None:
+                    acilan |= {v for v in sl.attrib.values()
+                               if v and len(v) == 36}
+    return any(_katman_cikisi(katmanlar, x, gorulen) for x in acilan)
+
+
+def cikissiz_katmani_ac(root) -> int:
+    """Cikisi olmayan geri bildirim katmanina ILERI yolu verir.
+
+    NICIN. Bir geri bildirim katmani yalnizca KENDINI kapatiyorsa
+    (`hideSubSlide` -> me) ve slaytta baska ileri yol yoksa, ogrenci soruda
+    KALIR. `attempts="one"` ile birlikte bu bir tuzak: yeniden deneyemez,
+    ileri de gidemez.
+
+    Olculdu 2026-09-06, kullanicinin urettigi savunma.story: yanlis cevap
+    veren ogrenci surukle-birak sorusunda kaliyordu (6 numarali bulgu).
+    Sekiz soru tohumu zincir izlenerek tarandi ve tam BIR tanesinde cikissiz
+    katman cikti: `question_dragDropIntr_9.xml`. Digerlerinde
+    `showSubSlide` bir ZINCIRIN halkasi ve zincirin sonu ilerliyor -- yani
+    "katman yalnizca baska katman aciyor" tek basina kusur DEGIL, ve
+    zinciri izlemeden bakan bir kontrol yedi saglam tohumu da bozuk sayardi.
+
+    CEVRILEN BICIM korpustan: `action="jumpToSlide" actSubType="next"`.
+    Hedef GUID istemez. Ayni bicim `clone._kopuk_atlamalari_onar`da da
+    kullaniliyor ve ureticinin kendi calisan ciktisindan olculmustu.
+
+    KAPATMA TETIKLEYICISI CEVRILIYOR, yenisi EKLENMIYOR: katmanin zaten bir
+    "devam" dugmesi var; ona ikinci bir eylem eklemek yerine yaptigi seyi
+    duzeltmek, ogrencinin gordugu arayuzu degistirmez.
+    """
+    katman_listesi = root.find("sldLayerLst")
+    katmanlar = {k.get("g"): k for k in (list(katman_listesi)
+                                         if katman_listesi is not None else [])
+                 if k.get("g")}
+    if not katmanlar:
+        return 0
+    degisen = 0
+    for guid, katman in katmanlar.items():
+        if _katman_cikisi(katmanlar, guid):
+            continue
+        for tl in katman.iter("trigLst"):
+            for tr in tl:
+                d = tr.find("data")
+                if d is None or d.get("action") != "hideSubSlide":
+                    continue
+                d.set("action", "jumpToSlide")
+                d.set("actSubType", "next")
+                degisen += 1
+                break
+            if degisen:
+                break
+    return degisen
+
+
 def compose_drag_feedback(pkg: StoryPackage, part: str, *,
                           feedback: dict | None) -> dict:
     """Surukle-birak katmanlarina YAZARIN geri bildirimini yazar.
@@ -1402,6 +1473,7 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
         written += 1
     if written:
         intrprops_baglan(root)
+        cikissiz_katmani_ac(root)
         pkg.replace_xml(part, root)
     return {"drag_feedback": written}
 
@@ -1634,9 +1706,11 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             olceklenen += _olcege_al(shape)
             rewritten += 1
     baglanan = intrprops_baglan(root)
+    acilan = cikissiz_katmani_ac(root)
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
             "intrprops_baglanan": baglanan,
+            "cikissiz_katman_acildi": acilan,
             "olcege_alinan": olceklenen}
 
 
