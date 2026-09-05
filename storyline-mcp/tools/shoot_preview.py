@@ -129,7 +129,7 @@ def _f12(hwnd: int, *, deneme: int = 5, ara: float = 2.0) -> bool:
     return False
 
 
-def _ustte_duranlar(hedef: int) -> list[str]:
+def _ustte_duranlar(hedef: int, bolge=None) -> list[str]:
     """Ölçüm alanının ÜSTÜNDE duran, Storyline'a ait öteki pencereler.
 
     NEDEN VAR (olculdu 2026-09-05). Dorduncu guard tam bu sinif icin
@@ -160,6 +160,15 @@ def _ustte_duranlar(hedef: int) -> list[str]:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hedef, ctypes.byref(pid))
     kutu = _rect(hedef)
+    # OLCUM ALANI PENCEREDEN KUCUK OLABILIR. Fikstuur, bilinen engelin
+    # DISINA kurulabiliyor (olculdu: onizleme diyaloglari karenin
+    # sag-ortasinda, sol serit temiz kaliyor). O zaman pencerenin herhangi
+    # bir yerini ortmek turu tuketmemeli -- yalnizca OLCULEN yeri ortmek
+    # tuketmeli. Bolge, pencere kutusunun kesirleri olarak verilir.
+    if bolge:
+        gw, gh = kutu[2] - kutu[0], kutu[3] - kutu[1]
+        kutu = (int(kutu[0] + bolge[0] * gw), int(kutu[1] + bolge[1] * gh),
+                int(kutu[0] + bolge[2] * gw), int(kutu[1] + bolge[3] * gh))
     engeller: list[str] = []
     for hwnd, baslik in ctl._windows():
         if hwnd == hedef:
@@ -198,7 +207,8 @@ def _renk_orani(im, hedef: tuple[int, int, int], tol: int = 6) -> float:
 
 def preview_karesi(out: Path, *, bekle: float = 90.0, settle: float = 6.0,
                    imza: tuple[int, int, int] | None = None,
-                   en_az: float = 0.05, icerik_bekle: float = 60.0) -> Path:
+                   en_az: float = 0.05, icerik_bekle: float = 60.0,
+                   bolge=None) -> Path:
     from PIL import ImageGrab
 
     bulunan = ctl.storyline_window()
@@ -274,12 +284,12 @@ def preview_karesi(out: Path, *, bekle: float = 90.0, settle: float = 6.0,
     # ilerleme penceresini gosterebiliyor ve o KAYBOLUR; hata diyalogu
     # DURUR. Ayrimi "ne kadar kaldigi" verir, adi degil -- ad listesi
     # tutmak, bu dosyanin bastan reddettigi sey (K15).
-    engeller = _ustte_duranlar(yeni)
+    engeller = _ustte_duranlar(yeni, bolge)
     if engeller:
         _son = time.time() + 25.0
         while time.time() < _son:
             time.sleep(2.0)
-            engeller = _ustte_duranlar(yeni)
+            engeller = _ustte_duranlar(yeni, bolge)
             if not engeller:
                 break
     if engeller:
@@ -337,6 +347,9 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--imza", help="fikstuur zemin rengi, RRGGBB — kare bunu "
                                    "ICERMIYORSA dosya yazilmaz")
+    ap.add_argument("--bolge", help="olcum alani, pencere kesiri olarak "
+                    "x0,y0,x1,y1 (orn 0.0,0.0,0.45,1.0). Verilirse engel "
+                    "kontrolu YALNIZCA bu alani ortenlere bakar.")
     ap.add_argument("--en-az", type=float, default=5.0,
                     help="imza renginin karede kaplamasi gereken en az yuzde")
     args = ap.parse_args()
@@ -373,12 +386,19 @@ def main() -> int:
                   "kaydedilebilir.")
             print("       Fikstuure bir zemin rengi verip --imza RRGGBB "
                   "gecmek bunu kapatir.")
+        bolge = None
+        if args.bolge:
+            parca = [float(v) for v in args.bolge.split(",")]
+            if len(parca) != 4:
+                raise SystemExit("--bolge dort sayi ister: x0,y0,x1,y1")
+            bolge = tuple(parca)
         if args.imza:
             h = args.imza.lstrip("#")
             imza = (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
         yol = preview_karesi(Path(args.out).resolve(),
                              bekle=args.preview_wait,
-                             imza=imza, en_az=args.en_az / 100.0)
+                             imza=imza, en_az=args.en_az / 100.0,
+                             bolge=bolge)
     finally:
         if not args.keep:
             open_test.force_close()

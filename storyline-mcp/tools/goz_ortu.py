@@ -14,32 +14,48 @@ KORPUSTA UC DEGER OLCULDU (2026-08-18, iki kurs):
 edilmedi: bu oturumda ad/desen okumasi uc kez yanlis cikti (copiedG, <trig>,
 verG).
 
-IKI KUTU, TEK KUTU DEGIL. Tek kutu MUTLAK renk okumaya zorlar ("bu ton
-zemin mi ortu mu"); iki kutu KARSILASTIRMAYA izin verir:
+UC KUTU, IKI DEGIL -- ve ucuncusu 2026-09-05'te EKLENDI.
 
-    A  overlayFillType="Default"   <- olculen
-    B  overlayFillType="None"      <- BILINEN NEGATIF KONTROL (1064 olcum)
+    A  overlayFillType="Default"    <- olculen
+    B  overlayFillType="None"       <- NEGATIF kontrol (1064 olcum: boyamaz)
+    C  overlayFillType="Gradient"   <- POZITIF kontrol (duraklarini boyar)
 
-B'nin boyamadigi biliniyor. A, B ile AYNI gorunuyorsa seffaf; FARKLI
-gorunuyorsa boyuyor. Negatif kontrol olmadan "renk gordum" gozlemi rengin
-hangi katmandan geldigini soylemez.
+NEDEN POZITIF KONTROL SART. Ilk tasarimda yalnizca A ve B vardi ve o kurulum
+bir basarisizligi digerinden AYIRAMIYOR: "Default boyamiyor" ile "ektigim ortu
+Storyline tarafindan hic dikkate alinmadi" ayni goruntuyu verir -- ikisinde de
+magenta yoktur. Nitekim ilk turda tam bu belirsizlik olustu: A'nin gorunen
+kismi zemin rengindeydi ve bu, tek basina, ortunun YASADIGINI gostermiyordu.
+
+C bunu kapatir: C magenta gosteriyorsa ekim YASIYOR ve boya yolu calisiyor;
+o zaman A'nin magenta gostermemesi "Default" hakkinda bir sey soyler. C de
+magenta gostermiyorsa olculen sey bayrak degil, kendi ekimimizdir.
+
+KUTULAR SOL SERITTE, ve bu da olculdu. Storyline'in onizleme diyaloglari
+karenin SAG-ORTASINDA duruyor (olculen iki turda da: x>=595, yani slaydin
+%19'undan sagi). Slaydin sol %18'i her iki turda da tertemiz kaldi. Fikstuur
+engelle savasmak yerine engelin DISINA kuruluyor; kutular sol sutunda alt
+alta. Kare kirlense bile olcum alani acik kalir.
 
 ZEMIN DUZ, degrade DEGIL. Degrade zemin uzerinde "kismen boyuyor" ile
 "seffaf ama zemin degisken" AYRILMAZ -- ucuncu dal olculemez hale gelir.
 
 KUTULARDA METIN YOK. Metin rengi dolgu okumasina karisir; olculen sey
-yalnizca DOLGU.
+yalnizca DOLGU. Kutular KONUMDAN taninir (asagidaki kesirler), etiketten
+degil -- etiket diyalogun altinda kalabilir.
 
 KARAR KURALI -- KAREYE BAKILMADAN YAZILDI:
 
-  A ile B AYNI (ikisi de zemin rengi)  ->  "Default" SEFFAF.
+  C magenta GOSTERMIYOR                ->  TUR GECERSIZ.
+      Ekim yasamadi; olculen sey bayrak degil. A'ya BAKILMAZ.
+
+  C magenta, A zemin rengi (B gibi)    ->  "Default" SEFFAF.
       _dolgu_etkin("gradOvrlyFill") "default" icin False doner, altindaki
-      sekle bakilir. 52 vaka cozulur.
+      sekle bakilir.
 
-  A ile B FARKLI (A ortu rengini gosteriyor)  ->  "Default" BOYUYOR.
-      _dolgu_etkin True doner ve _paints duraklarini okur. 52 vaka cozulur.
+  C magenta, A da magenta (B degil)    ->  "Default" BOYUYOR.
+      _dolgu_etkin True kalir ve _paints duraklarini okur.
 
-  A ne zemin ne ortu (kismi, karisik, yari saydam)  ->  TUR GECERSIZ.
+  A ne zemin ne ortu (kismi, karisik)  ->  TUR GECERSIZ.
       "Default" reddedilmeye devam eder ve sebebi bu kayitla birlikte durur.
 
   Kutulardan biri karede GORUNMUYORSA  ->  TUR GECERSIZ (fikstuur hatasi,
@@ -71,40 +87,115 @@ IMZA = "#E8F0D8"        # duz zemin; kare guard'i bunu arar
 ORTU = "D000D0"         # magenta -- paletin hicbir yerinde yok, karisamaz
 
 
-def _gercek_ortu(pkg):
-    """Projeden GERÇEK bir gradOvrlyFill bul ve kopyala.
+def _gercek_ortu(pkg, tur):
+    """Projeden ISTENEN TIPTE gercek bir gradOvrlyFill bul.
 
-    ILK SURUM SIFIRDAN KURDU ve Storyline dosyayi HIC ACMADI (olculdu: 120
-    saniyede acilmadi). Gercek dugumde `centerPt` ve `fillRect` cocuklari
-    var, `angle` 3.4028235E+38, `adjustY` -2147483648 -- benim uydurdugum
-    degerler degil.
+    TIPE GORE ARIYOR, ve bu bir duzeltme (2026-09-05). Onceki surum HERHANGI
+    bir ortuyu buluyor, kopyaliyor ve `overlayFillType`i cevirip birakiyordu.
+    Bulunan sey pratikte hep bir `None` ortusuydu ve onun geometrisi
+    KAPALI bir ortununki: type="def", style="def", angle=3.4028235E+38,
+    alpha="-1", scale="-1". Bayragi "Gradient" yapmak o sentinel'leri
+    doldurmuyor.
 
-    Bu, README'nin bastan soyledigi kural: sekli UYDURMA, projeden KOPYALA.
-    Bu dosya o kurali bir kez daha ihlal etti ve bedeli bir tur oldu.
+    Bedeli olculdu: POZITIF kontrol (C_Gradient) karede hic magenta
+    gostermedi. Yani "Gradient boyar" diye bilinen tip bile boyamadi --
+    cunku boyayan gercek dugum degil, bayragi cevrilmis kapali dugumdu.
+
+    Bu, bu dosyanin bastan yazdigi kuralin ayni ihlali: "sekli UYDURMA,
+    projeden KOPYALA". Ilk surumde sifirdan kurmak bir tur goturmustu;
+    ikinci surumde bayrak cevirmek bir tur daha goturdu.
+
+    `bos.story` ucunu de tasiyor (olculdu: Default 104, None 15,
+    Gradient 5), o yuzden ucu de HASAT edilebiliyor.
     """
+    hedef = (tur or "").lower()
+    for kaynak in (pkg,) + tuple(_YEDEK_KAYNAKLAR()):
+        el = _ara(kaynak, hedef)
+        if el is not None:
+            return el
+    return None
+
+
+def _YEDEK_KAYNAKLAR():
+    """Durakli ortu tasiyan baska paketler.
+
+    OLCULDU (2026-09-05): `bos.story` ve alti donor kursun HICBIRINDE
+    durakli bir gradOvrlyFill yok -- Default 104/0, Gradient 5/0, None 15/0
+    (durakli/duraksiz). Yani Storyline'in KENDI yazdigi dosyalarda ortuler
+    duraksiz geliyor ve duraksiz bir ortunun boyayacak rengi YOKTUR.
+
+    Durakli ortu yalnizca `referans.story`de (135 Default) ve bu aracin
+    URETTIGI dosyalarda var; uretilenlerinki tohumlardan geliyor
+    (seeds/*.xml icinde 381 durakli Default).
+    """
+    aday = ROOT.parent / "test" / "_referans" / "referans.story"
+    if aday.is_file():
+        try:
+            return (StoryPackage(aday),)
+        except Exception:
+            return ()
+    return ()
+
+
+def _ara(pkg, hedef):
     for part in model.slide_index(pkg):
         for el in pkg.parse(part).iter("gradOvrlyFill"):
-            if el.findall("stops/stop"):
+            if not el.findall("stops/stop"):
+                continue
+            if (el.get("overlayFillType") or "").lower() == hedef:
+                return el
+    # Slaytlarda yoksa sablon/duzen parcalarina bak.
+    for ad in list(pkg._order):
+        if not ad.endswith(".xml"):
+            continue
+        try:
+            kok = pkg.parse(ad)
+        except Exception:
+            continue
+        for el in kok.iter("gradOvrlyFill"):
+            if not el.findall("stops/stop"):
+                continue
+            if (el.get("overlayFillType") or "").lower() == hedef:
                 return el
     return None
 
 
-def _ortu_kur(shape, tur, sablon):
-    """Gerçek örtüyü kopyalar; yalnızca TİP ve DURAK RENGİ değişir."""
+def _ortu_kur(shape, sablon):
+    """Gerçek örtüyü OLDUĞU GİBİ takar; duraklara DOKUNULMAZ.
+
+    DURAK RENKLERI DEGISTIRILMIYOR (2026-09-05). Onceki surum duraklarin
+    `clr` cocuklarini silip yerine `srgbClr` magenta koyuyordu -- yani
+    olculecek dugumun icini kurcaliyordu. Gercek duraklar `schemeClr` +
+    `tint` + `satMod` tasiyor; onlari duz bir srgbClr ile degistirmek,
+    "ortu boyuyor mu" sorusunu "benim yazdigim durak boyuyor mu"ya
+    cevirir.
+
+    Ayirt etme artik RENKTEN degil, FARKTAN: kutunun kendi dolgusu zeminle
+    ayni, o yuzden kutu zemin renginde gorunuyorsa ortu boyamamis,
+    baska bir renk gorunuyorsa boyamistir. Magenta yalnizca ORTUSUZ
+    kontrol kutusunda (D) kullaniliyor.
+    """
     bg = shape.find("bG")
     if bg is None or sablon is None:
         return False
     for eski in list(bg.findall("gradOvrlyFill")):
         bg.remove(eski)
-    el = copy.deepcopy(sablon)
-    el.set("overlayFillType", tur)
-    for st in el.findall("stops/stop"):
-        for clr in st.findall("clr"):
-            for cocuk in list(clr):
-                clr.remove(cocuk)
-            ET.SubElement(clr, "srgbClr", {"val": ORTU})
-    bg.append(el)
+    bg.append(copy.deepcopy(sablon))
     return True
+
+
+def _ortu_sil(shape):
+    """Tohumun kendi örtüsünü kaldırır -- D kontrolü için.
+
+    `rect` tohumu kendi `gradOvrlyFill`ini tasiyor (overlayFillType="None").
+    D'nin "ortusuz" olmasi gerekiyor, yoksa kontrol, olcmek istedigi seyin
+    bir kopyasini tasir.
+    """
+    bg = shape.find("bG")
+    if bg is None:
+        return
+    for eski in list(bg.findall("gradOvrlyFill")):
+        bg.remove(eski)
 
 
 def main():
@@ -128,24 +219,54 @@ def main():
         _apply_text(root, zemin, "")
         pkg.replace_xml(part, root)
 
-        sablon = _gercek_ortu(pkg)
-        if sablon is None:
-            print("Projede gradOvrlyFill ornegi yok -- TUR GECERSIZ")
-            return 1
         kurulan = []
+        # D KUTUSU ORTU TASIMAZ: duz magenta dolgu. "Kutu ciziliyor mu"
+        # sorusunu "ortu boyuyor mu" sorusundan AYIRIR. Eklendi cunku ilk
+        # uc-kutulu turda POZITIF kontrol (C_Gradient) de magenta
+        # gostermedi; o tek basina "Gradient boyamiyor" demek degil,
+        # "kutularim hic cizilmiyor" da olabilir. Ikisi ayrilmadan hicbir
+        # sey olculmus sayilmaz.
         for i, (ad, tur) in enumerate((("A_Default", "Default"),
-                                       ("B_None", "None"))):
+                                       ("B_None", "None"),
+                                       ("C_Gradient", "Gradient"),
+                                       ("D_DuzDolgu", None))):
             r2 = pkg.parse(part)
             kutu = shapes.clone_shape(shapes.find_seed(pkg, "rect")[0], name=ad)
             shapes.set_shape_slide_size(kutu, sw, sh)
-            x = (10 + i * 45) / 100 * sw
-            shapes.set_loc(kutu, x, 0.30 * sh, x + 0.35 * sw, 0.62 * sh)
+            # SOL SUTUN, ALT ALTA. Olculdu (2026-09-05): onizleme
+            # diyaloglari slaydin %19'undan sagini kapliyor, sol %18'i
+            # iki turda da temiz kaldi. Karenin alti da pencereye
+            # sigmiyor, o yuzden %78'in altinda kaliniyor.
+            x = 0.02 * sw
+            y = (0.08 + i * 0.23) * sh
+            shapes.set_loc(kutu, x, y, x + 0.15 * sw, y + 0.17 * sh)
             # DOLGU ZEMINLE AYNI: kutunun kendi dolgusu zeminden ayrilmasin,
             # boylece gorulen her farkli renk YALNIZCA ortuden gelir.
-            shapes.set_fill(kutu, IMZA)
-            if not _ortu_kur(kutu, tur, sablon):
-                print("%s: bG yok, ortu kurulamadi -- TUR GECERSIZ" % ad)
-                return 1
+            if tur is None:
+                # Kontrol kutusu: ortu YOK, dolgu dogrudan magenta.
+                _ortu_sil(kutu)
+                shapes.set_fill(kutu, "#" + ORTU)
+            else:
+                shapes.set_fill(kutu, IMZA)
+                sablon = _gercek_ortu(pkg, tur)
+                if sablon is None:
+                    print("%s: korpusta DURAKLI '%s' ortusu YOK -- TUR "
+                          "GECERSIZ." % (ad, tur))
+                    print("   Olculdu (2026-09-05): bos.story ve alti donor "
+                          "kursta gradOvrlyFill hic durak tasimiyor")
+                    print("   (Default 104/0, Gradient 5/0, None 15/0 = "
+                          "durakli/duraksiz). Duraksiz ortunun boyayacak")
+                    print("   rengi yoktur. Durakli Default yalnizca "
+                          "referans.story'de (135) ve bu aracin uretttigi")
+                    print("   dosyalarda var (tohumlarda 381).")
+                    print("   POZITIF KONTROL BU KORPUSTAN KURULAMAZ: hicbir "
+                          "dosyada durakli Gradient ortusu yok (her yerde")
+                    print("   0/5). Kontrol olmadan A'nin sonucu okunmaz -- "
+                          "bkz. bas yorumdaki karar kurali.")
+                    return 1
+                if not _ortu_kur(kutu, sablon):
+                    print("%s: bG yok, ortu kurulamadi -- TUR GECERSIZ" % ad)
+                    return 1
             shapes.add_shape(r2, kutu)
             _apply_text(r2, kutu, "")
             pkg.replace_xml(part, r2)
@@ -154,7 +275,10 @@ def main():
             et = shapes.clone_shape(shapes.find_seed(pkg, "textBox")[0],
                                     name="E_%s" % ad)
             shapes.set_shape_slide_size(et, sw, sh)
-            shapes.set_loc(et, x, 0.20 * sh, x + 0.35 * sw, 0.27 * sh)
+            # Etiket kutunun SAGINDA: olcum alanina girmesin, ve
+            # okunamazsa da zarar vermesin (kutular KONUMDAN taniniyor).
+            shapes.set_loc(et, x + 0.17 * sw, y + 0.05 * sh,
+                           x + 0.60 * sw, y + 0.13 * sh)
             shapes.set_text_flow(et, vertical="t", grow=False)
             et.set("autoFit", "none")
             shapes.add_shape(r3, et)
@@ -196,13 +320,24 @@ def main():
     print("  zemin %s (duz)   ortu duraklari #%s (magenta)" % (IMZA, ORTU))
     for ad, tur in kurulan:
         var = bulunan.get(ad)
-        print("  %-10s istenen=%-10s yazilan=%s" % (ad, tur, var))
+        if tur is None:
+            print("  %-11s ortusuz kontrol (duz #%s)" % (ad, ORTU))
+            if var is not None:
+                print("     BEKLENMEYEN ORTU -- TUR GECERSIZ")
+                return 1
+            continue
+        print("  %-11s istenen=%-10s yazilan=%s" % (ad, tur, var))
         if not var or var[0] != tur or var[1] != 3:
             print("     ORTU YAZILMADI -- TUR GECERSIZ")
             return 1
     print("\nKARAR KURALI bas yorumda, KAREYE BAKILMADAN yazildi:")
-    print("  A ile B AYNI   -> 'Default' SEFFAF")
-    print("  A ile B FARKLI -> 'Default' BOYUYOR")
+    print("  C magenta DEGILSE        -> TUR GECERSIZ (ekim yasamadi)")
+    print("  C magenta, A zemin rengi -> 'Default' SEFFAF")
+    print("  C magenta, A da magenta  -> 'Default' BOYUYOR")
+    print("  kutular KONUMDAN taninir (slayt kesiri):")
+    for i, (ad, _tur) in enumerate(kurulan):
+        print("    %-11s x 0.02..0.17  y %.2f..%.2f"
+              % (ad, 0.08 + i * 0.23, 0.08 + i * 0.23 + 0.17))
     print("\nkare:")
     print("  python tools/shoot_preview.py %s -o ../test/_referans/ORTU.png "
           "--imza %s --en-az 5" % (CIKTI, IMZA.lstrip("#")))

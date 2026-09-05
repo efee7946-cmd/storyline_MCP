@@ -804,3 +804,89 @@ okumasi uc kez yanlis cikmisti.
 acabilmesi gerekiyor" diyordu; oysa `goz_ortu.py` slaydi kursun ILKINE
 tasiyarak secim sorununu coktan cozmus. Engel oradaki degil, burada
 yazilanmis.
+
+## 2026-09-05 (ikinci tur) — `Default` sorusu YENIDEN SEKILLENDI
+
+Onceki turda goruntu yolu ortam engeline takilmisti. Bu turda iki yeni yol
+denendi; ikisi de sonuca goturmedi ama sorunun SEKLINI degistirdi.
+
+### 1. Sonuc olcumu (`tools/ortu_sonuc.py`) — ORNEKLEM YETERSIZ
+
+Bayragin anlamini tahmin etmek yerine iki okumanin BEDELI olculuyor: insan
+yapimi kurslar ezici cogunlukla okunabilirdir, o halde DOGRU okuma okunabilir
+bir tablo uretmeli, YANLIS okuma olmayan ihlaller uydurmali.
+
+Karar kurali sayilara bakilmadan yazildi (ayiran vaka < 20 -> yetersiz;
+iki kat fark yoksa ayirt etmemis sayilir).
+
+**On-kayitli korpus (6 donor kursu) SIFIR uygulanabilir vaka verdi.** Boru
+hatti kostu ve bunu kanitladi: 367 sekil, 178 yazi, 659 ortu bulundu -- ama
+donorlerin SLAYTLARINDA hic `Default` yok. Sonuc: ORNEKLEM YETERSIZ, karar
+yok.
+
+Kesif amacli (ON-KAYITLI DEGIL, karar icin KULLANILMADI): `referans.story`
+35 ayiran vaka veriyor, "boyuyor" okumasi altinda 35 ihlal, "seffaf"
+okumasi altinda 0. Sayilar gorulduKTEN SONRA korpusu genisletmek karari
+sonuca uydurmak olurdu; yapilmadi.
+
+### 2. Goruntu deneyi — FIKSTUR KURULAMIYOR, ve sebebi olculdu
+
+Fikstuur uc kutuya cikarildi ve POZITIF kontrol eklendi:
+
+    A  Default    olculen
+    B  None       negatif kontrol
+    C  Gradient   POZITIF kontrol  <- YENI
+
+C sart, cunku "Default boyamiyor" ile "ektigim ortu hic dikkate alinmadi"
+ayni goruntuyu verir. Ilk uc-kutulu tur bunu hemen kanitladi: **C de magenta
+gostermedi.** Kontrol olmasaydi A'nin zemin renginde olmasina bakip "Default
+seffaf" denecekti -- ve bu, dogru ciksa bile SANS eseri dogru olurdu.
+
+Sebep bulundu: `_ortu_kur` bir `None` ortusunu kopyalayip bayragini
+ceviriyordu. Kapali ortunun geometrisi sentinel (type="def", style="def",
+angle=3.4028235E+38, alpha="-1"); bayragi cevirmek onlari doldurmuyor. Bu,
+dosyanin kendi kuralinin ayni ihlali: "sekli UYDURMA, projeden KOPYALA."
+Ilk surumde sifirdan kurmak bir tur goturmustu, bu surumde bayrak cevirmek
+bir tur daha goturdu. Duzeltildi: ortu artik TIPE GORE hasat ediliyor ve
+duraklarina DOKUNULMUYOR.
+
+### 3. Asil bulgu: ORTULERIN COGUNUN DURAGI YOK
+
+Hasat ederken cikti, ve olculdu (durakli / duraksiz):
+
+    dosya                    Default        Gradient
+    bos.story                  0 / 104        0 / 5
+    referans.story           135 / 134        0 / 5
+    uretilmis.story          291 / 125        0 / 5
+    Accordion                  0 / 48         0 / 6
+    ButtonChallenge89          0 / 48         0 / 6
+    ButtonKit-v1               0 / 48         0 / 6
+    Dials_Starter_Kit          0 / 52         0 / 3
+    DragDrop_5                 0 / 0          0 / 1
+    SL360-Tabcordion           0 / 0          0 / 0
+
+**Storyline'in KENDI yazdigi her dosyada `Default` ortuler duraksiz.**
+Duraksiz bir ortunun boyayacak rengi yoktur -- yani o dosyalarda bayragin
+ne anlama geldigi MOOT.
+
+Durakli `Default` yalnizca iki yerde: `referans.story` (135) ve bu aracin
+urettikleri (291). Ikincisinin kaynagi bulundu: **tohumlarda 381 durakli
+`Default`** (`seeds/*.xml`). Yani uretilen kurstaki 91 "olculemeyen" sekil
+dogrudan tohumlardan geliyor.
+
+**Ve `Gradient` HICBIR dosyada durak tasimiyor** (her yerde 0/5). Bunun iki
+sonucu var: (a) pozitif kontrol bu korpustan kurulamaz, deney bugun
+tamamlanamaz; (b) `contrast.py`nin "Gradient duraklarini boyuyor" notu
+korpusta DOGRULANMIS degil -- boyayacak duragi olan tek bir Gradient ortusu
+yok.
+
+### Karar
+
+`Default` yine OLCULMEDI ve reddi yerinde kaliyor. Mevcut davranis guvenli
+tarafta: cozulemeyen zemin "olculemeyen" sayilir ve SESSIZ kalir. Hicbir kapi
+bu yuzden kirmizi degil.
+
+Soru artik su sekle geldi ve bir sonraki tur oradan baslamali: *bu arac,
+Storyline'in kendisinin hic yazmadigi bir seyi (durakli Default ortusu)
+tohumlardan tasiyip uretime koyuyor.* Bu bir kusur MU, olculmedi -- ama
+"olculemeyen 91 sekil"in kaynagi artik biliniyor ve tahmin degil.
