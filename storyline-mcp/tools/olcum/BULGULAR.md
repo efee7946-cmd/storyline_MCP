@@ -589,3 +589,61 @@ o gurultuyu gorur. Kalan sinif: kapali gradOvrlyFill.
 
 `inventory`'nin katman taramasi HALA KOR ve kanarya bunu olcmeye devam
 ediyor.
+
+---
+
+# 4 SIKLI TEK-SECMELI TOHUM URETILDI (2026-09-05)
+
+## Neden hasat edilemedi
+
+Kullanicinin 43 kursu tarandi:
+
+    freePickOneIntr   2 sik :  67 slayt
+    freePickOneIntr   3 sik :  99 slayt
+    freePickOneIntr   4 sik :   0        <- hicbir yerde yok
+    freePickManyIntr  5 sik :  21 slayt
+    dragDropIntr    4/5/6 oge: 15 slayt
+
+Kurslarin hepsi bu araçla kuruldu, arac da ancak tohumu olan bicimi
+uretebiliyor. Yani kendi ciktimizdan hasat etmek DONGU olurdu.
+
+## Nasil uretildi
+
+`_3` tohumunun bir sik butonu HAM METIN uzerinde klonlandi, tanimladigi
+GUID'ler yenilendi, `<choices>` listesine bir `<intrFreeChoice>` kaydi eklendi.
+
+Uc karar, ucu de olcumle:
+
+  * ElementTree DEGIL. Ilk deneme `ET.tostring` ile yazdi: BOM ve XML
+    bildirimi dustu, dosya 36 KB buyudu, sablon degerlendirici
+    "ValueError: substring not found" ile patladi. Deponun ilkesi zaten
+    tersi -- GUID olmayan her byte oldugu gibi kalir.
+  * Klonun tetikleyici hedefi NOTRLENDI. Sik butonlari
+    `OnClick -> showSubSlide` tasiyor ve hasat edildigi kursun katmanini
+    gosteriyor; klonda yanlis yeri gosterirdi.
+  * Dorduncu KATMAN eklenmedi. Olculdu: tohumdaki Cevap1/2/3 katmanlarini
+    acan hicbir showLayer tetikleyicisi yok ve intrProps'un corFbG/incFbG'si
+    tohumda bulunmayan katmanlari gosteriyor. Geri bildirimi
+    `adapt_seeded_slide` yeniden kuruyor (uretilen slaytta 3 degil 2 katman).
+
+## Dogrulama
+
+    sablon secildi   : bundled:freePickOneIntr:4
+    yazilan sik      : 4, dogru cevap isaretlendi
+    yerlesim         : 4 sik esit aralikli, cakisma 0
+    paket            : verify temiz
+    Storyline        : ACILDI, 9.0 sn, kanarya guvenilir
+    suit             : butun kapilar gecti
+
+## Yol boyunca kendi hatalarim
+
+  1. Kullanicidan Storyline'da dosya hazirlamasini istedim. Kendi kayitli
+     kuralimi cignedim: aracin varlik sebebi o isi silmek.
+  2. ElementTree ile yazdim (yukarida).
+  3. Iki ekleme noktasini bastan basa ekledim; `<choices>` blogu butondan
+     ONCE geldigi icin ikinci ofset kaydi ve XML bozuldu. Sondan basa
+     eklemek gerekiyordu.
+  4. Yerlesim kontrolunde slayt uzayi (1920x1080) yerine story olcusunu
+     (720x540) kullandim ve "slayttan tasiyor" diye yanlis alarm verdim.
+
+Tohum kutuphanesinin kaydi artik `storyline_mcp/seeds/README.md`'de.
