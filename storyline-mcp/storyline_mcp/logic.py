@@ -456,12 +456,16 @@ def add_trigger(
     javascript: str | None = None,
     watch: str | None = None,
     conditions: list[dict] | None = None,
+    owner_layer: str | None = None,
 ) -> dict:
     """Attach a trigger to a shape, or to the slide when no shape is named.
 
     action: adjust_variable | jump_slide | jump_scene | show_layer | hide_layer
             | change_state | execute_javascript
     conditions: [{"variable": "Skor", "op": "gte", "value": 6}]
+    owner_layer: katman GUID'i ya da adi -- tetikleyici SLAYDA degil o
+        katmana baglanir ("yanlis cevap katmani acilinca ..."). `shape` ile
+        birlikte verilirse arama o katmanin icinde yapilir.
     """
     part = pkg.slide_part_for(slide)
     root = pkg.parse(part)
@@ -499,10 +503,38 @@ def add_trigger(
 
     owner = root
     owner_name = slide
+    # KATMANIN KENDISINE BAGLAMA. "Yanlis cevap katmani acilinca sunu yap"
+    # bunsuz kurulamiyordu: `shape` katman ICINDEKI bir nesneye baglar (bu
+    # zaten calisiyor, olculdu), ama katmanin KENDI trigLst'ine ulasmanin
+    # yolu yoktu -- yani ancak ogrenci bir seye TIKLARSA is yapilabiliyordu.
+    # Katman acilir acilmaz calisan bir tetikleyici icin owner, katman
+    # elemaninin kendisi olmali.
+    #
+    # Katman ADIYLA da GUID'iyle de bulunur, ama GUID tek GUVENILIR anahtar:
+    # olculdu 2026-09-04, kurucunun urettigi dort soru slaydinin UCUNDE
+    # katman adi BOS geliyordu.
+    if owner_layer:
+        layer_list = root.find("sldLayerLst")
+        found_layer = next(
+            (l for l in (list(layer_list) if layer_list is not None else [])
+             if l.get("g") == owner_layer
+             or (l.get("name") or "") == owner_layer), None)
+        if found_layer is None:
+            raise StoryError(
+                f"{slide} icinde {owner_layer!r} ile eslesen katman yok.")
+        root_for_shape = found_layer
+        owner = found_layer
+        owner_name = found_layer.get("name") or owner_layer
+    else:
+        root_for_shape = root
     if shape:
-        found = _shape_by(root, shape)
+        # ARAMA KATMANLA SINIRLANIR: owner_layer verilmisken butun slaytta
+        # aramak, ayni adi tasiyan baska bir katmandaki sekle sessizce
+        # baglanmak olurdu.
+        found = _shape_by(root_for_shape, shape)
         if found is None:
-            raise StoryError(f"{slide} icinde {shape!r} ile eslesen sekil yok.")
+            nerede = f"{slide}/{owner_name}" if owner_layer else slide
+            raise StoryError(f"{nerede} icinde {shape!r} ile eslesen sekil yok.")
         owner, owner_name = found, found.get("name") or shape
 
     if event in HEDEFLI_EVENTS and not shape:
