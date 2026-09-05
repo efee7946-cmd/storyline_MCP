@@ -205,6 +205,32 @@ def install_slide(
     if name is not None:
         new_raw = _rewrite_root_attr(new_raw, "name", name)
 
+    # SAHNE, HICBIR SEY YAZILMADAN ONCE COZULUR.
+    #
+    # Cozumleme eskiden asagida, parca/rels/content-type/story-rel YAZILDIKTAN
+    # sonra duruyordu. Var olmayan bir sahne adi verildiginde cagri dogru
+    # sekilde patliyordu ama paket ARTIK KIRLIYDI: slayt parcasi kaydedilmis,
+    # hicbir sahnenin sldIdLst'ine girmemis -- yani SAHNESIZ bir slayt.
+    #
+    # Olculdu 2026-09-04: builder ilerleme katmanini kurarken var olmayan
+    # "99_Sonuc" sahnesini istedi. Hata dogru raporlandi ("Sahne bulunamadi"),
+    # kurs yine de 55 yerine 56 slaytla kaydedildi ve o fazladan slayt
+    # uretilmis kursta iki kusur uretti (cakisma 1, taban 1) -- kaynagi
+    # gorunmez, cunku hicbir sahnede degil.
+    #
+    # Yer degistirmenin bedeli yok: cozumleme salt-okunur, yan etkisi yok.
+    story = pkg.parse(STORY_PART)
+    scene_list = story.find("sceneLst")
+    scene_el = None
+    if scene:
+        scene_el = next((s for s in (scene_list or []) if s.get("name") == scene), None)
+        if scene_el is None:
+            raise StoryError(f"Sahne bulunamadi: {scene!r}")
+    elif scene_list is not None and len(scene_list):
+        scene_el = scene_list[-1]
+    if scene_el is None:
+        raise StoryError("Slaydin ekleneceği sahne yok.")
+
     slides = pkg.slide_parts
     new_part = f"story/slides/{slide_part_name(next_slide_index(pkg))}"
     pkg.add_part(new_part, new_raw.encode("utf-8"),
@@ -222,18 +248,10 @@ def install_slide(
     _register_content_type(pkg, new_part)
     rel_id = _register_story_rel(pkg, new_part)
 
-    story = pkg.parse(STORY_PART)
-    scene_list = story.find("sceneLst")
-    scene_el = None
-    if scene:
-        scene_el = next((s for s in (scene_list or []) if s.get("name") == scene), None)
-        if scene_el is None:
-            raise StoryError(f"Sahne bulunamadi: {scene!r}")
-    elif scene_list is not None and len(scene_list):
-        scene_el = scene_list[-1]
-    if scene_el is None:
-        raise StoryError("Slaydin ekleneceği sahne yok.")
-
+    # `story` ve `scene_el` YUKARIDA cozuldu. Burada yeniden parse etmek,
+    # add_part/_register_* cagrilarinin arasinda story.xml'i degistirmis
+    # olabilecegi varsayimina dayanirdi -- degistirmiyorlar, ve iki parse
+    # ayrisirsa sldId yanlis agaca yazilirdi.
     id_list = scene_el.find("sldIdLst")
     if id_list is None:
         id_list = ET.SubElement(scene_el, "sldIdLst")
