@@ -29,10 +29,12 @@ her biri bu oturumda gercek bir kusur uretmisti.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
 import warnings
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +42,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "panel"))
 sys.path.insert(0, str(ROOT / "tools"))
 
+from storyline_mcp import authoring
 from storyline_mcp.package import StoryPackage
 import builder
 import completeness
@@ -80,6 +83,16 @@ MULTI_CHOICES = [
 ]
 
 
+# GRUPLAMA MALZEMESI. `add_drag_question` (tur, 9) tohumunu istiyor, yani
+# dokuz oge; eksik verilirse kurulum REDDEDILIR ve kapi kusurdan degil
+# beslemeden kirmiziya doner.
+DRAG_GROUPS = {
+    "Once yapilir": ["Sakin bir ton tut", "Kesmeden dinle", "Not al"],
+    "Sonra yapilir": ["Ozetleyerek dogrula", "Secenek sun", "Sureyi soyle"],
+    "Hic yapilmaz": ["Ayni tonda karsilik ver", "Sozunu kes", "Suclu ara"],
+}
+
+
 def _outline() -> dict:
     return {"scenes": [
         {"name": name, "title": title, "slides": [
@@ -108,6 +121,23 @@ def _content(index: int) -> dict:
         #
         # Sayilar GERCEK kurstan okundu, secilmedi: Title medyan 24 (prob 9),
         # Body medyan 73 (prob 21), Lead medyan 64 (prob 15).
+        # REVEAL: insa yolunun TIKLANINCA ACILAN duzeni. Buraya konuldu
+        # cunku produced.py'nin isi tam olarak bu -- prob degil, URETILMIS
+        # kursta kosmak. Etiketler sinirda secildi (28-30 karakter): kisa
+        # etiketle kosmak, bandin dar oldugu vakayi gormezden gelmek olurdu.
+        {"kind": "content", "layout": "reveal", "eyebrow": f"Bolum {index}",
+         "title": "Gerginligin uc isareti",
+         "body": "Her birine tiklayarak ac.",
+         "items": [
+             {"label": "Ses tonundaki yukselme",
+              "detail": "Ton, sozcuklerden once degisir. Cumleler kisalir ve "
+                        "araliklar daralir; icerik henuz aynidir."},
+             {"label": "Ucuncu kez tekrar",
+              "detail": "Ayni sikayetin ucuncu kez anlatilmasi, dinlenmedigini "
+                        "dusundugunun isaretidir."},
+             {"label": "Ani sessizlik",
+              "detail": "Sessizlik cogu zaman sakinlesme degil vazgecistir; "
+                        "konusma orada biter."}]},
         {"kind": "content", "layout": "bullets", "eyebrow": f"Bolum {index}",
          "title": "Gerginligin masada biraktigi izler",
          "bullets": [
@@ -116,7 +146,13 @@ def _content(index: int) -> dict:
              "Ayni sikayet farkli kelimelerle ucuncu kez tekrar edilir",
              "Konusma bugunden gecmise kayar ve eski kayitlar acilir",
              "Cozum yerine suclu aranmaya baslanir, konu dagilir"]},
-        {"kind": "question",
+        # SAHNE 1'DE SIK SORUSU YOK, GRUPLAMA VAR. Sebep olculdu
+        # (2026-09-04): `PUANLI_KINDLER = ("question", "drag")` ve sahne
+        # basina bir puanli slayt kurali var. Ikisi ayni sahneye konunca
+        # gruplama sessizce ELENIYOR -- red bile uretmeden, cunku eleme
+        # dispatch'ten ONCE oluyor. `hotspot` ve `commitment` puanli
+        # sayilmadigi icin ayni sahnede yasayabiliyor.
+        *([] if index == 1 else [{"kind": "question",
          "prompt": f"Bolum {index}: musteri sesini yukseltti ve ayni sikayeti "
                    "ucuncu kez anlatiyor. Ilk ne yaparsin?",
          # IKI YOL DA GECILIR: tek secmeli (2 sik) ve coktan secmeli (5 sik).
@@ -126,7 +162,49 @@ def _content(index: int) -> dict:
          "feedback": {"correct": "Sakin ton gerginligi dusurur ve musteri "
                                  "kendini duyulmus hisseder.",
                       "incorrect": "Ayni tonda karsilik vermek tirmandirir; "
-                                   "once kesmeden dinleyin."}}]}
+                                   "once kesmeden dinleyin."}}]),
+    ]
+        # BES BICIMIN HEPSI KAPIDAN GECER. Onceki hali yalnizca `choices`
+        # tasiyordu, yani `freePickOne` ile `freePickMany` uretiyor ve
+        # kalan UC bicimi -- dragDrop, freeHotSpot, freeTextEntry -- kapinin
+        # disinda birakiyordu. Bedeli olculdu 2026-09-04: iki gercek kusur
+        # tam o uc bicimin ikisinde yasiyordu ve suit YESILDI.
+        #
+        #   eksik defVarG (freeHotSpot tohumu)  -> dosya HIC acilmiyor
+        #   fakeTrigger   (freeHotSpot + freeTextEntry) -> slayt atlaniyor
+        #
+        # Ayni kor nokta bu dosyada BIR KEZ DAHA yasandi (coktan secmeli
+        # yol yoktu, yukaridaki nota bakin). Ucuncusu olmasin diye kapsam
+        # artik `main()` icinde OLCULUYOR, umut edilmiyor.
+        + _kapsam_slaytlari(index)}
+
+
+def _kapsam_slaytlari(index: int) -> list[dict]:
+    """Tohum kutuphanesindeki geri kalan bicimleri sahnelere dagitir.
+
+    Dagitim SAHNE SAYISINA bagli; sahne sayisi dusurulurse bir bicim
+    disarida kalir. Bu sessiz kalmaz: `main()` kapsami tohum kutuphanesine
+    karsi olcup eksigi KUSUR olarak bildirir.
+    """
+    if index == 1:
+        return [{"kind": "drag",
+                 "prompt": "Adimlari dogru kutuya surukle.",
+                 "groups": dict(DRAG_GROUPS),
+                 "feedback": {"correct": "Sira dogru: once dinleme, sonra dogrulama.",
+                              "incorrect": "Once dinleme gelir; karsilik vermek tirmandirir."}}]
+    if index == 2:
+        # accept VERILIR: aksi halde slayt taahhut kutusuna doner ve
+        # `freeTextEntryIntr` bicimi kapidan hic gecmez.
+        return [{"kind": "commitment",
+                 "prompt": "Gerginlik aninda ilk yapilmasi gereken nedir? "
+                           "Tek kelimeyle yaz.",
+                 "accept": ["dinlemek", "dinle", "dinleme"]}]
+    if index == 3:
+        return [{"kind": "hotspot",
+                 "prompt": "Gorselde gerginligin ilk isaretini gosteren alani tikla.",
+                 "feedback": {"correct": "Dogru: ses tonundaki yukselme ilk isarettir.",
+                              "incorrect": "Tekrar bak: ilk isaret sozel degil, tonaldir."}}]
+    return []
 
 
 def build() -> StoryPackage:
@@ -139,23 +217,58 @@ def build() -> StoryPackage:
         # duruyordu -- yani uretilmis kursa bakan TEK kontrol, kendi
         # vekilinin eskimesi yuzunden hic kosmuyordu. Sessiz degil ama
         # gorunmez: kimse calistirmadikca yesil de kirmizi da yok.
+        # KIMLIKLE ESLE, SAYACLA DEGIL.
+        #
+        # Onceki hali "birinci cagri iskelet, N'inci cagri (N-1). sahne"
+        # varsayiyordu. Iki sey birden yanlisti ve ikisi de SESSIZDI:
+        #
+        #   1. Basta IKI icerik-disi cagri var, bir tane degil. Yani her
+        #      sahne BIR SONRAKININ icerigini aliyordu; sahne 4 hic
+        #      tanimlanmamis bir indeksle default'a dusuyordu.
+        #   2. builder icerigi YENIDEN ISTEYEBILIYOR ("icerik yeniden
+        #      istendi"). Her yeniden istek sayaci bir kaydiriyor, yani
+        #      duzeltme istegi bir sonraki sahnenin cevabini aliyordu.
+        #
+        # Olculdu 2026-09-04: 4 sahne icin 5 cagri bekleniyordu, 7 oldu; ve
+        # fiksture eklenen gruplama slaydi bu yuzden HIC kurulmadi -- red
+        # bile uretmeden, cunku istegi hic ulasmadi.
+        #
+        # Sahne basligi istemde birebir duruyor; eslesme oradan kurulur ve
+        # yeniden isteklere karsi bagisiktir.
         calls["n"] += 1
-        return _outline() if calls["n"] == 1 else _content(calls["n"] - 1)
+        eslesen = [i for i, (_, _baslik) in enumerate(SCENES, start=1)
+                   if _baslik in prompt]
+        if len(eslesen) == 1:
+            return _content(eslesen[0])
+        # Tek sahne secilemiyorsa istek iskelet (ya da butun kursu kapsayan
+        # bir duzeltme) demektir. Belirsizlik SAYILIR: sessizce dogru cevap
+        # vermis gibi yapmak, yukaridaki iki hatanin da yaptigi seydi.
+        calls.setdefault("belirsiz", []).append(len(eslesen))
+        return _outline()
 
     original = builder._run_json
     builder._run_json = canned
     try:
         shutil.copy2(BLANK, WORK)
+        # DEVRALINAN SLAYTLAR AYRI TUTULUR. BLANK adi "bos" diyor ama oyle
+        # olmak zorunda degil ve olculdu (2026-09-04): test/bos.story bir
+        # onceki oturumun debug build'iyle 37 slayda cikmisti. Kapsam
+        # devralinan slaytlardan doldurulursa kapi, INSA YOLU hic
+        # calismadigi halde yesil verir -- nitekim verdi.
+        with zipfile.ZipFile(BLANK) as _z:
+            devralinan = {n for n in _z.namelist()
+                          if n.startswith("story/slides/slide")
+                          and n.endswith(".xml") and "_rels" not in n}
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            builder.build(str(WORK), "Zor musteriyle iletisim",
-                          options={"theme": "kagit", "minutes": "20",
-                                   "questions_per_section": "1",
-                                   "tone": "hikaye"},
-                          on_progress=lambda text: None)
+            report = builder.build(str(WORK), "Zor musteriyle iletisim",
+                                   options={"theme": "kagit", "minutes": "20",
+                                            "questions_per_section": "1",
+                                            "tone": "hikaye"},
+                                   on_progress=lambda text: None)
     finally:
         builder._run_json = original
-    return StoryPackage(WORK)
+    return StoryPackage(WORK), report, devralinan
 
 
 # Uretilmis bir kursta SIFIR olmasi gereken siniflar. Hicbiri "tasarim
@@ -186,7 +299,7 @@ def main() -> int:
     parser.add_argument("--png")
     args = parser.parse_args()
 
-    pkg = build()
+    pkg, report, devralinan = build()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         found = inventory.audit(pkg)
@@ -230,6 +343,63 @@ def main() -> int:
     if izleme["lms_bos"] and survey["scored"]:
         problems.append("lmsResultSlideG bos — LMS'e bildirilecek sonuc "
                         "slaydi secilmemis")
+
+    # KURULAMAYAN SLAYT SESSIZ KALMAZ.
+    #
+    # builder gruplama sorusunu REDDEDEBILIR ve reddi `refusals` listesine
+    # yazar -- ama bu kontrol o listeye hic bakmiyordu. Olculdu 2026-09-04:
+    # fiksture bir gruplama sorusu eklendi, builder onu reddetti, kontrol
+    # HIC SES CIKARMADI ve kapsam devralinan bir slayttan doldu. Yani hem
+    # kusur hem de kusuru gizleyen sey ayni kosuda vardi.
+    # ANAHTAR ADI OLCULDU, TAHMIN EDILMEDI: builder bunu
+    # `question_refusals` diye donduruyor. Ilk yazimda `refusals`
+    # yazilmisti ve kontrol SESSIZCE hep temiz gorunuyordu -- yani
+    # kontrolun kendisi, yakalamak icin yazildigi hatanin aynisini
+    # yapiyordu.
+    reddedilen = report.get("question_refusals") or []
+    if reddedilen:
+        print(f"\n  kurulamayan   {len(reddedilen)}")
+        for _r in reddedilen[:5]:
+            print(f"      {_r.get('diagnosis','?')}: {str(_r.get('why',''))[:90]}")
+        problems.append(
+            f"{len(reddedilen)} slayt kurulamadi "
+            f"({reddedilen[0].get('diagnosis','?')})")
+
+    # BICIM KAPSAMI: kutuphanede ne varsa URETILEN slaytlarda da olmali.
+    #
+    # Bu olcut BUGUN GECIYOR ve mevcut bir hatayi yakalamiyor. Varlik sebebi
+    # olculmus bir gecmis: 2026-09-04'te iki gercek kusur, tam da bu kapinin
+    # HIC uretmedigi soru bicimlerinde yasiyordu ve suit YESILDI.
+    #
+    #   eksik defVarG (freeHotSpot tohumu)          -> dosya HIC acilmiyor
+    #   fakeTrigger   (freeHotSpot + freeTextEntry) -> slayt preview'da atlanir
+    #
+    # Kapi Storyline'a "bunu acar misin" diye soruyordu ve dogru soruydu;
+    # yanlis olan, SORDUGU KURSTA o yollarin bulunmamasiydi. Ayni korluk bu
+    # dosyada daha once bir kez daha yasandi (coktan secmeli yol yoktu --
+    # MULTI_CHOICES notuna bakin). Ucuncusu icin umut yerine olcum konuyor.
+    #
+    # Beklenen kume ELLE YAZILMADI: question_seeds() diskteki tohumlardan
+    # turetilir, yani kutuphaneye yeni bir bicim eklendiginde kapi onu
+    # KENDILIGINDEN talep eder.
+    #
+    # DEVRALINANLAR SAYILMAZ: bkz. build() icindeki not.
+    kutuphane = {kind for kind, _ in authoring.question_seeds()}
+    uretilen = set()
+    with zipfile.ZipFile(WORK) as z:
+        for _ad in z.namelist():
+            if (_ad.startswith("story/slides/") and _ad.endswith(".xml")
+                    and "_rels" not in _ad and _ad not in devralinan):
+                _raw = z.read(_ad).decode("utf-8", "replace")
+                uretilen |= set(re.findall(r"<(\w+Intr)\b", _raw))
+    eksik = sorted(kutuphane - uretilen)
+    print(f"\n  bicim kapsami {len(kutuphane & uretilen)}/{len(kutuphane)}"
+          f"    {'temiz' if not eksik else 'EKSIK: ' + ', '.join(eksik)}")
+    if eksik:
+        problems.append(
+            f"{len(eksik)} soru bicimi URETILEN slaytlarda YOK "
+            f"({', '.join(eksik)}) -- o yollardaki kusurlar acilma testine "
+            "hic girmez")
 
     print(f"\n  ikiz slayt cifti : {found['ikiz_slayt']}")
     print(f"  farkli punto     : {found['punto_olcegi']}  {found['_sizes']}")
