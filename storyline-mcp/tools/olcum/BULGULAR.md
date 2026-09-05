@@ -424,3 +424,50 @@ arac okunamazsa sessiz gecmez, uyarir. Bos sablon 10 slayta tamamlandi
   golden    "Yigin davranisi degisti. Bilerek degistiyse --record ile taban
             yenilenmeli" -- KARAR BORCU, kimse cevaplamadi.
   produced  "3 slayt kurulamadi (sigdi-ama-elendi)"
+
+---
+
+# BUTUN KAPILAR YESIL (2026-09-05)
+
+    baslangic: 5 kapi kirmizi  (invariants, deadband, golden, themes_check, produced)
+    son      : 0
+
+## golden -- kusur degildi, KARAR BORCUYDU
+
+Sapma: sik yigini 6.8 puan asagi kaymis (soru yerinde, boylar ve araliklar ayni).
+
+Sebep bulundu: `0f1e22d` commit'i soru duzeni varyantlarini ekledi ve icinde
+acikca "IKINCI EKSEN: SIK YIGINI BANDIN NERESINE OTURUR" yaziyor. Taban ise
+`e997de1`'de, o ozellik yazilmadan ONCE dondurulmustu.
+
+Tuzak: o commit'in mesaji "Add Antigravity (agy) CLI fallback" diyor ve
+yerlesimden tek kelime etmiyor. "Bilerek mi degisti" sorusuna kimsenin cevap
+verememesinin sebebi buydu -- mesaja bakan biri orada bir yerlesim
+degisikligi oldugunu goremezdi.
+
+Kaydetmeden once dogrulandi: uc kosuda da BIREBIR ayni sayi (rastgelelik yok)
+ve alt kenar %85.2 < taban %92 (sinirlar icinde). Taban yenilendi.
+
+## produced -- kapi olmayan bir kusuru sayiyordu
+
+"3 slayt kurulamadi" diyordu. Olculdu: uc kaydin UCU DE `resolved: True`
+tasiyor, yani slaytlar KURULDU. Kurucu sablonlari sirayla dener, icerik
+sigmayan elenir, sigan bulununca slayt kurulur; kayit "su kadar sablon
+elendi" demek.
+
+Kurucunun kendi yorumu bu ayrimi zaten istiyordu ("rapor ... farki
+gosterebilmeli"); eksik olan kapinin ona uymasiydi. Cozulen redler artik
+bilgi olarak basiliyor, cozulmeyenler kusur sayiliyor.
+
+Bu, ayni gunun ucuncu "kapi yanlis soyluyor" vakasi:
+  1. tasma kapisi verdiktini kirpiyordu    -> var olan kirige "artik yok" dedi
+  2. blank_temizle tek tuketiciye bakiyordu -> zinciri kirdi
+  3. produced cozuleni kusur sayiyordu      -> kurulmus slayta "kurulamadi" dedi
+
+## Suit'in kendi soyledigi sinir
+
+    "bu suit geri bildirim katmanlarini (<sldLayerLst>) hicbir olcuyle
+     taramaz -- olculdu, kasten bozularak sinandi. Yesil olmasi,
+     katmanlarin dogrulandigi degil, HIC BAKILMADIGI anlamina gelir."
+
+Yani "butun kapilar gecti" cumlesi katmanlar icin bir sey soylemiyor.

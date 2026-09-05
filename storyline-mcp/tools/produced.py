@@ -356,7 +356,26 @@ def main() -> int:
     # yazilmisti ve kontrol SESSIZCE hep temiz gorunuyordu -- yani
     # kontrolun kendisi, yakalamak icin yazildigi hatanin aynisini
     # yapiyordu.
-    reddedilen = report.get("question_refusals") or []
+    # COZULEN RED, KUSUR DEGIL. Kurucu bir soruyu kurarken sablonlari sirayla
+    # dener; icerik sigmayan elenir ve SIGAN bulununca slayt KURULUR. O kayit
+    # `resolved: True` tasir -- anlami "su kadar sablon elendi", "slayt
+    # kurulamadi" DEGIL.
+    #
+    # Kapi bir donem ikisini ayirmiyordu ve olculdu 2026-09-05: uc kaydin UCU
+    # DE resolved=True iken rapor "3 slayt kurulamadi" diyordu. Slaytlar
+    # kurulmustu. Kurucunun kendi yorumu bu ayrimi zaten istiyor ("rapor ...
+    # farki gosterebilmeli"); eksik olan, kapinin ona uymasiydi.
+    #
+    # Cozulmeyen red GERCEK kusurdur: `resolved` yoksa ya da false ise sigan
+    # sablon hic bulunamamis, slayt gercekten kurulamamistir.
+    _redler = report.get("question_refusals") or []
+    cozulen = [r for r in _redler if r.get("resolved")]
+    reddedilen = [r for r in _redler if not r.get("resolved")]
+    if cozulen:
+        print(f"\n  elenen sablon {len(cozulen)} soruda  "
+              f"(slaytlar KURULDU -- bilgi, kusur degil)")
+        for _r in cozulen[:5]:
+            print(f"      {str(_r.get('why', ''))[:90]}")
     if reddedilen:
         print(f"\n  kurulamayan   {len(reddedilen)}")
         for _r in reddedilen[:5]:
