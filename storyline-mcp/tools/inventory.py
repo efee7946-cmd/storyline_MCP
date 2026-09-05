@@ -200,6 +200,47 @@ def audit(pkg: StoryPackage) -> dict:
                 if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
                     out["cakisma"] += 1
 
+        # KATMANLAR DA TASAR -- ve bu sayacin kor noktasiydi.
+        #
+        # Yukaridaki dongu yalnizca `root.find("shapeLst")`, yani TEMEL katman
+        # uzerinde donuyordu. `coverage.py --kanarya` bunu olcuyordu ve
+        # "KOR inventory katmandaki AYNI tasmayi gormedi" diyordu: ayni kusur
+        # temele ekilince sayiliyor, geri bildirim katmanina ekilince
+        # sayilmiyordu.
+        #
+        # Korlugun bedeli 2026-09-05'te iki kez gorundu: gorunmez katman
+        # yazilari ve tasan geri bildirim butonlari -- ikisi de katmanda,
+        # ikisi de bu sayacin disindaydi.
+        #
+        # YALNIZCA TASMA SAYACLARI ACILIYOR. Hizalama histogrami (`lefts`),
+        # bos slayt, taban asimi ve cakisma TEMELDE KALIYOR: onlar slaydin
+        # kendi izgarasi hakkinda ve katman sekilleri o izgaranin parcasi
+        # degil -- pop-up'in solu, slaydin sol hizasi sayilmaz.
+        #
+        # `_yatay_temel` de adiyla temelde kaliyor; yatay tasmanin katman
+        # karsiligi ayri bir olcum ister (kutu genisligi orada baska
+        # kurallarla belirleniyor) ve olculmeden sayilmaz.
+        _uzay_kat = shapes.space_of(root, shapes.stage_size(pkg))
+        _slack_kat = compose.FIT_TOLERANCE / 100 * height
+        _katman_listesi = root.find("sldLayerLst")
+        for _kat in (list(_katman_listesi) if _katman_listesi is not None else []):
+            for _sh in list(_kat.find("shapeLst") or []):
+                _metin = model.shape_text(root, _sh.get("g") or "").strip()
+                _rect = shapes.shape_rect(_sh)
+                if not _metin or not _rect:
+                    continue
+                _c2, _size2, _b2, _a2 = preview._text_style(_sh)
+                if not (lo <= _size2 <= hi):
+                    continue
+                _gereken2 = shapes.measured_text_height(
+                    _metin, _size2, _rect[2] - _rect[0], _uzay_kat,
+                    wrap=shapes.wraps(_sh))
+                if _gereken2 > (_rect[3] - _rect[1]) + _slack_kat:
+                    out["tasma"] += 1
+                _oran2 = _gereken2 / max(_rect[3] - _rect[1], 1.0)
+                if _oran2 > out["tasma_orani"]:
+                    out["tasma_orani"] = round(_oran2, 2)
+
         # Kopuk tetikleyici burada SAYILMAZ; hesap completeness'te, tek yerde.
         # Buradaki eski kopya bos slaytlari atliyordu (yukaridaki `continue`
         # tetikleyici taramasindan ONCE calisiyor) ve 43 yerine 25 veriyordu --

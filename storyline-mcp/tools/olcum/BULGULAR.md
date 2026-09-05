@@ -682,3 +682,54 @@ Iki durum ayri soyleniyor:
 
 Bos havuz `STORYLINE_DONORS` ortam degiskeniyle kuruldu, gercek havuza
 dokunulmadi. suit: butun kapilar gecti.
+
+---
+
+# ENVANTERIN KATMAN KORLUGU KAPANDI (2026-09-05)
+
+`inventory.audit` yalnizca `root.find("shapeLst")` uzerinde donuyordu -- TEMEL
+katman. Ayni kusur temele ekilince sayiliyor, geri bildirim katmanina ekilince
+sayilmiyordu. Kanarya bunu olcuyordu: "KOR inventory katmandaki AYNI tasmayi
+gormedi".
+
+Bedeli ayni gun iki kez gorundu: gorunmez katman yazilari (12 vaka) ve tasan
+geri bildirim butonlari (3 tohum) -- ikisi de katmanda, ikisi de bu sayacin
+disindaydi.
+
+DUZELTME: tasma sayaclari katmanlara acildi (tasma, tasma_orani).
+Hizalama histogrami, bos slayt, taban asimi ve cakisma TEMELDE KALDI --
+onlar slaydin kendi izgarasi hakkinda ve katman sekilleri o izgaranin parcasi
+degil. `_yatay_temel` de adiyla temelde kaldi: yatay tasmanin katman
+karsiligi ayri bir olcum ister ve olculmeden sayilmaz.
+
+OLCUM: kanarya ekimi temel 24 / katman 24 (once temel 14 / katman 13).
+Beklenti KAZANC olarak yeniden yazildi: "KOR ... gormedi" -> "CANLI ...
+gordu (kesit ACIK)". suit: butun kapilar gecti.
+
+## Ayni gunun ucuncu eskimis kapsam notu
+
+Kor nokta kapaninca notlar geride kaliyor. Bugun uc kez oldu:
+  1. suit "hicbir olcuyle taramaz"        -> "kismen taraniyor"
+  2. kanarya ozeti "yakalanmiyor"         -> "DA yakalaniyor"
+  3. suit "hala kor: inventory"           -> "taraniyor; hala olculmeyen: ..."
+
+Her seferinde notu duzeltmek gerekti; kazanim kaydedilmezse korunmuyor, ama
+ESKI KAYIT da yanlis yone gonderiyor.
+
+# KALIBRASYON: OLU YOL TABELAYA CEVRILDI (2026-09-05)
+
+`calibrate_text.py` "yol KAPALI DEGIL" diyordu ve tekrar denemek icin ne
+gerektigini tarif ediyordu. Gerekli sey yapilmisti (make_dirty + dirty_gate)
+ama IKINCI DENEME de yapilmisti: `calibrate_diacritics.py` ayni turu kirlilik
+kapisiyla kosturdu, dosya gercekten degisti (2.2 MB -> 1.0 MB) ama kutu
+yukseklikleri degismedi. Sonuc `shapes.py`'de kayitli: Storyline buyumeyi
+cizim aninda hesaplayip dosyaya yazmiyor.
+
+Iki dosya celisiyordu ve ESKI olan daha iyimserdi; bugun o celiski beni tam
+olarak o olu yola soktu. Belge dizesi duzeltildi.
+
+Geriye kalan yol GORUNTU ama bugun otomatiklestirilemiyor: shoot.py dosyayi
+story view'da aciyor, slayt secilemiyor. Bandi genisletmenin on kosulu once o.
+
+Bant disi kalmanin bedeli olculdu: uretilmis kursta 248 yazidan 26'si bant
+disi, 20'si 11pt (eyebrow'un tasarim puntosu).

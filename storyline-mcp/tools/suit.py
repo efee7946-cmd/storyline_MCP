@@ -206,14 +206,18 @@ def main() -> int:
         print(f"{len(kalanlar)} KAPI KALDI: {', '.join(kalanlar)}")
         return 1
     print("Butun kapilar gecti.")
-    print("KAPSAM: geri bildirim katmanlari (<sldLayerLst>) KISMEN taraniyor.\n"
-          "        2026-09-05'te kontrast kesiti acildi: contrast.audit artik\n"
-          "        katmanlara varsayilan olarak bakiyor ve kanarya bunu\n"
-          "        dogruluyor (tools/coverage.py --kanarya, 'CANLI ... kesit\n"
-          "        ACIK'). Tasma da bakiliyor (invariants.tasan_yazilar).\n"
-          "        HALA KOR olan: inventory'nin katman taramasi, ve elle\n"
-          "        yapilmis kurslarda zemini cozulemeyen sekiller -- onlar\n"
-          "        'olculemeyen' sayilir ve SESSIZ kalir.")
+    print("KAPSAM: geri bildirim katmanlari (<sldLayerLst>) taraniyor.\n"
+          "        2026-09-05'te iki kesit acildi ve kanarya ikisini de\n"
+          "        dogruluyor (tools/coverage.py --kanarya): contrast.audit\n"
+          "        katmanlara varsayilan olarak bakiyor, inventory.audit\n"
+          "        tasmayi katmanlarda da sayiyor. Tasma olcusu zaten\n"
+          "        bakiyordu (invariants.tasan_yazilar).\n"
+          "        HALA OLCULMEYEN: katmanda hizalama/cakisma/taban (bunlar\n"
+          "        slaydin kendi izgarasi hakkinda, katman sekilleri o\n"
+          "        izgaranin parcasi degil), yatay tasmanin katman\n"
+          "        karsiligi, ve elle yapilmis kurslarda zemini cozulemeyen\n"
+          "        sekiller -- sonuncular 'olculemeyen' sayilir ve SESSIZ\n"
+          "        kalir, ihlal diye raporlanmaz.")
     return 0
 
 

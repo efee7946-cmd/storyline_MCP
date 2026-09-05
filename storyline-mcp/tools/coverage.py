@@ -703,8 +703,23 @@ def kanarya(kaynak: Path) -> int:
         # burasi bagirir.
         ("CANLI  contrast katmandaki kusuru gordu (kesit ACIK)",
          k["kontrast_kanarya"] >= 1),
-        ("KOR    inventory katmandaki AYNI tasmayi gormedi",
-         k["tasma"] == t["tasma"]),
+        # KOR NOKTA KAPANDI (2026-09-05) ve beklenti KAZANC olarak yeniden
+        # yazildi -- bu dosyadaki ucuncu ornek (contrast temel 2026-08-18,
+        # contrast katman ve inventory katman 2026-09-05).
+        #
+        # `inventory.audit` yalnizca `root.find("shapeLst")` uzerinde
+        # donuyordu, yani TEMEL katman. Ayni kusur temele ekilince
+        # sayiliyor, geri bildirim katmanina ekilince sayilmiyordu -- ve
+        # korlugun bedeli ayni gun iki kez gorundu: gorunmez katman yazilari
+        # ve tasan geri bildirim butonlari, ikisi de bu sayacin disindaydi.
+        #
+        # Tasma sayaclari katmanlara acildi; hizalama, bos slayt, taban ve
+        # cakisma TEMELDE KALDI (gerekcesi inventory.audit icinde).
+        #
+        # Yon simdi ters: katmandaki tasmayi yeniden goremez hale gelirsek
+        # burasi bagirir.
+        ("CANLI  inventory katmandaki tasmayi gordu (kesit ACIK)",
+         k["tasma"] > t["tasma"]),
         ("SAYIM  envanter katmandaki ekileni saydi",
          k["sayim"]["tasma"].get(("katman/ust", "13-38pt"), {}).get("tasan", 0)
          > t["sayim"]["tasma"].get(("katman/ust", "13-38pt"), {}).get("tasan", 0)),
@@ -731,9 +746,9 @@ def kanarya(kaynak: Path) -> int:
             print(f"  ! {ad}")
         return 1
     print("Kapsam iddiasi sinandi ve tuttu: ayni kusur temel katmanda\n"
-          "yakalaniyor, geri bildirim katmaninda DA yakalaniyor -- kesit\n"
-          "2026-09-05'te acildi; envanter tarafi hala kor. Envanter sayimi\n"
-          "ikisini de goruyor. Kor nokta olculmustur, varsayilmamistir.")
+          "yakalaniyor, geri bildirim katmaninda DA yakalaniyor -- kontrast\n"
+          "ve tasma kesitleri 2026-09-05'te acildi. Envanter sayimi ikisini\n"
+          "de goruyor. Kor nokta olculmustur, varsayilmamistir.")
     return 0
 
 
