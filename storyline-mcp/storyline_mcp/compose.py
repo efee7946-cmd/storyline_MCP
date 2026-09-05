@@ -3008,6 +3008,32 @@ def compose_slide(
                                 height=height, space=page.space,
                                 bottom=FLOOR)
 
+    # SLAYT ADI BASLIKTAN TURESIN -- OLCULDU 2026-09-06.
+    #
+    # Slayt klonlanarak kuruluyor ve klon, tohumun adini tasiyor. Ad
+    # verilmezse o ad OLDUGU GIBI kaliyor: kullanicinin urettigi kursta
+    # dokuz icerik slaydinin dokuzu da "Intro Slide" adiniydi ve menu acik
+    # oldugu icin ogrenci sol tarafta dokuz kez ayni satiri goruyordu
+    # (15 numarali bulgu).
+    #
+    # `builder.py` adi ZATEN veriyor (`spec["title"]`) ve o yol dogru
+    # calisiyor -- olculdu. Adsiz kalan, KOMUT yolu: agent `add_slide`
+    # cagirirken ad gecirmiyor. Kural o yuzden slaydi KURAN yere degil,
+    # basligi YAZAN yere konuyor: burada baslik zaten elimizde.
+    #
+    # KURAL BASIT TUTULDU: baslik verilmisse ad da odur. "Devralinmis mi"
+    # diye ayirt etmek denendi ve VAZGECILDI -- klonun kaynagindaki adi
+    # bilmek icin compose_slide'in bilmedigi bir sey gerekiyor, ve tahmin
+    # etmek (ornegin "Intro Slide" adini sabit yazmak) tohum degisince
+    # sessizce bozulurdu.
+    #
+    # Uzerine yazmanin bedeli kucuk ve tarif edilebilir: menude gorunen
+    # satir, slaytta okunan baslik olur. Ogrencinin bekledigi de budur.
+    # `builder.py` zaten ad ve basligi ayni degerden veriyor, yani orada
+    # hicbir sey degismiyor.
+    if title:
+        root.set("name", str(title)[:60])
+
     pkg.replace_xml(part, root)
 
     from .authoring import add_button
