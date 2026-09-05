@@ -4,26 +4,47 @@ Her ornek kendi genis yuvasinda; hangi uzunluktan itibaren ikinci satira
 sardigi gozle sayilabilsin diye. Kelime sarmasini olcuyoruz, o yuzden
 dizgiler gercek kelimelerden olusuyor.
 
-DENENDI, SONUC ALINAMADI -- ama yol KAPALI DEGIL. Fark onemli:
+DOSYA TURU YOLU DENENDI VE OLU CIKTI -- yol KAPALI. (Bu paragraf 2026-09-05'te
+duzeltildi; onceki hali "yol KAPALI DEGIL" diyordu ve bir sonraki okuyanı olu
+bir deneye gonderiyordu. Nitekim gonderdi.)
 
     Fikir: kutulari grow=True yapip Storyline'da acmak, kaydetmek ve
-    yuksekligi dosyadan geri okumak. Storyline kutuyu kendi metin olcusune
-    gore yeniden boyutlandirirsa, kalibrasyon gozle sayim yerine dosyadan
-    okunur -- ve ayni iz metnin kirpilip kirpilmadigini da soylerdi.
+    yuksekligi dosyadan geri okumak.
 
-    Denendi (2026-08-14): 17/24/32/48 punto, kasitli olarak cok kisa (12
-    birim) kutularda. Acildi, save_and_close cagrildi, kapandi. Dort kutu
-    da 12.0 birim kaldi ve pakette TEK BIR BAYT degismedi.
+    Ilk deneme (2026-08-14) sifir fark verdi ve "Storyline yeniden
+    boyutlandirmiyor" diye okundu. Yanlisti: `save_and_close` Ctrl+S'i yalnizca
+    baslik kirliyse gonderiyor, bir dosyayi acmak onu kirletmiyor. Storyline
+    hicbir sey yazmadi -- deney olcmeyi amacladigi seyi HIC olcmedi. O yuzden
+    `storyline_ctl.make_dirty` ve `tools/dirty_gate.py` yazildi.
 
-    Ama bu "Storyline yeniden boyutlandirmiyor" demek DEGIL. Olculdugunde
-    goruldu ki storyline_ctl.save_and_close, Ctrl+S'i yalnizca pencere
-    basligi kirli gosteriyorsa gonderiyor; bir dosyayi acmak onu kirletmez.
-    Yani Storyline hicbir sey yazmadi. Deney, olcmeyi amacladigi seyi hic
-    olcmedi -- sifir fark, "iz yok"un degil "yazma yok"un sonucuydu.
+    IKINCI DENEME YAPILDI, ve bu sefer kapiyla: `tools/calibrate_diacritics.py`
+    ayni turu kirlilik kapisi acikken kosturdu. Dosya GERCEKTEN degisti
+    (2.2 MB -> 1.0 MB, Storyline paketi bastan yazdi) ama kutu yukseklikleri
+    DEGISMEDI -- en buyuk puntoda, metnin kutuya sigmasi matematiksel olarak
+    imkansizken bile. autoFit="resize" bayragi duruyordu.
 
-    Tekrar denenecekse ONCE belgeyi kirletmek gerekir (bir slaydi acmak
-    kucuk resmi yeniden uretiyor olabilir, ki bu da kirletir). Kirli
-    olmadan yapilan her tur, ayni bos sonucu verir.
+    Sonuc, `shapes.py`'de cekirdek kural olarak kayitli: Storyline buyumeyi
+    CIZIM ANINDA hesapliyor ve dosyaya geri YAZMIYOR. Dosya yazilan kutuyu
+    tutuyor, cizilen kutuyu degil. Yani metin yuksekligi DOSYADAN olculemez --
+    kac tur denenirse denensin.
+
+GERIYE KALAN YOL GORUNTU, ve o da BUGUN OTOMATIKLESTIRILEMIYOR:
+
+    `tools/shoot.py` Storyline'in gercek cizimini yakaliyor, ama dosyayi STORY
+    VIEW'da aciyor ve kucuk resimleri goruyor -- slayt secilemiyor (belge
+    dizesinde yazili: "belirli bir slayda bakmak icin o slaydi ELLE acmak
+    gerekiyor"). Kucuk resimden sarma noktasi sayilamaz.
+
+    Bu bandi genisletmek icin once shoot.py'nin belirli bir slaydi acabilmesi
+    gerekiyor. O olmadan kalan tek yol elle gozle saymaktir -- ki bu aracin
+    varlik sebebi o isi silmek.
+
+BANDIN DISINDA KALANIN BEDELI OLCULDU (2026-09-05, uretilmis kurs): 248
+yazidan 26'si bant disi, 20'si 11pt. 11pt kaza degil, eyebrow'un tasarim
+puntosu; `page.text`'in kucultme dongusu ona hic girmiyor ve bu bir kez
+gerilemeye yol acti (bkz. DEVIR "uc Eyebrow tasmasi"). Yani bant disi vakalar
+icin "sigiyor" demek, olculmemis bir sayiya guvenmek olur -- olculere
+`unmeasured` olarak AYRICA sayilmalarinin sebebi bu.
 
 38pt uzeri hala kalibre EDILMEMIS durumda ve compose._Page.size_of'un
 puntoyu oraya cikarmamasinin sebebi bu -- yukaridaki deneyin sonucu degil,
