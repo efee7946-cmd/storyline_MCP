@@ -24,6 +24,9 @@ Ayrıca panelde: kurs künyesi (süre, hedef kitle, ton, bölüm başına soru),
 altı hazır tema ya da özel renk, puanlanan sorular ve geri bildirim katmanları,
 görsel/video sipariş defteri, sahne/slayt/soru dökümü, Storyline'da açma.
 
+Beş soru tipi seçilebilir ve hepsi kuruluyor: tek seçmeli, çok seçmeli,
+sürükle-bırak (gruplama), sıcak nokta ve metin girişi/taahhüt.
+
 ## Gereksinimler
 
 | | |
@@ -31,7 +34,7 @@ görsel/video sipariş defteri, sahne/slayt/soru dökümü, Storyline'da açma.
 | Windows | `.bat` başlatıcı ve Storyline Windows'ta |
 | Articulate Storyline 360 | kursu açmak ve yayınlamak için |
 | Python 3.10+ | |
-| [Claude Code CLI](https://claude.com/claude-code) / Antigravity (`agy`) | panelin model çağrıları öncelikli Claude Code CLI'ı, eksikliğinde veya kota aşımında otomatik Antigravity (`agy`) CLI fallback'ini kullanır |
+| [Claude Code CLI](https://claude.com/claude-code) | panelin model çağrıları bunun üzerinden gider; kurulu ve oturum açmış olmalı |
 | WebView2 | Edge ile birlikte gelir, ayrıca kurmanız gerekmez |
 
 ## Kurulum
@@ -50,6 +53,12 @@ Sanal ortam tam olarak `storyline-mcp/.venv` olmalı. Hem başlatıcı `.bat`
 hem de panelin ürettiği MCP kaydı bu yolu sabit tutar. MCP sunucusunu Claude
 Code'a ayrıca kaydetmeniz gerekmez — panel yapılandırmayı her çalıştırmada
 kendisi üretir.
+
+**Temiz klonda doğrulandı (5 Eylül 2026).** GitHub'dan yeni klonlanmış bir
+depoda yukarıdaki iki komut koşuldu ve ölçüldü: 113 paket kuruldu,
+`panel/app.py` import edildi, panel Claude Code CLI'ı buldu, beş soru tohumu
+biçiminin hepsi yerindeydi ve MCP sunucusu el sıkışıp **51 araç** bildirdi.
+Yani depoyu klonlayan biri paneli aynı şekilde kullanabilir.
 
 ## Çalıştırma
 
@@ -111,12 +120,18 @@ Klonlanmış bir depoda tam bir kurs kurulduğu ölçüldü: 4 bölüm, 12 slayt
 
 ## Bilinen sınırlar
 
-- **Soru tipleri sınırlı.** Tek ve çok seçmeli çalışıyor. Sürükle-bırak, metin
-  girişi ve sıcak nokta için klonlanacak örnek yok.
-- **Timeline animasyonu yok.** Taranan 62 dosyanın hepsinde `animEffect` boş;
-  kopyalanacak çalışan bir örnek bulunamadı.
-- **Şablonun seçenek sayısı bağlayıcıdır.** 4 seçenekli bir şablon 4 seçenekli
-  soru üretir.
+- **Şablonun seçenek sayısı bağlayıcıdır.** 4 seçenekli bir soru şablonu 4
+  seçenekli soru üretir; seçenek eklemek/çıkarmak sıfırdan şekil ve durum
+  üretmek demek ve bu yapılmıyor.
+- **Animasyon sözlüğü ölçülenle sınırlı.** `fade`, `fly`, `wipe`, `growTurn`,
+  `random` çalışır — bunlar donör havuzundaki 1527 yuvanın dolu olan 74'ünden
+  çıkarıldı. Havuzda görülmeyen bir efekt tahmin edilerek yazılmaz.
+- **Buton çeşitliliği donör havuzuna bağlı.** Havuz yokken her kurs aynı gömülü
+  butonu giyer — gerekçesi ve ölçümü "Depoda olmayanlar" bölümünde.
+
+Eskiden burada yazan iki sınır artık geçerli değil: sürükle-bırak, sıcak nokta
+ve metin girişi için tohum **var** ve kuruluyor; timeline animasyonu da
+`storyline_mcp/anim.py` ile geldi.
 
 ## Depodaki diğer dosyalar
 
