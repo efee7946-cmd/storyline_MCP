@@ -48,6 +48,7 @@ sonra `tools/open_test.py` ile acilma sinanmalidir.
 from __future__ import annotations
 
 import argparse
+import importlib
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -194,6 +195,33 @@ def uygula(pkg: StoryPackage, atilacak: list[str]) -> dict:
     return {"parca": silinen, "sahne": len(bosalan_sahne)}
 
 
+def _en_yuksek_gereksinim() -> tuple[int, str]:
+    """Bos sablondan slayt isteyen HER araci sor, en yuksegini dondur.
+
+    Ilk surum yalnizca `themes_check`e (6) bakiyordu ve YETMEDI: olculdu
+    2026-09-05, temizlik 9 slayt birakti, `variety.py` DECK'i icin 10
+    istedigi icin zincir kirildi ("bos.story icinde 10 slayt yok (9 var)").
+    Tek tuketiciye bakan bir kapi, kapi degil.
+
+    Sayilar araclarin KENDI listelerinden okunur; elle yazilsalardi liste
+    buyudugunde burasi sessizce eskirdi.
+    """
+    istekler: list[tuple[int, str]] = []
+    for modul, ad in (("variety", "DECK"), ("coverage", "SPECS"),
+                      ("themes_check", "SPECS"),
+                      ("calibrate_diacritics", "PUNTOLAR")):
+        try:
+            m = importlib.import_module(modul)
+            istekler.append((len(getattr(m, ad)), f"{modul}.{ad}"))
+        except Exception:
+            # Okunamayan arac SESSIZ GECILMEZ: en yuksegi bilmedigimiz halde
+            # "yeterli" demek, tam olarak yukaridaki hatayi tekrarlar.
+            print(f"  UYARI: {modul} okunamadi, gereksinimi hesaba katilmadi")
+    if not istekler:
+        raise SystemExit("Hicbir tuketicinin gereksinimi okunamadi; durdu.")
+    return max(istekler)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--uygula", action="store_true", help="degisikligi yaz")
@@ -203,7 +231,7 @@ def main() -> int:
     yol = Path(args.hedef)
     pkg = StoryPackage(yol)
     tut, at = plan(pkg)
-    gerek = len(compose.variants_for("content"))
+    gerek, isteyen = _en_yuksek_gereksinim()
 
     print(f"{yol.name}: {len(tut) + len(at)} slayt")
     print(f"  TUTULACAK {len(tut):3}  (adsiz, etkilesimsiz, fakeTrigger'siz)")
@@ -214,7 +242,7 @@ def main() -> int:
         print(f"      ... ve {len(at) - 8} tane daha")
 
     if len(tut) < gerek:
-        print(f"\nDURDU: themes_check en az {gerek} slayt istiyor, "
+        print(f"\nDURDU: {isteyen} en az {gerek} slayt istiyor, "
               f"tutulacak {len(tut)} var. Dosyaya DOKUNULMADI.")
         return 2
 

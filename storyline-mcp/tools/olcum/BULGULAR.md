@@ -368,3 +368,59 @@ dogrulanir, bozuksa dosyaya DOKUNULMAZ.
 
 Yedek: `test/bos.story.kirli-yedek`
 Ham cikti: `acilma_blank_2026-09-05.log` (basarisiz), `acilma_blank2_2026-09-05.log` (basarili)
+
+---
+
+# KUSUR 2 (metin tasmasi) KAPANDI (2026-09-05)
+
+## Sonuc
+
+    metin tasmasi   15 -> 2      (kalan 2'si tabanda KAYITLI ve gerekceli)
+    invariants      KIRMIZI -> YESIL  ("Taban tutuyor")
+    suit            5 kapi kirmizi -> 2  (invariants, deadband, themes_check yesillendi)
+
+## "5 yeni kirik" bir olcum degildi
+
+`check_text_fits` ekrana "15 TASMA" yaziyor ama verdikte `over[:5]` donduruyordu.
+Taban, kirpilmis ve SIRAYA BAGLI bir orneklemle karsilastiriliyordu; kapi hem
+var olan bir kirige "artik yok" dedi hem eski kiriklara "yeni". Kirpma
+kaldirildi (ayri commit).
+
+## Kok neden: tohumda wrap tutarsizligi
+
+Uc geri bildirim butonu `wrap="true"` tasiyordu ve etiketleri kutularina
+sigmiyordu. AYNI tohumun kardes katmani ayni etiketi ayni kutuda
+`wrap="none"` ile tasiyor ve SIGIYOR:
+
+    question_freePickOneIntr_3.xml
+       katman1  wrap=none  'Doğru Cevabı Gör'  ->  57.1 <= 85   sigiyor
+       katman2  wrap=true  'Devam'             ->  57.1 <= 85   sigiyor (kisa)
+       katman3  wrap=true  'Doğru Cevabı Gör'  -> 114.2 >  85   TASIYOR
+
+Yani ayirt eden sey sarma bayragi degil, "uzun etiket + sarma" birlesimi;
+ve dogru yapilandirma tohumun kendi katman1'inde zaten yaziliydi.
+
+Uc buton kardesine uyduruldu. Olcut kod icinde: yalnizca SARAN tasip
+SARMAYAN sigiyorsa dokunuldu -- yani degisiklik her vakada olcumle
+gerekcelendirildi.
+
+`defVarG` ve `fakeTrigger` ile AYNI SINIF: tohumdaki bir tutarsizlik,
+ondan uretilen her kursa geciyor.
+
+## Kendi aracimda ayni hatayi yaptim
+
+`blank_temizle.py`'nin kapisi yalnizca `themes_check`in gereksinimine (6)
+bakiyordu. Temizlik 9 slayt birakti ve `variety.py` 10 istedigi icin zincir
+kirildi: "bos.story icinde 10 slayt yok (9 var)". Tek tuketiciye bakan bir
+kapi, kapi degil.
+
+Duzeltildi: `_en_yuksek_gereksinim()` variety/coverage/themes_check/
+calibrate_diacritics'in KENDI listelerini okur ve en yuksegini alir; bir
+arac okunamazsa sessiz gecmez, uyarir. Bos sablon 10 slayta tamamlandi
+(temiz bir slayt klonlanarak).
+
+## Kalan iki kirmizi kapi
+
+  golden    "Yigin davranisi degisti. Bilerek degistiyse --record ile taban
+            yenilenmeli" -- KARAR BORCU, kimse cevaplamadi.
+  produced  "3 slayt kurulamadi (sigdi-ama-elendi)"
