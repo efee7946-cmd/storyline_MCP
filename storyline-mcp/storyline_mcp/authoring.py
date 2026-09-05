@@ -627,8 +627,43 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
     guid'i var. Dis guid'le karsilastirmak butonlari atliyordu -- dort
     yazidan ucu renkleniyordu.
     """
-    from . import preview
+    from . import preview, settings
     from .compose import _contrast
+
+    # SEMA RENGI DE BIR DOLGUDUR. `preview._fill_of` yalnizca srgbClr okur ve
+    # `<schemeClr val="accent1"/>` icin None doner; o sekil "dolgusuz" sayilir
+    # ve yazi rengi ARKASINDAKI yerine SLAYT ZEMININE gore secilir.
+    #
+    # Bu, yukaridaki 1.09 hatasinin AYNASI: orada dolgusu OLMAYAN sekle dolgu
+    # varsayilmisti, burada dolgusu OLAN sekil dolgusuz sanilir. Ikisinin de
+    # caresi ayni -- arkadakini okumak, tahmin etmemek.
+    #
+    # DURUSTLUK NOTU: bu satirlar BUGUN bir kusuru yakalamiyor ve bu bilerek
+    # boyle birakildi. 2026-09-05'te surukle-birak grup kutulari sema dolgulu
+    # sanilmisti; olculdu ve yanlis cikti -- besteci onlari `_recolour_for_palette`
+    # kosmadan ONCE duz renge boyuyor, yani urun yolunda sema dolgulu yazili
+    # sekil kalmiyor. O gunun gercek kusuru fiksturdeydi (bkz.
+    # tools/blank_temizle.py), kodda degil.
+    #
+    # Yine de duruyor, cunku okuma kusuru gercek: tohumlarin sekilleri sema
+    # dolgusu TASIYOR (surukle-birak tohumunda dokuz tane) ve bestecinin onlari
+    # boyamadigi bir yol acildigi gun, yazi rengi sessizce yanlis zemine gore
+    # secilir. Karsiligi bir sozluk aramasi.
+    try:
+        _yuvalar = settings.slot_colors(pkg)
+    except Exception:
+        _yuvalar = {}
+
+    def _sema_el(shape: ET.Element):
+        for yol in ("bG/solidFill/clr/schemeClr", "bG/solidFill/schemeClr"):
+            el = shape.find(yol)
+            if el is not None and el.get("val"):
+                return el
+        return None
+
+    def _sema_dolgu(shape: ET.Element) -> str | None:
+        el = _sema_el(shape)
+        return _yuvalar.get(el.get("val")) if el is not None else None
 
     def rgb(value: str) -> tuple[int, int, int]:
         h = shapes.parse_color(value)
@@ -663,6 +698,8 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
             if not guid:
                 continue
             own = preview._fill_of(shape, [])
+            if not (own or "").startswith("#"):
+                own = _sema_dolgu(shape)
             behind = rgb(own) if (own or "").startswith("#") else zemin
             options = [palette.get("text", "#FFFFFF"),
                        palette.get("on_accent", "#10141B"),

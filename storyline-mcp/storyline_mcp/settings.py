@@ -167,6 +167,22 @@ def _master_parts(pkg: StoryPackage) -> list[str]:
     )
 
 
+def slot_colors(pkg: StoryPackage) -> dict[str, str]:
+    """`schemeClr val="accent1"` -> `#4F81BD`. Asillarin clrLst'inden okunur.
+
+    Bir sekil hangi asla bagli oldugunu SOYLEMEZ, o yuzden asillar birlestirilir
+    ve ilki kazanir. Olculdu (2026-09-05, uretilmis kurs): dort asil da ayni
+    paleti tasiyor, yani birlestirme bugun kayipsiz. Asiller ayrisirsa bu
+    fonksiyon yanlis renk dondurur -- o gun burasi slayt->asil baginı cozmek
+    zorunda kalir; bugun o bag YOK ve varmis gibi yapmiyoruz.
+    """
+    birlesik: dict[str, str] = {}
+    for master in read_theme(pkg)["masters"]:
+        for yuva, renk in (master.get("colors") or {}).items():
+            birlesik.setdefault(yuva, renk)
+    return birlesik
+
+
 def read_theme(pkg: StoryPackage) -> dict:
     """The colour slots and font of each slide master."""
     out = []
