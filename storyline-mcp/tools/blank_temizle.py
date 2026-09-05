@@ -84,6 +84,25 @@ def _kirli_mi(raw: bytes) -> tuple[bool, str]:
         return True, f"etkilesim ({','.join(intr)})"
     if 'name="fakeTrigger"' in metin:
         return True, "fakeTrigger"
+    # KATMANINDA YAZI VARSA O DA ARTIKTIR.
+    #
+    # Ilk olcut adsiz + etkilesimsiz + fakeTrigger'siz idi ve YETMEDI:
+    # olculdu 2026-09-05, temizlikten SONRA kalan uc slaydin katmanlarinda
+    # "Tebrikler, sinavi gectin!" ve "Sinavi gecemedin!" duruyordu. Bos bir
+    # sablon bunu SOYLEMEZ; bunlar hasat edildigi kursun cumleleri.
+    #
+    # Bedeli olculdu: `themes_check` bu sablonu kopyaladigi icin acik
+    # temalarda dort "beyaz uzerine acik zemin" bulgusu uretiyordu (kagit
+    # 1.09, sis 1.26) ve bulgu URETIM YOLUNDAN degil, fiksturden geliyordu.
+    #
+    # Yazisiz katman KALIR: sablonun kendi bos katman kabuklari zararsiz
+    # (olculdu: slideb'de iki katman var, ikisi de bos).
+    kok = ET.fromstring(raw)
+    for katman in list(kok.find("sldLayerLst") or []):
+        for sekil in list(katman.find("shapeLst") or []):
+            duz = sekil.find("plain")
+            if duz is not None and (duz.text or "").strip():
+                return True, f"katman yazisi ({(duz.text or '').strip()[:22]})"
     return False, ""
 
 

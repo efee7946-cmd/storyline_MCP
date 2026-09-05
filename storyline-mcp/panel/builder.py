@@ -1753,7 +1753,8 @@ def build(
     # celisen bir ikinci gercek uretirdi.
     konu_adlari = [scenes[i].get("name") or f"Bolum{i}"
                    for i in _konu_araligi(scenes)]
-    ilerleme_raporu = ilerleme.kur(pkg, konu_adlari, on_progress=on_progress)
+    ilerleme_raporu = ilerleme.kur(pkg, konu_adlari, on_progress=on_progress,
+                                   palette=palette)
     # DALLANMA ILERLEMEDEN SONRA: ikisi de ayni konu sahnesi listesini
     # kullaniyor ve dallanma, ilerlemenin kurdugu sonuc slaydina degil
     # yalnizca soru slaytlarina dokunuyor -- sira aralarinda bagimlilik

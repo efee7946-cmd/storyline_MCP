@@ -206,10 +206,14 @@ def main() -> int:
         print(f"{len(kalanlar)} KAPI KALDI: {', '.join(kalanlar)}")
         return 1
     print("Butun kapilar gecti.")
-    print("KAPSAM: bu suit geri bildirim katmanlarini (<sldLayerLst>) hicbir\n"
-          "        olcuyle taramaz -- olculdu, kasten bozularak sinandi\n"
-          "        (tools/coverage.py --kanarya). Yesil olmasi, katmanlarin\n"
-          "        dogrulandigi degil, HIC BAKILMADIGI anlamina gelir.")
+    print("KAPSAM: geri bildirim katmanlari (<sldLayerLst>) KISMEN taraniyor.\n"
+          "        2026-09-05'te kontrast kesiti acildi: contrast.audit artik\n"
+          "        katmanlara varsayilan olarak bakiyor ve kanarya bunu\n"
+          "        dogruluyor (tools/coverage.py --kanarya, 'CANLI ... kesit\n"
+          "        ACIK'). Tasma da bakiliyor (invariants.tasan_yazilar).\n"
+          "        HALA KOR olan: inventory'nin katman taramasi, ve elle\n"
+          "        yapilmis kurslarda zemini cozulemeyen sekiller -- onlar\n"
+          "        'olculemeyen' sayilir ve SESSIZ kalir.")
     return 0
 
 

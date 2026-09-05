@@ -689,14 +689,20 @@ def kanarya(kaynak: Path) -> int:
         # KORUMA ALTINA ALMAK: bu dosyanin kendi kurali, "kaydedilmeyen bir
         # kazanim korunmuyor demektir". Yon simdi ters: katmani yeniden
         # goremez hale gelirsek burasi bagirir.
-        # KOR NOKTA HALA ACIK, ve bu artik bir SECIM: contrast.audit'in
-        # katman taramasi var ama VARSAYILAN OLARAK KAPALI, cunku o kesitte
-        # zemin cozulmuyor ve olcu kendi korlugunu kusur diye raporluyor
-        # (bkz. contrast.audit docstring). Kanarya kor noktayi olcmeye devam
-        # ediyor; schemeClr cozumu girip varsayilan acildiginda bu beklenti
-        # "CANLI ... gordu" olarak yeniden yazilacak.
-        ("KOR    contrast katmandaki AYNI kusuru gormedi (kesit KAPALI)",
-         k["kontrast_kanarya"] == 0),
+        # KOR NOKTA KAPANDI (2026-09-05) ve beklenti KAZANC olarak yeniden
+        # yazildi -- yukaridaki 2026-08-18 kaydinin ikizi.
+        #
+        # `contrast.audit`in katman taramasi vardi ama varsayilani KAPALIYDI:
+        # o kesitte cikan 12 bulgunun "aracin korlugu" oldugu varsayilmisti.
+        # Olculdu ve yanlis cikti -- hepsi GERCEKTI (yazinin altinda
+        # cozulebilir bir #FFFFFF kart vardi). Uc kaynak duzeltildikten sonra
+        # kesit acikken uretilen kursta ve alti tema fiksturunde 0 bulgu,
+        # 0 korluk olculdu; varsayilan True yapildi.
+        #
+        # Yon simdi ters: katmandaki kusuru yeniden goremez hale gelirsek
+        # burasi bagirir.
+        ("CANLI  contrast katmandaki kusuru gordu (kesit ACIK)",
+         k["kontrast_kanarya"] >= 1),
         ("KOR    inventory katmandaki AYNI tasmayi gormedi",
          k["tasma"] == t["tasma"]),
         ("SAYIM  envanter katmandaki ekileni saydi",
@@ -725,8 +731,9 @@ def kanarya(kaynak: Path) -> int:
             print(f"  ! {ad}")
         return 1
     print("Kapsam iddiasi sinandi ve tuttu: ayni kusur temel katmanda\n"
-          "yakalaniyor, geri bildirim katmaninda yakalanmiyor, ve envanter\n"
-          "sayimi ikisini de goruyor. Kor nokta olculmustur, varsayilmamistir.")
+          "yakalaniyor, geri bildirim katmaninda DA yakalaniyor -- kesit\n"
+          "2026-09-05'te acildi; envanter tarafi hala kor. Envanter sayimi\n"
+          "ikisini de goruyor. Kor nokta olculmustur, varsayilmamistir.")
     return 0
 
 

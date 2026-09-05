@@ -434,28 +434,44 @@ def _zemin_cozuldu(shapes_in_order: list, index: int,
     return False
 
 
-def audit(pkg: StoryPackage, *, katmanlar: bool = False,
+def audit(pkg: StoryPackage, *, katmanlar: bool = True,
           olculemeyenler: bool = False) -> list[dict]:
-    """Kontrast ihlalleri. Katman taraması VARSAYILAN OLARAK KAPALI.
+    """Kontrast ihlalleri. Katman taraması VARSAYILAN OLARAK ACIK.
 
-    KAPALI OLMASI OLCULMUS BIR KARAR (2026-08-18), tercih degil. Katman
-    kesiti acildi ve mekanik olarak calisiyor; ama o kesitte ZEMIN
-    COZULMUYOR ve olcu, cozemedigi yerde kendi korlugunu kontrast hatasi
-    diye raporluyor:
+    ACILDI (2026-09-05). Bir donem KAPALIYDI ve o da olculmus bir karardi:
+    kesit acikken uretilen kursta 12 "bulgu" cikiyordu ve hepsi
+    `#FFFFFF uzerine #FFFFFF, oran 1.00` idi. Gerekce dogruydu -- kendi
+    korlugunu kusur diye raporlayan bir kontrol, hic bakmayandan KOTUDUR:
+    insanlari bakmamaya alistirir ve gercek bulguyu gurultuye gomer.
 
-        kesit acikken uretilen kursta 12 "bulgu" -- hepsi
-        `#FFFFFF uzerine #FFFFFF, oran 1.00`
+    AMA O 12 BULGU KORLUK DEGILDI. 2026-09-05'te tek tek olculdu: yazinin
+    altinda COZULEBILIR, gercek bir #FFFFFF kart duruyordu. Yani kesit
+    kapatilirken varsayim "hepsi gurultu" idi; dogrusu "hepsi GERCEK" imis
+    ve kapali kapinin arkasindan uretime gitti. Uc kaynak bulundu ve
+    duzeltildi:
 
-    `_zemin_cozuldu` bunlarin cogunu "olculemedi" kovasina ayirdi ama
-    hepsini degil; kalan 8'i da dogrulanamadi. Cozulmeyen iki dolgu sinifi
-    olculdu: kapali `gradOvrlyFill` ve tema-bagli `schemeClr` (elle yapilmis
-    kursta 34 sekil yalnizca schemeClr tasiyor).
+        reveal katmanlari      builder._reveal_katmanlari palete baglanmamisti
+        sonuc slaydi katmani   ilerleme.kur palete baglanmamisti
+        bos sablon             katmanlarinda "Tebrikler, sinavi gectin!"
+                               yazan kurs artiklari vardi
 
-    Kendi korlugunu kusur diye raporlayan bir kontrol, hic bakmayandan
-    KOTUDUR: insanlari bakmamaya alistirir ve gercek bulguyu gurultuye
-    gomer. O yuzden yetenek DURUYOR, kapilari BESLEMIYOR. schemeClr cozumu
-    girdiginde varsayilan True olur ve kanarya beklentisi kazanc olarak
-    yeniden yazilir.
+    Bugunku olcum, kesit ACIKKEN:
+
+        uretilmis.story      0 bulgu, 0 korluk   (91 olculemeyen, SESSIZ)
+        6 tema fiksturu      0 bulgu, 0 korluk
+
+    Cozulemeyen zemin sinifi (kapali `gradOvrlyFill`) HALA VAR ama gurultu
+    uretmiyor: `_zemin_cozuldu` onlari "olculemeyen" kovasina ayiriyor ve
+    olculemeyen yalnizca acikca istenirse doner (K18). Sayilari buyurse
+    zemin cozumunun geriledigini soyler.
+
+    KAPSAM, ve saklanmiyor: bu "0 korluk" URETILEN dosyalar icin olculdu.
+    Elle yapilmis `test/_referans/referans.story` uzerinde kesit acikken 10
+    bulgu cikiyor ve olculdu: hicbiri gercek beyaz-uzerine-beyaz DEGIL --
+    o dosyada 24 seklin zemini hic cozulemiyor. Yani korluk bu kesitte
+    BITMEDI, uretim yolunda bitti. Hicbir kapiyi kirmizi yapmiyor
+    (`referans` zaten bilerek bozuk bir cipa), ama elle yapilmis bir kursa
+    bu araci dogrultan biri o gurultuyu gorur.
     """
     findings = []
     slotlar = tema_slotlari(pkg)

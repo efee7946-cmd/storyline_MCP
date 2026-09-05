@@ -89,7 +89,7 @@ def _sahne_slaytlari(pkg: StoryPackage) -> dict[str, list[str]]:
 
 
 def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
-        on_progress=lambda m: None) -> dict:
+        on_progress=lambda m: None, palette: dict | None = None) -> dict:
     """Ilerleme takibini, sonuc slaydini ve kilidi kurar.
 
     konu_sahneleri: giris ve kapanis DISINDAKI sahne adlari. Kimin konu
@@ -190,6 +190,32 @@ def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
         rapor["tetikleyiciler"] += 1
     except StoryError as exc:
         rapor["atlanan"].append(f"kilit: {exc}")
+
+    # SONUC SLAYDININ KATMANLARI DA KURSUN TEMASINI GIYER.
+    #
+    # `add_results_slide` ve `add_layer` PALETI BILMEZ: tohumu klonlar, metni
+    # yazar, yazi tohumun renginde (beyaz) kalir. Temel katman bundan
+    # etkilenmiyor -- oradaki yazilar vurgu dolgulu sekillerin uzerinde durur
+    # ve beyaz orada okunur. KATMANLAR farkli: "Tebrikler, sinavi gectin" ve
+    # "Sinavi gecemedin!" dogrudan slayt zeminine dusuyor.
+    #
+    # Olculdu 2026-09-05, alti tema x tema fiksturu:
+    #     kagit  #FFFFFF / #F7F5EF  oran 1.09
+    #     sis    #FFFFFF / #DFE6EC  oran 1.26
+    # Koyu temalarda sorun yok, acik temalarda yazi GORUNMUYOR. Ve hicbir kapi
+    # soylemiyor: `contrast.audit`in katman taramasi varsayilan olarak kapali.
+    #
+    # Duzeltme yeni hesap degil, var olan makineyi cagirmak -- ayni yol reveal
+    # katmanlarinda da kullanildi (builder._reveal_katmanlari).
+    if palette and rapor.get("sonuc_slaydi"):
+        try:
+            authoring._recolour_for_palette(
+                pkg, pkg.slide_part_for(rapor["sonuc_slaydi"]), palette,
+                stem=None, choices=set(), eyebrow=None)
+        except Exception:
+            # Renk duzeltmesi dusrse sonuc slaydi YINE durur; kursu dusurmek
+            # calisan bir slaydi yok saymak olurdu.
+            pass
 
     _bildir(rapor, on_progress)
     return rapor

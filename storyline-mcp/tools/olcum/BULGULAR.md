@@ -533,3 +533,59 @@ Dogru kuralla olculen sayilar: duzeltme yokken 12, duzeltmeyle 0.
     kalan sinif: zemini cozulemeyen vakalar (kapali gradOvrlyFill).
   * Acildiginda `coverage.py --kanarya` beklentisi "kor" -> "canli"
     olarak yenilenmeli.
+
+---
+
+# KATMAN KONTRAST KESITI ACILDI (2026-09-05)
+
+## Sonuc
+
+    contrast.audit(katmanlar=...)  varsayilan False -> True
+    kanarya: "KOR contrast katmandaki kusuru gormedi"
+          -> "CANLI contrast katmandaki kusuru gordu (kesit ACIK)"
+    suit: butun kapilar yesil
+
+## Acilmasinin kosulu belge dizesinde yaziliydi
+
+    "yetenek DURUYOR, kapilari BESLEMIYOR. schemeClr cozumu girdiginde
+     varsayilan True olur ve kanarya beklentisi kazanc olarak yeniden
+     yazilir."
+
+Kapali tutulma gerekcesi: kesit acikken uretilen kursta 12 bulgu cikiyordu ve
+hepsi #FFFFFF/#FFFFFF idi; bunlarin ARACIN KORLUGU oldugu varsayilmisti.
+
+## Varsayim yanlisti -- uc gercek kaynak bulundu
+
+  1. reveal katmanlari    builder._reveal_katmanlari palete baglanmamisti
+  2. sonuc slaydi katmani ilerleme.kur palete baglanmamisti
+  3. bos sablon           katmanlarinda "Tebrikler, sinavi gectin!" yazan
+                          kurs artiklari vardi
+
+Ucu de duzeltildikten sonra olculdu, kesit ACIKKEN:
+
+    uretilmis.story   0 bulgu, 0 korluk   (91 olculemeyen, sessiz)
+    6 tema fiksturu   0 bulgu, 0 korluk
+
+## Bos sablon ikinci kez temizlendi
+
+Ilk olcut (adsiz + etkilesimsiz + fakeTrigger'siz) yetmedi: kalan uc slaydin
+KATMANLARINDA kurs cumleleri vardi. Olcut genisletildi ("katmaninda yazi
+tasiyan slayt da artiktir"), sablon 10 temiz slayta getirildi (7 kalan + 3
+klon) ve Storyline'da acildi: EVET, 10.5 sn, kanarya guvenilir.
+
+Yan etki, kapi tarafindan yakalandi: `slidee.xml` gidince tabanda kayitli
+tasma kirigi de gitti ve invariants "TABAN ESKIMIS" diye bagirdi. Girdi elle
+kaldirildi ve gerekcesi tabanin yanina yazildi -- kazanim kaydedilmezse
+korunmaz (K7).
+
+## Saklanmayan sinir
+
+Korluk URETIM YOLUNDA bitti, her yerde degil. Elle yapilmis
+`test/_referans/referans.story` uzerinde kesit acikken 10 bulgu cikiyor ve
+olculdu: hicbiri gercek beyaz-uzerine-beyaz DEGIL -- o dosyada 24 seklin
+zemini hic cozulemiyor. Hicbir kapiyi kirmizi yapmiyor (referans zaten
+bilerek bozuk bir cipa), ama elle yapilmis bir kursa bu araci dogrultan biri
+o gurultuyu gorur. Kalan sinif: kapali gradOvrlyFill.
+
+`inventory`'nin katman taramasi HALA KOR ve kanarya bunu olcmeye devam
+ediyor.

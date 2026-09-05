@@ -2099,6 +2099,19 @@ def check_choice_count() -> list[str]:
 #                           olmasin diye; kazanim kaydedilmezse korunmaz, K7)
 #   * ayni imza, farkli deger/adet -> deger surukleniyor
 
+# KALDIRILAN GIRDI (2026-09-05): slidee.xml'in iki katmanindaki tasma.
+#
+# Kirik DUZELMEDI, KAYNAGI GITTI. `slidee.xml` bos sablonun (test/bos.story)
+# icindeydi ve katmanlarinda "ISINIZE YARADIGI ICIN SEVINDIK" yaziyordu --
+# yani hasat edildigi kursun cumleleri, bos bir sablonda isi olmayan icerik.
+# `tools/blank_temizle.py` olcutu "katmaninda yazi tasiyan slayt da artiktir"
+# diye genisletilince slayt sablondan cikti; variety.story ondan uretildigi
+# icin tasma da gitti.
+#
+# Kapi bunu SESSIZ GECMEDI: "TABAN ESKIMIS -- bu kirik artik yok" diye
+# bagirdi ve girdi elle kaldirildi. Kazanim kaydedilmezse korunmaz (K7):
+# ayni tasma geri gelirse artik YENI KIRIK olarak cikar.
+
 BILINEN_KIRIKLAR = {
     "N harf: havuz N adaya dustu (taban N)": {
         "ornekler": [[40.0, 2.0, 6.0]],
@@ -2108,17 +2121,6 @@ BILINEN_KIRIKLAR = {
             "sinyali gizlerdi. Eski taban 8 yaziyordu ama o sayi hicbir "
             "zeminde uretilemiyordu -- kovalanmadi, dondurulup yeniden "
             "olculdu (bkz. POOL_MEASURED yorumu).",
-    },
-    "metin kutusunu asiyor (kirpilmaz, komsusuna biner): "
-    "slidee.xml/katmanN Npt '...' N > N": {
-        "ornekler": [[1.0, 16.0, 57.0, 54.0], [2.0, 16.0, 114.0, 98.0]],
-        "gerekce":
-            "slidee'nin iki katmani OKSUZ: 2026-08-26'da dosyaya soruldu -- "
-            "variety.story'de 4 gercek katman-acma tetikleyicisi var "
-            "(slide6, slideb) ve slidee'nin bu iki katmanina isaret eden "
-            "SIFIR. Ogrenci onlari hic acmiyor. Ayrica 'tasma' burada veri "
-            "kaybi degil: olculdu ki Storyline KIRPMIYOR, metin komsusunun "
-            "uzerine biniyor -- duzen sorunu, dogruluk sorunu degil.",
     },
 }
 
