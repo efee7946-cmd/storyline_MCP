@@ -471,3 +471,65 @@ Bu, ayni gunun ucuncu "kapi yanlis soyluyor" vakasi:
      katmanlarin dogrulandigi degil, HIC BAKILMADIGI anlamina gelir."
 
 Yani "butun kapilar gecti" cumlesi katmanlar icin bir sey soylemiyor.
+
+---
+
+# KATMANLARDA GORUNMEZ YAZI -- 12 vaka, DUZELTILDI (2026-09-05)
+
+## Sonuc
+
+    reveal katmanlarinda esigin altinda yazi:  12 -> 0
+    (olcum kurali: zemin = seklin KENDI dolgusu, yoksa ustunu orten
+     katman/temel sekil, yoksa slayt zemini)
+
+## Bulgu
+
+Uretilen kursta icerik slaytlarinin "tikla-acilsin" (reveal) katmanlarinda
+12 yazi BEYAZ UZERINE BEYAZ ciziliyordu (oran 1.00). slide4, slide12,
+slide18, slide1e -- her birinde uc yazi. Bunlar susleme degil, butona
+tiklayinca acilan ACIKLAMA metinleri.
+
+## Kok neden
+
+`_reveal_katmanlari` -> `authoring.add_layer(...)`. `add_layer` PALETI
+BILMEZ: katman tohumunu klonlar ve metni yazar, yani yazi tohumun renginde
+(beyaz) kalir. Slaydin altindaki temel katmanda #FFFFFF dolgulu bir kart
+duruyor ve yazi onun uzerine dusuyor.
+
+Soru yolu bunu ZATEN yapiyordu (`adapt_seeded_slide` -> `_recolour_for_palette`);
+baglanmamis olan icerik yoluydu. Duzeltme yeni hesap degil, var olan
+makineyi cagirmak: renk ARKASINDAKINE gore secilir.
+
+Dogrulama: `_recolour_for_palette` slide4'e elle kosuldugunda 23 yaziya
+dokundu ve rengi #FFFFFF -> #1F1D1A yapti; yani fonksiyon calisiyordu,
+yalnizca cagrilmiyordu.
+
+## Neden hicbir kapi soylemiyordu
+
+`contrast.audit`in katman taramasi bir bayragin arkasinda ve varsayilani
+KAPALI. Gerekcesi 2026-08-18'de olculmus ve belge dizesinde yazili:
+
+    "kesit acikken uretilen kursta 12 'bulgu' -- hepsi #FFFFFF uzerine
+     #FFFFFF, oran 1.00 ... Kendi korlugunu kusur diye raporlayan bir
+     kontrol, hic bakmayandan KOTUDUR"
+
+O gun bu 12'nin ARACIN KORLUGU oldugu varsayildi. Bugun olculdu: en az 12'si
+GERCEKTI -- yazinin altinda cozulebilir, gercek bir beyaz kart var. Varsayim
+"hepsi gurultu" idi; dogrusu "bir kismi gurultu" imis, ve kapali kapinin
+arkasindan uretime gitti.
+
+## KENDI OLCUM HATAM (kayit icin)
+
+Ilk sayim 20 idi ve YANLISTI. Sondam zemini ararken sekli KENDISINI hariç
+tutuyordu; oysa bir yazinin zemini once kendi dolgusudur. "Cevaplar"
+katmanindaki 8 textBox'in dolgusu #A63F26 (kagit vurgusu) ve beyaz yazi
+orada 6.25 veriyor -- gayet okunur. Onlar kusur degil, sondanın kusuruydu.
+
+Dogru kuralla olculen sayilar: duzeltme yokken 12, duzeltmeyle 0.
+
+## Acik kalan
+
+  * `contrast.audit` katman varsayilani hala KAPALI. Acmak icin geriye
+    kalan sinif: zemini cozulemeyen vakalar (kapali gradOvrlyFill).
+  * Acildiginda `coverage.py --kanarya` beklentisi "kor" -> "canli"
+    olarak yenilenmeli.

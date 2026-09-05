@@ -442,7 +442,7 @@ def _geri_bildirim_yazildi_mi(spec: dict, made: dict | None) -> str | None:
 
 
 def _reveal_katmanlari(pkg: StoryPackage, slide: str, items: list[dict],
-                       laid: dict) -> int:
+                       laid: dict, palette: dict | None = None) -> int:
     """Her etiketi kendi katmanina baglar: tikla, acilsin.
 
     NICIN VAR: ilk teshis (2026-09-04) su satirdi -- slayt sozlugunun
@@ -477,6 +477,31 @@ def _reveal_katmanlari(pkg: StoryPackage, slide: str, items: list[dict],
             # yalnizca acilacak bir sey yok. Kursu dusurmek, calisan bir
             # slaydi yok saymak olurdu.
             continue
+
+    # KURDUGU KATMANIN OKUNABILIRLIGI BU FONKSIYONUN ISI.
+    #
+    # `add_layer` paleti BILMEZ -- katman tohumunu klonlar ve metni yazar,
+    # yani yazi tohumun renginde kalir. Olculdu 2026-09-05, uretilmis kursta:
+    # bu katmanlarin yazisi #FFFFFF ve altindaki temel slaytta #FFFFFF dolgulu
+    # bir kart duruyor. Kontrast 1.00 -- ogrenci HICBIR SEY gormuyor. Yirmi
+    # vaka, alti slayt.
+    #
+    # Hicbir kapi da soylemiyordu: `contrast.audit`in katman taramasi kapali
+    # (varsayilani False) ve kapali tutulma gerekcesi "o kesitteki bulgular
+    # aracin korlugu" idi -- bugun olculdu, en az yirmisi GERCEKTI.
+    #
+    # Duzeltme yeni hesap DEGIL: soru yolu bunu zaten yapiyor
+    # (`adapt_seeded_slide` -> `_recolour_for_palette`), yalnizca icerik yolu
+    # baglanmamisti. Renk ARKASINDAKINE gore secilir, kuralla tahmin edilmez.
+    if palette and kurulan:
+        try:
+            authoring._recolour_for_palette(
+                pkg, pkg.slide_part_for(slide), palette,
+                stem=None, choices=set(), eyebrow=None)
+        except Exception:
+            # Renk duzeltmesi dusrse katmanlar YINE durur; kursu dusurmek
+            # calisan bir slaydi yok saymak olurdu.
+            pass
     return kurulan
 
 
@@ -1675,7 +1700,8 @@ def build(
             )
             if reveal_items:
                 _acilan = _reveal_katmanlari(pkg, new["new_slide"],
-                                             reveal_items, laid)
+                                             reveal_items, laid,
+                                             palette=palette)
                 # SESSIZ DUSME OLMASIN: etiket kuruldu ama katman kurulmadiysa
                 # slayt tiklanabilir gorunur ve hicbir sey acmaz.
                 if _acilan < len(reveal_items):
