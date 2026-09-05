@@ -160,7 +160,7 @@ def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
 
     try:
         sonuc = authoring.add_results_slide(pkg, scene=SONUC_SAHNESI,
-                                            name="Sonuclar")
+                                            name="Sonuçlar")
         rapor["sonuc_slaydi"] = sonuc.get("new_slide")
         # Sahne ADI geri veriliyor, guid degil: guid'i cagiran story.xml'den
         # cozuyor. install_slide scene_guid dondurmuyor ve burada ikinci bir
@@ -180,8 +180,8 @@ def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
     try:
         authoring.add_layer(
             pkg, rapor["sonuc_slaydi"], KILIT_KATMANI,
-            text=(f"Bu kursta {esik} bolum var ve hepsini tamamlamadiniz. "
-                  "Sonuclariniz butun bolumler bittikten sonra hesaplanir."))
+            text=(f"Bu kursta {esik} bölüm var ve hepsini tamamlamadınız. "
+                  "Sonuçlarınız bütün bölümler bittikten sonra hesaplanır."))
         logic.add_trigger(pkg, rapor["sonuc_slaydi"], "show_layer",
                           event="OnStart", layer=KILIT_KATMANI,
                           conditions=[{"variable": "Ilerleme", "op": "lt",

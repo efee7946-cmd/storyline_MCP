@@ -1564,7 +1564,7 @@ def build(
                 continue
             if spec.get("kind") == "hotspot":
                 made = authoring.add_hotspot_question(
-                    pkg, spec.get("prompt", "Gorsel uzerindeki dogru alana tiklayin."),
+                    pkg, spec.get("prompt", "Görsel üzerindeki doğru alana tıklayın."),
                     scene=scene_name,
                     eyebrow=scene.get("title") or scene_name,
                     palette=palette, points=10,

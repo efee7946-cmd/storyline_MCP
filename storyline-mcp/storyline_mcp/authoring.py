@@ -2494,7 +2494,7 @@ DECORATIVE_SHAPES = ("rect", "roundRect", "oval", "line", "textBox")
 
 
 def add_results_slide(
-    pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuclar"
+    pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuçlar"
 ) -> dict:
     """Add a quiz results slide.
 

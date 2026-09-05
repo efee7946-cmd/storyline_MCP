@@ -302,7 +302,7 @@ def _apply_op(pkg: StoryPackage, op: dict) -> dict:
         return settings.set_theme_font(pkg, op["font"], master=op.get("master"))
     if kind == "add_results_slide":
         return authoring.add_results_slide(
-            pkg, scene=op.get("scene"), name=op.get("name", "Sonuclar")
+            pkg, scene=op.get("scene"), name=op.get("name", "Sonuçlar")
         )
     if kind == "restyle_text":
         return authoring.restyle_slide_text(
@@ -1254,7 +1254,7 @@ def set_theme_font(
 def add_results_slide(
     path: str,
     scene: str | None = None,
-    name: str = "Sonuclar",
+    name: str = "Sonuçlar",
     output_path: str | None = None,
     in_place: bool = False,
 ) -> dict:
