@@ -151,6 +151,49 @@ def _kopuk_atlamalari_onar(raw: str, bilinen: set[str]) -> tuple[str, int]:
     return desen.sub(_duzelt, raw), sayac
 
 
+def _olu_degisken_tetikleyicileri(raw: str, bilinen: set[str]) -> tuple[str, int]:
+    """Tanimsiz bir degiskene yazan tetikleyicileri KALDIRIR.
+
+    AYNI SINIF, IKINCI YUZU. `_kopuk_atlamalari_onar` sahne hedefini
+    onariyor; bu, DEGISKEN hedefini. Ikisi de tohumun disariya bakan
+    referansi, ikisini de `install_slide`in GUID yenilemesi atliyor --
+    cunku o yalnizca slaydin TANIMLADIGI GUID'leri (`g`/`verG`) yeniler.
+
+    Olculdu 2026-09-06: `8041a620-761b-41d3-955f-ed3c9a72cecc` SEKIZ soru
+    tohumunun her birinde birer kez geciyor ve `bos.story`de HIC gecmiyor.
+    Yani her soru, hasat edildigi donor kursun puan degiskenine "+10"
+    yaziyor; hedef kursta oyle bir degisken yok, ucu de hicbir sey
+    yapmiyordu. Kullanicinin denetiminde 4 numarali bulgu buydu.
+
+    NICIN SILINIYOR, degisken URETILMIYOR. Storyline'in kendi puanlamasi
+    zaten calisiyor (`intrProps corPts`), yani bu tetikleyici en iyi
+    ihtimalle gereksiz. Eksik degiskeni uretmek, hicbir yerde gosterilmeyen
+    ve raporlanmayan bir sayac eklerdi -- ayni denetimin 23 numarali
+    bulgusu tam olarak boyle olu bir degisken.
+
+    DAR KAPSAM, ve bilerek: yalnizca `action="adjustVar"` tasiyan ve
+    `<other varG="...">`i COZULMEYEN tetikleyiciler. Cozulen varG'ye
+    dokunulmaz; NULL varG'ye dokunulmaz (o zaten "degisken yok" demek ve
+    baska amaclarla her yerde geciyor).
+    """
+    sayac = 0
+
+    def _ele(m: "re.Match") -> str:
+        nonlocal sayac
+        blok = m.group(0)
+        if 'action="adjustVar"' not in blok:
+            return blok
+        hedefler = re.findall(rf'<other[^>]*\svarG="({GUID})"', blok)
+        kopuk = [g for g in hedefler if g != NULL_GUID and g not in bilinen]
+        if not kopuk:
+            return blok
+        sayac += 1
+        return ""
+
+    desen = re.compile(r"<(\w*[Tt]rig)\b[^>]*>.*?</\1>", re.S)
+    return desen.sub(_ele, raw), sayac
+
+
 def _rewrite_root_attr(raw: str, attr: str, value: str) -> str:
     """Set an attribute on the slide's root element, touching nothing else."""
     start = raw.index("<", raw.index("?>") + 2)
@@ -267,6 +310,8 @@ def install_slide(
     _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
     _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
     new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
+    new_raw, _olu_var = _olu_degisken_tetikleyicileri(new_raw, _bilinen)
+    _onarilan_atlama += _olu_var
     slide_guid = re.search(rf'<sld[^>]*\sg="({GUID})"', new_raw)
     if slide_guid is None:
         raise StoryError("Slayt XML'inde kok GUID bulunamadi.")
@@ -389,6 +434,8 @@ def clone_slide(
     _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
     _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
     new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
+    new_raw, _olu_var = _olu_degisken_tetikleyicileri(new_raw, _bilinen)
+    _onarilan_atlama += _olu_var
 
     new_slide_guid = mapping[source_ref.guid]
     if name is not None:

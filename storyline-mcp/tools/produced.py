@@ -49,9 +49,12 @@ import completeness
 import inventory
 
 # Ureticinin urettigi kursta hedefi cozulmeyen tetikleyici sayisi.
-# 2026-09-06'da olculdu: kaynak bos.story 12 tasiyor, urun 53 -- yani
-# uretici 41 ekliyor. Gerekce ve iki yonluluk asagida, kullanildigi yerde.
-KOPUK_TABAN = 53
+# 2026-09-06'da olculdu: kaynak bos.story 12 tasiyor, urun 44 -- yani
+# uretici 32 ekliyor. (Ilk olcumde 53'tu; tohumun tasidigi kopuk sahne
+# hedefi ve olu puan degiskeni onarilinca 44'e dustu ve KAPI BUNU
+# YAKALADI: 'DUSTU: taban yeniden yazilmali'. Ciftyonluluk ilk turda
+# ise yaradi.) Gerekce ve iki yonluluk asagida, kullanildigi yerde.
+KOPUK_TABAN = 44
 
 BLANK = ROOT.parent / "test" / "bos.story"
 WORK = ROOT.parent / "test" / "_canary" / "uretilmis.story"
@@ -359,7 +362,7 @@ def main() -> int:
     # tabanin eskimesi demektir ve ikisi de bagirmali (completeness'in
     # BEKLENEN_BOZUK cipasindaki ayni gerekce).
     #
-    # 53 BIR HEDEF DEGIL, BIR BORC. Ureticinin ekledigi 41'in tamami
+    # 44 BIR HEDEF DEGIL, BIR BORC. Ureticinin ekledigi 32'nin tamami
     # silinmis geri bildirim katmanlarina isaret eden corFbG/incFbG
     # referanslarindan geliyor (olculdu). O sinif duzeltilince bu sayi
     # DUSECEK ve burasi bagiracak -- dogrusu da bu: taban o zaman yeniden
