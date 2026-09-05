@@ -1467,7 +1467,10 @@ def build(
             if spec.get("kind") == "drag":
                 try:
                     made = authoring.add_drag_question(
-                        pkg, spec.get("prompt", "Dogru kutuya surukle."),
+                        # Yedek kok da OGRENCIYE gider: model prompt
+                        # vermediginde ekranda okunan sey budur, o yuzden
+                        # diakritikli yazilir (bkz. compose.FEEDBACK_DEFAULT).
+                        pkg, spec.get("prompt", "Doğru kutuya sürükle."),
                         spec.get("groups") or {},
                         scene=scene_name,
                         eyebrow=scene.get("title") or scene_name,

@@ -1839,12 +1839,43 @@ def add_question(
             props.set("corPts", str(points))
 
     pkg.replace_xml(result["part"], root)
+
+    # YAZARIN GERI BILDIRIMI BU YOLDA DA YAZILIR.
+    #
+    # `feedback` bir sure YALNIZCA gomulu tohum dalinda kullaniliyordu ve
+    # klon dalinda sessizce dusuyordu -- belgelenmis bir karar da degildi:
+    # docstring yalnizca `eyebrow`/`palette` icin "yalnizca tohum yolunda"
+    # diyor, cunku onlar TASARIM. feedback ise ICERIK; dusurulunce ogrenci
+    # sablonun eski metnini okur.
+    #
+    # OLCULDU 2026-09-05: taban paketten (bos.story) klonlanan bir soruda
+    # katman metni "Tekrar dusunelim / Hatasizlik kanitlanamaz..." olarak
+    # kaldi -- sablonun onceki kusagindan devralinan cumle. Yazar bambaska
+    # bir geri bildirim vermisti.
+    #
+    # Ve kayip GORUNMUYORDU: builder._geri_bildirim_yazildi_mi `rewritten`
+    # alanina bakiyor, klon dali o alani hic dondurmuyordu, dolayisiyla
+    # "kurucu bildirmiyor; iddia etmeyelim" dalina dusup susuyordu.
+    #
+    # PALET DE GECILIYOR, ve bu docstring'deki sinirla CELISMEZ: oradaki
+    # gerekce slaydin tasarimini sablondan almak. Katman ise bir POP-UP ve
+    # kursun ustunde acilir; tohumun renklerinde birakmak, mor bir kursun
+    # ustunde koyu gri bir kutu demek (kullanici bildirdi 2026-09-05).
+    from . import compose as _compose
+    geri_bildirim = _compose.compose_feedback_layers(
+        pkg, result["part"], palette=palette, feedback=feedback)
+    if _tag == "dragDropIntr":
+        geri_bildirim = {**geri_bildirim,
+                         **_compose.compose_drag_feedback(
+                             pkg, result["part"], feedback=feedback)}
+
     # Iki soru yolu var (klon ve gomulu tohum) ve kayit IKISINDE de olmali.
     # Yalnizca birine baglanan bir duzeltme, sablonun nereden geldigine gore
     # bazen calisip bazen calismayan bir kurs uretirdi -- ve iki yol da gecerli
     # dosya urettigi icin hicbir sey bagirmazdi.
     registration = register_question(pkg, root.get("g", ""))
     return {
+        **geri_bildirim,
         **result,
         "question_type": tag,
         "prompt": prompt,

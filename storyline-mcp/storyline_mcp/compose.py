@@ -1205,11 +1205,27 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
     return {"drag_feedback": written}
 
 
+# OGRENCIYE GIDEN METIN TURKCE YAZILIR -- yorumlar gibi ASCII degil.
+#
+# Bu dosyanin yorumlari bilerek diakritiksiz; bu sozluk DEGIL. Buradaki
+# dizeler dogrudan slayda yazilir ve ekranda okunur. Bir sure "Dogru" ve
+# "Tekrar dusunelim" yaziyordu ve kullanici tam olarak oyle gordu
+# (bildirildi 2026-09-05, ekran goruntusuyle).
+#
+# Kusur bir kez fark edilmis ve YANLIS YERDEN cozulmustu: 2026-09-04'te
+# "drag tohumunun duzgun Turkce basligi ASCII varsayilana dusuyordu"
+# olculup, varsayilani duzeltmek yerine TOHUMUN basligi korunmustu. O
+# yama yalnizca tohumun iyi bir basligi oldugu yerlerde saklamis; geri
+# kalan her yerde ASCII varsayilan kazanmaya devam etmisti.
+#
+# GOVDE yalnizca YEDEK: yazar feedback verdiginde onunki yazilir. BASLIK
+# ise her zaman buradan gelir (yazar baslik vermiyor), o yuzden bu iki
+# kelime uretilen her kursta gorunur.
 FEEDBACK_DEFAULT = {
-    True:  ("Dogru", "Bu secim, bolumde anlatilan davranisla ortusuyor."),
-    False: ("Tekrar dusunelim",
-            "Bu secim, bolumde anlatilan davranisla ortusmuyor. "
-            "Soru koku yeniden okunmali."),
+    True:  ("Doğru", "Bu seçim, bölümde anlatılan davranışla örtüşüyor."),
+    False: ("Tekrar düşünelim",
+            "Bu seçim, bölümde anlatılan davranışla örtüşmüyor. "
+            "Soru kökü yeniden okunmalı."),
 }
 
 
