@@ -2835,10 +2835,23 @@ def _layer_seed(pkg: StoryPackage) -> ET.Element:
     on a real deck: 130 GUIDs defined inside, only 2-3 pointing outward, and
     the layouts those point at are shared across projects.
     """
+    # TETIKLEYICISI OLAN katman secilir -- OLCULDU 2026-09-06.
+    #
+    # Once "projede bulunan ILK katman" doneniyordu. Kullanicinin urettigi
+    # kursta o katman, bir SORUNUN geri bildirim katmaniydi ve klonlanan
+    # kopya iki kusuru birden tasidi: dugmesinde hicbir tetikleyici yoktu
+    # (acilan katman KAPANMIYORDU) ve etiketi "Dogru Cevabi Gor" idi --
+    # soru olmayan bir icerik slaydinda. Kullanicinin 8 numarali bulgusu.
+    #
+    # Gomulu `layer.xml`in dugmesi calisan bir tetikleyici tasiyor
+    # (OnClick -> jumpToSlide/next). Bu yuzden secim artik "ilk bulunan"
+    # degil "ISE YARAYAN": tetikleyicisiz bir katmani klonlamak, disaridan
+    # dogru gorunen ve tiklayinca hicbir sey yapmayan bir pop-up uretir.
     for part in model.slide_index(pkg):
         layers = pkg.parse(part).find("sldLayerLst")
         for layer in list(layers) if layers is not None else []:
-            return layer
+            if any(len(tl) for tl in layer.iter("trigLst")):
+                return layer
 
     seed = clone.SEED_DIR / "layer.xml"
     if seed.is_file():
@@ -2943,6 +2956,42 @@ def add_layer(
         if target:
             set_shape_text(layer, target, text)
 
+        # YABANCI METIN SUPURULUR -- OLCULDU 2026-09-06.
+        #
+        # Katman klonlanarak kuruluyor ve klonlanan sey, projede bulunan
+        # baska bir katman olabiliyor. `text` yalnizca EN UZUN metin
+        # sekline yaziliyor; katmanin OTEKI metinleri oldugu gibi kaliyor.
+        #
+        # Kullanicinin urettigi futbol kursunda bir katmanda bes metin
+        # vardi: "Yapiskan nottaki parola", "Varsayilan parolali modem",
+        # "Masada acikta duran belgeler"... Siber guvenlik icerigi, futbol
+        # savunma modulunde, ve yanlis cevap veren HERKESE gosteriliyordu
+        # (11 numarali bulgu). Hicbir yapisal kontrol bunu goremez: dosya
+        # gecerli, katman aciliyor, metin var.
+        #
+        # `compose_feedback_layers` ayni dersi kendi tarafinda ogrenmis ve
+        # belge dizesine yazmis: "Tohumun metni HICBIR durumda kalmaz:
+        # yanlis bir aciklama, bos bir aciklamadan kotudur." Ayni kural
+        # bu yola da gecerli.
+        #
+        # DUGMELER AYRI: etiketleri silinmez, NOTRLESTIRILIR. Bos bir
+        # dugme tiklanamaz gorunur; "Dogru Cevabi Gor" ise soru olmayan
+        # bir slaytta yalan soyler.
+        for shape, _t, doc, _s in model._iter_text_shapes(layer):
+            guid = shape.get("g", "")
+            if not guid or guid == target:
+                continue
+            # LABEL_SHAPES `textEntry`yi de iceriyor ve ona "Devam"
+            # yazmak yazma kutusunu bozar; yalnizca DUGMELER notrlesir.
+            if shape.tag in ("btn", "rsltBtn", "feedBackBtn"):
+                if model._doc_text(doc).strip():
+                    set_shape_text(layer, guid, "Devam")
+                continue
+            if shape.tag in LABEL_SHAPES:
+                continue
+            if model._doc_text(doc).strip():
+                set_shape_text(layer, guid, "")
+
     wired = None
     if open_from:
         opener = _shape_by_text_or_guid(root, open_from)
@@ -2951,10 +3000,47 @@ def add_layer(
         wired = shapes.retarget_to_layer(opener, layer_guid)
 
     pkg.replace_xml(part, root)
+
+    # KATMANIN DUGMESI KATMANI KAPATSIN -- OLCULDU 2026-09-06.
+    #
+    # `shapes.clone_shape` tetikleyicileri BILEREK dusuruyor ve gerekcesi
+    # dogru: "klonlanan seklin tetikleyicileri hala BASKASININ gezinmesini
+    # gosterir". Ama pop-up katmani boylece TETIKLEYICISIZ kaliyor: ogrenci
+    # katmani aciyor, icindeki dugmeye basiyor ve hicbir sey olmuyor.
+    # Kullanicinin urettigi kursta 8 numarali bulgu buydu -- "katmandaki
+    # dugmenin hic tetikleyicisi yok (trigLst bos)".
+    #
+    # Dusurulen tetikleyicinin yerine DISARIYA bakmayan bir tanesi
+    # konuyor: katmani KENDINI kapat. Kursa ozgu hicbir hedef tasimaz,
+    # yani klonlamanin kacindigi sorunu geri getirmez.
+    kapatilan = 0
+    try:
+        from . import logic as _logic
+        _kok = pkg.parse(part)
+        _kat = next((k for k in (_kok.find("sldLayerLst") or [])
+                     if k.get("g") == layer_guid), None)
+        _liste = _kat.find("shapeLst") if _kat is not None else None
+        for _sh in (list(_liste) if _liste is not None else []):
+            if _sh.tag not in ("btn", "rsltBtn", "feedBackBtn"):
+                continue
+            # KATMAN ADLA COZULUYOR, GUID'le degil -- `add_trigger`
+            # boyle arıyor ve GUID verilince "Katman bulunamadi" diyor.
+            _logic.add_trigger(pkg, slide, "hide_layer",
+                               shape=_sh.get("g") or "",
+                               owner_layer=name, layer=name)
+            kapatilan += 1
+            break
+    except Exception:
+        # Tetikleyici kurulamazsa katman YINE calisir: aciliyor, yalnizca
+        # dugmesi kapatmiyor. Kursu dusurmek, calisan bir katmani yok
+        # saymak olurdu -- ayni gerekce `_reveal_katmanlari`de de yazili.
+        kapatilan = 0
+
     return {
         "slide": slide,
         "layer": name,
         "layer_guid": layer_guid,
+        "kapatma_tetikleyicisi": kapatilan,
         "text": text,
         "opened_by": open_from,
         "trigger_wired": wired,
