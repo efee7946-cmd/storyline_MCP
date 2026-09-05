@@ -369,6 +369,27 @@ def clone_slide(
     if source_ref.guid not in mapping:
         raise StoryError("Kaynak slaydin kendi GUID'i bulunamadi; klonlama guvenli degil.")
     new_raw = _remap_guids(raw, mapping)
+
+    # KLON YOLU DA ONARILIR, ve bu bir DELIK kapatiyor (2026-09-06).
+    #
+    # Onarim once yalnizca `install_slide`a konmustu, yani GOMULU TOHUM
+    # yoluna. Ama soru slaydi her zaman oradan gelmiyor: `_pick_template`
+    # "once projeninki" diyor -- kursta ayni sik sayisinda bir soru slaydi
+    # varsa ONU kullanir, ve o yol BURADAN gecer.
+    #
+    # Sonuc: temiz bir dosyadan baslayan kurs korunuyordu, KIRLI bir
+    # kurstan devam eden kurs kirliligi kopyalamaya devam ediyordu. Aracin
+    # asil kullanimi ikincisi -- kullanici bir modulu bitirip ustune yenisini
+    # kuruyor.
+    #
+    # Ayni pakette klonlarken hedefler normalde COZULUR, yani bu cagri
+    # cogu zaman hicbir sey yapmaz. Is gordugu yer, kaynak slaydin ZATEN
+    # kopuk bir hedef tasidigi durum: devralinan kir orada durur ve klon
+    # onu aynen tasirdi.
+    _bilinen = {e.get("g") for e in pkg.parse(STORY_PART).iter() if e.get("g")}
+    _bilinen |= set(re.findall(rf'\sg="({GUID})"', new_raw))
+    new_raw, _onarilan_atlama = _kopuk_atlamalari_onar(new_raw, _bilinen)
+
     new_slide_guid = mapping[source_ref.guid]
     if name is not None:
         new_raw = _rewrite_root_attr(new_raw, "name", name)
@@ -403,6 +424,7 @@ def clone_slide(
     pkg.replace_xml(STORY_PART, story)
 
     return {
+        "onarilan_atlama": _onarilan_atlama,
         "new_slide": new_part.rsplit("/", 1)[1],
         "part": new_part,
         "slide_guid": new_slide_guid,

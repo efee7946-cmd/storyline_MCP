@@ -48,6 +48,11 @@ import builder
 import completeness
 import inventory
 
+# Ureticinin urettigi kursta hedefi cozulmeyen tetikleyici sayisi.
+# 2026-09-06'da olculdu: kaynak bos.story 12 tasiyor, urun 53 -- yani
+# uretici 41 ekliyor. Gerekce ve iki yonluluk asagida, kullanildigi yerde.
+KOPUK_TABAN = 53
+
 BLANK = ROOT.parent / "test" / "bos.story"
 WORK = ROOT.parent / "test" / "_canary" / "uretilmis.story"
 
@@ -340,6 +345,36 @@ def main() -> int:
     if survey["sorusuz_kayit"]:
         problems.append(f"{len(survey['sorusuz_kayit'])} kayit etkilesimsiz "
                         "slaydi izliyor")
+    # KOPUK TETIKLEYICI: SAYILIYOR AMA DOGRULANMIYORDU (2026-09-06).
+    #
+    # Bu kontrol `kayitsiz`, `lms_bos` ve `scored` uzerinde duruyordu;
+    # `dangling` uzerinde HIC durmuyordu. Bedeli olculdu: kullanicinin
+    # panelden urettigi kursta 21 kopuk vardi, bu kontrolun KENDI
+    # artefaktinda 58 vardi, ve kapi "olculen her sinifta temiz" diyordu.
+    # Sinif olculmuyordu.
+    #
+    # SIFIR BEKLENMIYOR, ve beklenmemeli: kaynak `bos.story` kendisi 12
+    # kopuk tasiyor ve onlar kullanicinin dosyasinin sorunu. Beklenen sey
+    # SABITLIK. Sayi IKI YONLU tutuluyor -- buyumesi gerileme, kucultmesi
+    # tabanin eskimesi demektir ve ikisi de bagirmali (completeness'in
+    # BEKLENEN_BOZUK cipasindaki ayni gerekce).
+    #
+    # 53 BIR HEDEF DEGIL, BIR BORC. Ureticinin ekledigi 41'in tamami
+    # silinmis geri bildirim katmanlarina isaret eden corFbG/incFbG
+    # referanslarindan geliyor (olculdu). O sinif duzeltilince bu sayi
+    # DUSECEK ve burasi bagiracak -- dogrusu da bu: taban o zaman yeniden
+    # yazilir.
+    kopuk = len(found_dangling := survey["dangling"])
+    print(f"\n  kopuk     {kopuk}/{KOPUK_TABAN}"
+          f"    {'temiz' if kopuk == KOPUK_TABAN else 'SAPMA'}"
+          f"   hedefi cozulmeyen tetikleyici (iki yonlu)")
+    if kopuk != KOPUK_TABAN:
+        problems.append(
+            f"kopuk tetikleyici {kopuk}, taban {KOPUK_TABAN} — "
+            + ("BUYUDU: uretici yeni kopuk ekliyor"
+               if kopuk > KOPUK_TABAN else
+               "DUSTU: iyilesme olabilir, taban yeniden yazilmali"))
+
     if izleme["lms_bos"] and survey["scored"]:
         problems.append("lmsResultSlideG bos — LMS'e bildirilecek sonuc "
                         "slaydi secilmemis")
