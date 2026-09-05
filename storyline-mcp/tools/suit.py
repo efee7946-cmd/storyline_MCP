@@ -103,6 +103,16 @@ ADIMLAR = [
     # Ureticiyi degil OLCUYU koruyor: ogretim kalitesi modelin ciktisina
     # bagli ve kapilar model cagirmaz. Korunan sey su -- olcu sessizce
     # olurse her kurs temiz gorunur.
+    # YENI MODUL KAPISI. Yukaridaki kapilar kursun olculerine bakiyor;
+    # bu, SIFIRDAN kurulan yeni bir modulun 2026-09-06'da duzeltilen sekiz
+    # kusur sinifindan hicbirini tasimadigini sinar.
+    #
+    # Nicin ayri: "duzeltildi" ile "bir daha olmayacak" ayni sey degil.
+    # Kullanicinin sordugu soru da buydu -- duzeltmeler bu modul icin mi,
+    # yoksa sonrakiler icin mi. Bu kapi, o sorunun her kosuda tekrarlanan
+    # cevabi.
+    ("yeni modul",      [PY, "tools/yeni_modul.py"],
+     True,  False, "URETIR: sifirdan modul; 8 kusur sinifini sinar"),
     ("ogretim",         [PY, "tools/ogretim_kapi.py"],
      True,  False, "OKUR: donors/* + referans; kanarya URETIR"),
     ("inventory",       [PY, "tools/inventory.py", REFERANS],
