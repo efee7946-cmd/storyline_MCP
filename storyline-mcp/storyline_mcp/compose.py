@@ -73,6 +73,36 @@ TYPE_SCALE = {
 TYPE_LADDER = tuple(sorted(set(TYPE_SCALE.values())))
 
 
+def buyuk(metin: str) -> str:
+    """Turkce buyuk harf. `str.upper()` bu dilde YANLIS sonuc veriyor.
+
+    Python `i`yi `I`ya cevirir; Turkcede `i`nin buyugu `I` DEGIL `Ist`tir --
+    yani noktali `I` (U+0130). Ters yonde de ayni: `i` (noktasiz) `I`ya
+    gitmelidir. Kalan harfleri (g u s o c) Python zaten dogru ceviriyor.
+
+    OLCULDU 2026-09-06, kullanicinin urettigi savunma.story'de dort baslik:
+
+        SAVUNMANIN TEMEL ILKELERI   ->  ...ILKELERI  (dogrusu ILKELERI)
+        ILETISIM VE ROLLER          ->  ILETISIM     (dogrusu ILETISIM)
+        POZISYON ALMA VE KAYMA      ->  POZISYON     (dogrusu POZISYON)
+        TAKIM SAVUNMASI EGITIMI     ->  EGITIMI      (dogrusu EGITIMI)
+
+    KURAL BURADA DURUYOR, on uc cagri yerinde degil. `buyuk(eyebrow)`
+    compose.py icinde on uc kez geciyordu; her cagiranin kendi cevrimini
+    yazmasi, birinde unutmak demektir -- bu projede ayni desen daha once
+    de cikti ve kural "dali degil, kuralin YERINI duzelt" diye yazildi.
+
+    SINIR, ve saklanmiyor: cevrim KOSULSUZ Turkce. Ingilizce bir eyebrow
+    ("Introduction") burada "IstNTRODUCTIstON" olurdu. Kosullu yapmak
+    denenmedi cunku OLCULEBILIR SEKILDE YETMIYOR: kullanicinin ornegi
+    "Pozisyon Alma ve Kayma" Turkceye ozgu HICBIR harf tasimiyor, yani
+    "Turkce karakter varsa Turkce cevir" kurali tam o vakayi kacirirdi.
+    Panelin kitlesi Turkce kurs ureten egitim teknologlari; dogru cozum
+    ileride bir dil bayragi, sezgi degil.
+    """
+    return metin.replace("i", "İ").replace("ı", "I").upper()
+
+
 def snap(size: float) -> float:
     """En yakın merdiven basamağı."""
     return min(TYPE_LADDER, key=lambda step: (abs(step - size), step))
@@ -598,7 +628,7 @@ def _question_frame_once(pkg: StoryPackage, part: str, *,
     if eyebrow and look["eyebrow_case"] == "title":
         eyebrow = eyebrow.title()
     else:
-        eyebrow = eyebrow.upper() if eyebrow else eyebrow
+        eyebrow = buyuk(eyebrow) if eyebrow else eyebrow
     spec = QUESTION_VARIANTS.get(variant) or QUESTION_VARIANTS[QUESTION_DEFAULT]
     kok_x, kok_w = spec["stem"]
     sik_x, sik_w = spec["choices"]
@@ -905,7 +935,7 @@ def compose_drag_frame(pkg: StoryPackage, part: str, *,
     # dururdu -- tohumdan yalnizca anatomi alma kuralinin bedeli.
     look = _apply_style(page, colors, style, pkg)
     if eyebrow:
-        eyebrow = eyebrow.title() if look["eyebrow_case"] == "title" else eyebrow.upper()
+        eyebrow = eyebrow.title() if look["eyebrow_case"] == "title" else buyuk(eyebrow)
 
     by_guid = {s.get("g"): s for s in shape_list if s.get("g")}
     items: list[str] = []
@@ -1078,7 +1108,7 @@ def compose_text_frame(pkg: StoryPackage, part: str, *,
         if look["eyebrow_case"] == "title":
             eyebrow = eyebrow.title()
         else:
-            eyebrow = eyebrow.upper()
+            eyebrow = buyuk(eyebrow)
         h = page.text_height(eyebrow, "eyebrow", CONTENT_W)
         page.text(eyebrow, top, role="eyebrow", height=h,
                   color=colors["accent_text"])
@@ -2395,8 +2425,8 @@ def compose_slide(
 
         blocks, parts = [], []
         if eyebrow:
-            h = page.text_height(eyebrow.upper(), "eyebrow", text_w)
-            blocks.append(h); parts.append(("eyebrow", eyebrow.upper(), h))
+            h = page.text_height(buyuk(eyebrow), "eyebrow", text_w)
+            blocks.append(h); parts.append(("eyebrow", buyuk(eyebrow), h))
         h = page.text_height(title or "Baslik", "display", text_w * 0.86)
         blocks.append(h); parts.append(("display", title or "Baslik", h))
         if body:
@@ -2443,7 +2473,7 @@ def compose_slide(
         # kisma yuksekligi degil PUNTOYU kissin.
         _bant = (FLOOR - 14) - (CEILING + 4)
         _spec = ([("numeral", index, 20.0)] if index
-                 else [("eyebrow", eyebrow.upper(), CONTENT_W)] if eyebrow
+                 else [("eyebrow", buyuk(eyebrow), CONTENT_W)] if eyebrow
                  else [])             + [("display", title or "Bolum", s_w * 0.95)]             + ([("lead", body, s_w * 0.83)] if body else [])
         page.scale = density_scale(page, _spec, _bant)
 
@@ -2452,8 +2482,8 @@ def compose_slide(
             h = page.text_height(index, "numeral", 20)
             blocks.append(h); parts.append(("numeral", index, h, 20))
         elif eyebrow:
-            h = page.text_height(eyebrow.upper(), "eyebrow", CONTENT_W)
-            blocks.append(h); parts.append(("eyebrow", eyebrow.upper(), h, CONTENT_W))
+            h = page.text_height(buyuk(eyebrow), "eyebrow", CONTENT_W)
+            blocks.append(h); parts.append(("eyebrow", buyuk(eyebrow), h, CONTENT_W))
         h = page.text_height(title or "Bolum", "display", s_w * 0.95)
         blocks.append(h); parts.append(("display", title or "Bolum", h, s_w * 0.95))
         if body:
@@ -2503,12 +2533,12 @@ def compose_slide(
             # block dominates and where the slide's weight sits.
             head_h = page.text_height(title or "Baslik", "title", CONTENT_W)
             if eyebrow:
-                head_h += page.text_height(eyebrow.upper(), "eyebrow", CONTENT_W)
+                head_h += page.text_height(buyuk(eyebrow), "eyebrow", CONTENT_W)
             strip = head_h + UNIT * 100 * 1.6
             page.band(0, 0, 100, strip, colors["surface"], name="Serit")
             y = UNIT * 100 * 0.7
             if eyebrow:
-                y += page.text(eyebrow.upper(), y, role="eyebrow", x=MARGIN_X,
+                y += page.text(buyuk(eyebrow), y, role="eyebrow", x=MARGIN_X,
                                w=CONTENT_W, color=colors["accent_text"])
             page.text(title or "Baslik", y, role="title", x=MARGIN_X,
                       w=CONTENT_W, color=colors["text"])
@@ -2520,7 +2550,7 @@ def compose_slide(
         # olcege bagli, dolayisiyla once olcegi bul sonra olc. Kartlar
         # olcege girmez -- kendi taban yukseklikleri var ve punto onlari
         # buyutmez, yalnizca metnin sigacagi alani daraltir.
-        spec = ([("eyebrow", eyebrow.upper(), text_w)] if eyebrow else []) \
+        spec = ([("eyebrow", buyuk(eyebrow), text_w)] if eyebrow else []) \
             + ([("title", title, text_w)] if title else []) \
             + ([("body", body, text_w)] if body else [])
         room = bottom - ceiling
@@ -2600,8 +2630,8 @@ def compose_slide(
         _b_x, _b_w = shape_var.get("text", (MARGIN_X, CONTENT_W))
         head = []
         if eyebrow:
-            head.append(("eyebrow", eyebrow.upper(),
-                         page.text_height(eyebrow.upper(), "eyebrow", _b_w)))
+            head.append(("eyebrow", buyuk(eyebrow),
+                         page.text_height(buyuk(eyebrow), "eyebrow", _b_w)))
         head.append(("title", title or "Baslik",
                      page.text_height(title or "Baslik", "title", _b_w)))
         # BASLIK SUTUNU ve KART ALANI varyantin karari. Ikisi de MARGIN_X'e
