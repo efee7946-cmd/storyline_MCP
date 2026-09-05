@@ -2127,6 +2127,38 @@ def _bind_text_entry(pkg: StoryPackage, part: str, base_name: str) -> dict:
     return {"variable": name, "variable_guid": made["guid"], "rewired": rewired}
 
 
+def _gezinmeyi_geri_ac(root) -> bool:
+    """Taahhut kipinde slaydin GEZINMESINI geri acar.
+
+    NICIN GEREKLI. Taahhut slaydi bir SORU tohumundan kuruluyor ve tohumun
+    `<navData>`si soru icin ayarli: `prev="false" next="false"
+    submit="true"`. Puanlama cikarilinca etkilesim gidiyor ama navData
+    OLDUGU GIBI KALIYOR. Sonuc, ogrencinin ekraninda: calismayan bir Submit
+    dugmesi, ve ileri/geri dugmeleri kapali -- yani slaytta MAHSUR.
+
+    Olculdu 2026-09-06, kullanicinin urettigi savunma.story/slided:
+    "prev=false, next=false, submit=true; ekranda Submit gorunuyor ama
+    hicbir sey yapmiyor". Kullanicinin 2 numarali bulgusu.
+
+    DEGERLER UYDURULMADI, korpustan alindi: `bos.story`nin ICERIK
+    slaytlarinin hepsi `prev="true" prevGesture="true" next="true"
+    nextGesture="true" submit="false"` tasiyor. Taahhut slaydi da bir
+    icerik slaydidir -- gonderilecek bir sey yok, okunacak ve yazilacak
+    bir sey var.
+
+    Yalnizca bu bes oznitelige dokunuluyor; `menu`, `res`, `seek` gibi
+    kalanlar tohumdan ne geldiyse oyle kaliyor.
+    """
+    nav = next(root.iter("navData"), None)
+    if nav is None:
+        return False
+    for ad, deger in (("prev", "true"), ("prevGesture", "true"),
+                      ("next", "true"), ("nextGesture", "true"),
+                      ("submit", "false")):
+        nav.set(ad, deger)
+    return True
+
+
 def _adapt_text_slide(pkg: StoryPackage, part: str, *,
                       eyebrow: str | None, palette: dict | None,
                       feedback: dict | None, graded: bool,
@@ -2163,6 +2195,11 @@ def _adapt_text_slide(pkg: StoryPackage, part: str, *,
             removed.append(f"{shape.tag} (taahhut kipi: puanlama yok)")
             silinen |= guids_within(shape)
             shape_list.remove(shape)
+            # Etkilesim gitti; oynatici da ona gore ayarlanmali. Yoksa
+            # Submit dugmesi gonderecek bir sey olmadan durur ve
+            # ileri/geri kapali kaldigi icin ogrenci slaytta mahsur kalir.
+            if _gezinmeyi_geri_ac(root):
+                removed.append("navData: gezinme geri acildi (taahhut kipi)")
             continue
         text = model.shape_text(root, guid).strip() if guid else ""
         removed.append(f"{shape.tag}: {text[:24]!r}" if text else shape.tag)
