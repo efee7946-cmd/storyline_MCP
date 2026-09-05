@@ -1034,8 +1034,23 @@ def check_text_fits() -> list[str]:
           f"atlandi): {'yok' if not over else str(len(over)) + ' TASMA'}")
     # Mesaj da duzeltildi: "Storyline kirpar" OLCUMLE YANLIS cikti.
     # Metin kaybolmuyor, kutunun disina tasip komsusunun uzerine biniyor.
+    #
+    # VERDIKT KIRPILMAZ. Bir donem burada `over[:5]` vardi ve taban
+    # karsilastirmasi o BES ORNEK uzerinde kosuyordu -- yani kirpilmis,
+    # SIRAYA BAGLI bir orneklem. Olculdu 2026-09-05: gercekte 15 tasma
+    # varken kapi 5 tanesini gordu ve ikisini de yanlis soyledi:
+    #
+    #   * `slidee.xml` kirigi icin "TABAN ESKIMIS -- bu kirik artik yok"
+    #     dedi. Kirik DURUYOR; yalnizca ilk besten dusmustu.
+    #   * `slide10/14` kiriklarini "YENI KIRIK" saydi. Yeni olmayabilirler;
+    #     ilk bese yeni girmislerdi.
+    #
+    # Ekrana ozet basmak baska, verdikti kirpmak baska. Ozet yukarida
+    # basiliyor (kac tasma, kac bant disi); asagisi karsilastirmanin
+    # girdisi ve eksiksiz olmali -- imza+vektor gruplamasi zaten yiginin
+    # okunur kalmasini sagliyor.
     return [f"metin kutusunu asiyor (kirpilmaz, komsusuna biner): {o}"
-            for o in over[:5]]
+            for o in over]
 
 
 def check_variant_reach() -> list[str]:
