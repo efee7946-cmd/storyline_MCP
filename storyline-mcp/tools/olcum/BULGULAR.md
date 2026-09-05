@@ -733,3 +733,74 @@ story view'da aciyor, slayt secilemiyor. Bandi genisletmenin on kosulu once o.
 
 Bant disi kalmanin bedeli olculdu: uretilmis kursta 248 yazidan 26'si bant
 disi, 20'si 11pt (eyebrow'un tasarim puntosu).
+
+## 2026-09-05 — `overlayFillType="Default"` turu: SONUC ALINAMADI, engel yer degistirdi
+
+**Soru.** `gradOvrlyFill` uzerindeki `overlayFillType="Default"` boya suruyor mu?
+Bu, `referans.story`'de 24, `uretilmis.story`'de 91 sekli "olculemeyen"
+kovasinda tutan tek dugum. Hicbir kapi bu yuzden kirmizi degil.
+
+**Once dosyadan denendi, iki hipotez de dustu.**
+
+1. *Default bir duz dolguyla birlikte mi geliyor?* Hayir: Default tasiyan
+   sekillerin neredeyse hicbirinde baska dolgu yok (referans 65 metinli/5
+   metinsiz; uretilmis 88/8, yalnizca 9'unda solidFill).
+2. *Default "kurulmamis" demek mi, yani hepsi sentinel mi?* Ayirt ETMIYOR.
+   Default her zaman tam-sentinel, **ama `None` da oyle** (referans 46,
+   uretilmis 58 vaka). Sentinel olmak iki degeri ayirmiyor.
+
+**Sonra goruntuden denendi.** `tools/goz_ortu.py` bu deneyi zaten tasarlamis
+ve karar kuralini KAREYE BAKILMADAN yazmis: iki kutu, A=`Default`,
+B=`None` (bilinen negatif kontrol), duz zemin, metinsiz, duraklar magenta.
+Fikstuur kuruldu ve GERI OKUNDU (A: Default/3 durak, B: None/3 durak).
+
+**Tur ucken tuketildi ve tur GECERSIZ.** Karede olculecek kutularin tam
+ustunde iki Storyline diyalogu vardi. Aracin kendi kurali bunu zaten
+kapsiyordu ("kutulardan biri gorunmuyorsa TUR GECERSIZ"), o yuzden kare
+OKUNMADI.
+
+### Asil bulgu: dorduncu guard yalan soyluyordu
+
+`shoot_preview.py`'nin 4. guard'i tam bu sinif icin yazilmisti ("kare
+Storyline'in COKME DIYALOGUYDU") ve **kendisi dustu**: dosyayi yazdi ve
+"kare: ORTU.png" dedi. Sebep, olcusunun bir ALT SINIR olmasi -- imza rengi
+karenin %5'inden fazlasini kapliyor mu. Diyalog MERKEZI ortuyor, fikstuurun
+zemini kenarlarda gorunmeye devam ediyor. "Slayt cizildi" dogruydu,
+"olculecek sey gorunuyor" yanlisti. Bir orani asmak, dogru YERIN acik
+oldugunu soylemez.
+
+**Kapatildi (5. guard).** Hedefin ustunde duran, ayni surece ait ve olcum
+alaniyla kesisen pencereler Z-sirasindan okunuyor; varsa kare ALINMIYOR ve
+engel adiyla, sinifiyla, dikdortgeniyle yaziliyor. Gecici pencere (onizleme
+ilerlemesi) ile israrci diyalog 25 saniyelik bekleyisle ayriliyor -- ad
+listesi tutulmuyor (K15). Yardimci iki yonde de kanitlandi: en usteki
+pencere icin bos donuyor, alttaki icin ustundekini buluyor.
+
+### Teshis iki kez degisti; ikisini de KONTROL duzeltti
+
+- *"Cop izidir"* -- Storyline'in kendi gunlugu boyle diyordu
+  (`Last session did NOT close properly`, log 824). Buna gore
+  `tools/oturum_temizle.py` yazildi: bilinen-iyi fikstuurle acar, diyaloglari
+  WM_CLOSE ile (tiklamayla degil; WM_CLOSE "iptal" tarafidir) kapatir, ana
+  pencereyi kapatip SUREC duzeyinde gittigini dogrular. Calisti: temiz
+  oturumda `bos.story` sifir diyalogla acildi ve duzgun kapandi.
+- *"Fikstuur bozuk"* -- iz temizken `ORTU.story` yine iki diyalog getirdi,
+  bu da "urettigim dosya bozuk" okumasina goturdu. **Negatif kontrol bunu
+  curuttu:** ayni temiz oturumda DEGISTIRILMEMIS `bos.story` onizlendiginde
+  de ayni ~600x222 diyalog cikti. Ustelik `ORTU.story`'nin kendi acilis
+  gunlugunde tek istisna yok (`NotifyLoaded newFile:false`) ve
+  `paket_farki.py` temiz, medya sayisi kaynakla birebir.
+
+**Kalan engel ORTAM.** Onizleme moduna GIRILIYOR (baslik `(Preview)` oluyor),
+sonra yayinlama adimi bu makinede HER dosyada bir diyalog uretiyor. Bu,
+projenin XML'i hakkinda hicbir sey soylemez.
+
+**Karar.** `Default` OLCULMEDI ve reddi YERINDE KALIYOR. Mevcut davranis
+zaten guvenli tarafta: cozulemeyen zemin "olculemeyen" sayilir ve SESSIZ
+kalir, ihlal diye raporlanmaz. Tahmin edilmedi -- bu oturumda ad/desen
+okumasi uc kez yanlis cikmisti.
+
+**Bayat notlar duzeltildi.** `calibrate_text.py` "once shoot.py'nin slayt
+acabilmesi gerekiyor" diyordu; oysa `goz_ortu.py` slaydi kursun ILKINE
+tasiyarak secim sorununu coktan cozmus. Engel oradaki degil, burada
+yazilanmis.

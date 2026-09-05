@@ -32,26 +32,30 @@ idi. Ayni sinif: gorunmedigini yokluk sanmak.
 Sinyal artik BASLIKTAN okunuyor ve `storyline_ctl.storyline_window()` onu
 zaten ayristiriyor; ayri bir ad listesi tutulmuyor (K15).
 
-BILINEN SINIR -- BU ARAC SU AN OLCUM VEREMIYOR (2026-08-17). Guard'lar
-saglam, ama tur TUKENIYOR:
+BILINEN SINIR -- BU ARAC SU AN OLCUM VEREMIYOR, ve sebebi 2026-09-05'te
+YENIDEN OLCULDU. Onceki teshis (asagida) YANLIS cikti.
 
-    `open_test.force_close()` Storyline'i OLDURUYOR. Bir sonraki acilista
-    Storyline oldurulen oturumun cokus raporunu gosteriyor -- yani otomasyon
-    KENDI COP IZINI olcuyor.
+    ESKI TESHIS: "`open_test.force_close()` Storyline'i olduruyor, bir
+    sonraki acilista cokus raporu geliyor, otomasyon kendi cop izini
+    olcuyor." Cozum diye onerilen sey: oldurme sonrasi temizlik.
 
-Kanit iki kosudan: SAHNE720/SAHNE1920'de onizleme moduna GECILDI ve kare
-cokus diyaloguydu; ayni otomasyondan gecen BILINEN-CALISAN B1_KARE.story'de
-ise F12 hic tutmadi (baslik 'B1_KARE.story' olarak kaldi). Iki farkli
-basarisizlik, tek ortak sebep: fikstuur degil, ACIS YORDAMI. B1_KARE elle
-acildiginda sorunsuz onizleniyor.
+    O TEMIZLIK YAZILDI (`tools/oturum_temizle.py`) ve ISE YARADI: bilinen-iyi
+    fikstuur aciliyor, diyalog cikmiyor, kapanis SUREC duzeyinde dogrulanarak
+    "duzgun" gerceklesiyor. Yani iz gercekten siliniyor.
 
-BU GUARD'LA YAKALANAMAZ, ve fark onemli: cokus raporu GERCEK bir Storyline
-penceresidir, basligi gercekten "(Preview)" olur. Imza rengi guard'i onu
-reddeder -- yani YANLIS OLCUM uretilmez -- ama tur yine bos doner.
+    AMA TUR YINE VERMEDI. Iz temizlendikten hemen sonra kosulan turda,
+    onizleme moduna GIRILDIKTEN sonra tuvalin ustune israrci bir Storyline
+    diyalogu (~600x222) geliyor. 25 saniye beklendi, kaybolmadi.
 
-Duzeltilecek yer force_close sonrasi TEMIZLIK: oldurulen oturumun kurtarma/
-rapor durumu silinmeden her otomatik tur bir oncekinin izini olcme riski
-tasir. O yapilana kadar kareler ELLE alinmali.
+    VE SUCLU FIKSTUUR DEGIL -- negatif kontrolle olculdu. Ayni temiz
+    oturumda, DEGISTIRILMEMIS `test/bos.story` onizlendiginde AYNI diyalog
+    cikti. Kontrol olmasaydi teshis "urettigim dosya bozuk" olacakti; nitekim
+    bir ara oyle okundu ve yanlisti. Uretilen dosyanin kendi acilis
+    gunlugunde tek istisna yok ve yapisal sonda (`paket_farki.py`) temiz.
+
+    GERIYE KALAN: onizleme YAYINLAMA adimi bu makinede her dosyada bir
+    diyalog uretiyor. Bu, projenin XML'i hakkinda bir sey SOYLEMEZ; bu
+    aracin onunde duran sey artik ORTAM, kendi otomasyonu degil.
 
     python tools/shoot_preview.py <proje.story> -o kare.png --imza RRGGBB
 """
@@ -123,6 +127,56 @@ def _f12(hwnd: int, *, deneme: int = 5, ara: float = 2.0) -> bool:
                   f"tekrar...")
             time.sleep(ara)
     return False
+
+
+def _ustte_duranlar(hedef: int) -> list[str]:
+    """Ölçüm alanının ÜSTÜNDE duran, Storyline'a ait öteki pencereler.
+
+    NEDEN VAR (olculdu 2026-09-05). Dorduncu guard tam bu sinif icin
+    yazilmisti -- "kare Storyline'in COKME DIYALOGUYDU" -- ve BU SEFER
+    KENDISI DUSTU. Alinan karede iki diyalog vardi ("Articulate Storyline
+    Error Report" ve "Some assets are causing a problem in 'ORTU'"), ikisi
+    de olculecek kutularin TAM USTUNDE; guard yine de gecti ve dosya
+    "kare: ORTU.png" diye yazildi.
+
+    Sebep, guard'in olcusunun bir ALT SINIR olmasi: imza rengi karenin
+    %5'inden fazlasini kapliyor mu. Diyalog MERKEZI kapatir, fikstuurun
+    zemini ise kenarlarda gorunmeye devam eder -- yani "slayt cizildi"
+    dogruydu, "olculecek sey gorunuyor" ise yanlisti. Bir orani asmak,
+    dogru YERIN acik oldugunu soylemez.
+
+    Ayni aile: gostergeyi dogrulayip gondergeyi dogrulamamak. Fark su ki
+    burada gosterge KISMEN dogruydu, ve kismi dogru sessizce gecti.
+
+    KAPSAM ayni surecle sinirli. Yabanci bir uygulamanin penceresini 2. ve
+    3. guard zaten eliyor (odak ve baslik yakalama aninda dogrulanir);
+    kalan ve gorulmeyen sinif, Storyline'in KENDI sahip oldugu modal
+    diyaloglar -- onlar ana pencere one alinsa bile ustunde kalir.
+
+    Z-SIRASI EnumWindows'tan okunuyor: liste ustten alta doner, yani hedefin
+    ONUNDE gelen her pencere onun USTUNDEDIR. Kesisme testi olmadan
+    "acikta duran" bir diyalog da sayilirdi.
+    """
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hedef, ctypes.byref(pid))
+    kutu = _rect(hedef)
+    engeller: list[str] = []
+    for hwnd, baslik in ctl._windows():
+        if hwnd == hedef:
+            break                 # buradan sonrasi hedefin ALTINDA
+        opid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(opid))
+        if opid.value != pid.value:
+            continue              # baska uygulama: 2. ve 3. guard'in isi
+        l, t, r, b = _rect(hwnd)
+        if r <= kutu[0] or l >= kutu[2] or b <= kutu[1] or t >= kutu[3]:
+            continue              # kesismiyor
+        buf = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, buf, 256)
+        engeller.append("%s  [sinif=%s  %dx%d @ %d,%d]"
+                        % (baslik or "(basliksiz)", buf.value,
+                           r - l, b - t, l, t))
+    return engeller
 
 
 def _renk_orani(im, hedef: tuple[int, int, int], tol: int = 6) -> float:
@@ -211,6 +265,36 @@ def preview_karesi(out: Path, *, bekle: float = 90.0, settle: float = 6.0,
     if not son_kontrol or PREVIEW_IZI not in (son_kontrol[1] or "").casefold():
         raise SystemExit(
             "Yakalama aninda onizleme modu kapanmisti; kare ALINMADI.")
+    # BESINCI GUARD: OLCUM ALANININ USTU ACIK MI (2026-09-05).
+    #
+    # Imza orani bir ALT SINIRDIR ve tam bu yuzden yetmedi: iki Storyline
+    # diyalogu olculecek kutulari ortmusken kare yine de yazildi. Once
+    # engele bakilir, cunku engel varsa oran zaten yanlis soruyu olcer.
+    # GECICI ILE ISRARCIYI AYIR. Onizleme sirasinda Storyline kendi
+    # ilerleme penceresini gosterebiliyor ve o KAYBOLUR; hata diyalogu
+    # DURUR. Ayrimi "ne kadar kaldigi" verir, adi degil -- ad listesi
+    # tutmak, bu dosyanin bastan reddettigi sey (K15).
+    engeller = _ustte_duranlar(yeni)
+    if engeller:
+        _son = time.time() + 25.0
+        while time.time() < _son:
+            time.sleep(2.0)
+            engeller = _ustte_duranlar(yeni)
+            if not engeller:
+                break
+    if engeller:
+        raise SystemExit(
+            "Olcum alaninin USTUNDE Storyline penceresi var; kare "
+            "ALINMADI:\n  " + "\n  ".join(engeller)
+            + "\n\nBu, olculen dosyanin bozuk oldugu ANLAMINA "
+              "GELMEZ: ayni diyalog DEGISTIRILMEMIS test/bos.story "
+              "onizlenirken de cikti (negatif kontrol, 2026-09-05).\n"
+              "Once `python tools/oturum_temizle.py` deneyin -- duzgun "
+              "kapanmamis oturumun izini siler. Iz temizken de "
+              "cikiyorsa engel ORTAMDA: onizleme yayinlama adimi bu "
+              "makinede her dosyada diyalog uretiyor ve kare elle "
+              "alinmalidir.")
+
     kare = ImageGrab.grab(bbox=_rect(yeni), all_screens=True)
 
     # DORDUNCU GUARD: KARE, OLCULECEK SEYI ICERIYOR MU (2026-08-17).

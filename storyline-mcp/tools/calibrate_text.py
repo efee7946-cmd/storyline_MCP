@@ -30,14 +30,19 @@ bir deneye gonderiyordu. Nitekim gonderdi.)
 
 GERIYE KALAN YOL GORUNTU, ve o da BUGUN OTOMATIKLESTIRILEMIYOR:
 
-    `tools/shoot.py` Storyline'in gercek cizimini yakaliyor, ama dosyayi STORY
-    VIEW'da aciyor ve kucuk resimleri goruyor -- slayt secilemiyor (belge
-    dizesinde yazili: "belirli bir slayda bakmak icin o slaydi ELLE acmak
-    gerekiyor"). Kucuk resimden sarma noktasi sayilamaz.
+    SLAYT SECIMI ARTIK ENGEL DEGIL (duzeltildi 2026-09-05). Bu paragraf
+    "shoot.py slayt secemiyor, once o cozulmeli" diyordu ve bir sonraki
+    okuyani cozulmus bir soruna gonderiyordu. `tools/goz_ortu.py` yolu
+    zaten aciyor: olculecek slayt SAHNENIN VE KURSUN ILKINE tasiniyor
+    (`sldIdLst` ve `sceneLst` basa alinarak), boylece secmeye gerek
+    kalmiyor. Ustelik olculen `tools/shoot_preview.py` -- editor degil
+    OYNATICI, ki butun kalibrasyon zaten orada yapildi.
 
-    Bu bandi genisletmek icin once shoot.py'nin belirli bir slaydi acabilmesi
-    gerekiyor. O olmadan kalan tek yol elle gozle saymaktir -- ki bu aracin
-    varlik sebebi o isi silmek.
+    ENGEL BASKA YERDE, ve 2026-09-05'te olculdu: onizleme moduna girildikten
+    sonra tuvalin ustune israrci bir Storyline diyalogu geliyor ve 25 saniyede
+    kaybolmuyor. Fikstuur sucu DEGIL -- ayni diyalog degistirilmemis
+    `test/bos.story` onizlenirken de cikti (negatif kontrol). Yani kalan
+    engel ORTAM; ayrintisi `shoot_preview.py`'nin "BILINEN SINIR" bolumunde.
 
 BANDIN DISINDA KALANIN BEDELI OLCULDU (2026-09-05, uretilmis kurs): 248
 yazidan 26'si bant disi, 20'si 11pt. 11pt kaza degil, eyebrow'un tasarim
