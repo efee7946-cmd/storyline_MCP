@@ -27,3 +27,6 @@ desktop.ini
 
 # Kazara olusmus bos dosya
 devır
+
+# Panel calisma zamani gunlugu (uretilir, depoya girmez)
+storyline-mcp/panel/production.jsonl
