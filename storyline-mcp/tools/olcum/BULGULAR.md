@@ -647,3 +647,38 @@ Uc karar, ucu de olcumle:
      (720x540) kullandim ve "slayttan tasiyor" diye yanlis alarm verdim.
 
 Tohum kutuphanesinin kaydi artik `storyline_mcp/seeds/README.md`'de.
+
+---
+
+# DONOR HAVUZU SESSIZ DUSUSU (2026-09-05)
+
+## Kusur
+
+`shapes.find_seed` sirayla projeye, donor havuzuna, sonra gomulu tohuma bakar.
+Havuz VAR ama uygun aday YOKSA uyarir; havuz HIC YOKSA sessizdir. O dalin
+kendi yorumu bunu itiraf ediyor: "bu, havuzun hic yapilandirilmamis olmasiyla
+ayni sey degil".
+
+Bedeli README'de olculmus: havuzla uc kurs uc farkli donorden buton aliyor,
+havuzsuz ucu de `bundled`. Kayip GERCEK ve GORUNMEZ -- dosya gecerli, kapilar
+yesil, kurslar birbirinin ayni.
+
+## Duzeltme
+
+Uyari kurulumun BASINA kondu (`builder.build`), `find_seed`e degil: orasi her
+sekil icin cagriliyor ve ayni cumleyi onlarca kez basardi. Kullanicinin
+okuyacagi tek yer akis seridi.
+
+Iki durum ayri soyleniyor:
+  havuz bos      -> "butonlar gomulu tohumdan gelecek, baska kurslarla ayni
+                     gorunecek; kendi .story projelerinizi o klasore koyun"
+  havuz dolu ama
+  aday yok       -> "N dosya var ama kullanilabilir aday cikmadi"
+
+## Dogrulama -- iki dal da kosuldu
+
+    havuz VAR (6 dosya, 10 aday)  -> uyari YOK      (yanlis pozitif yok)
+    havuz BOS (0 dosya)           -> uyari VAR, ve ILK satir
+
+Bos havuz `STORYLINE_DONORS` ortam degiskeniyle kuruldu, gercek havuza
+dokunulmadi. suit: butun kapilar gecti.

@@ -1267,6 +1267,37 @@ def build(
     profile = _profile_text(options)
     budget = slide_budget(options)
 
+    # HAVUZ YOKSA SESSIZ KALINMAZ.
+    #
+    # `shapes.find_seed` sirayla projeye, donor havuzuna, sonra gomulu tohuma
+    # bakar. Havuz VAR ama uygun aday YOKSA uyarir; havuz HIC YOKSA sessizdir
+    # -- ve o dalin kendi yorumu bunu itiraf ediyor ("bu, havuzun hic
+    # yapilandirilmamis olmasiyla ayni sey degil").
+    #
+    # Bedeli olculmus ve README'de yazili: havuzla uc kurs uc farkli donorden
+    # buton aliyor, havuzsuz ucu de `bundled`. Yani kayip gercek ve GORUNMEZ:
+    # dosya gecerli, kapilar yesil, kurslar birbirinin ayni.
+    #
+    # UYARI BURADA, `find_seed`te DEGIL: orasi her sekil icin cagriliyor ve
+    # ayni cumleyi onlarca kez basardi. Kurulum basinda bir kez soylemek,
+    # kullanicinin okuyacagi tek yer.
+    try:
+        from storyline_mcp import donors as _donors
+        _havuz = _donors.summary()
+        if not _havuz["files_on_disk"]:
+            on_progress(
+                f"Donör havuzu boş ({_havuz['folder']}) — bu kursun butonları "
+                "gömülü tohumdan gelecek, yani başka kurslarla aynı görünecek. "
+                "Kendi .story projelerinizi o klasöre koyarsanız her kurs "
+                "farklı buton giyer.")
+        elif not _havuz["candidates"]:
+            on_progress(
+                f"Donör havuzunda {len(_havuz['files_on_disk'])} dosya var ama "
+                "kullanılabilir aday çıkmadı — butonlar gömülü tohumdan "
+                "gelecek.")
+    except Exception as _exc:            # havuz okunamazsa kurulum durmaz
+        on_progress(f"Donör havuzu okunamadı: {str(_exc)[:80]}")
+
     # One style and one palette for the whole course: consistent inside, and
     # different from the next course, because both are derived from its title
     # rather than fixed in the composer.
