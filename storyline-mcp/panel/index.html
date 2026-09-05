@@ -211,6 +211,7 @@
 <nav>
   <button data-tab="command" class="active">Komut</button>
   <button data-tab="overview">Genel Bakış</button>
+  <button data-tab="tools">Araçlar</button>
   <button data-tab="media">Görsel &amp; Video<span id="mediaBadge" class="badge hide"></span></button>
 </nav>
 
@@ -371,6 +372,71 @@
     <div class="card"><h2>Sorular</h2><div id="quizBox"><p class="empty">—</p></div></div>
   </section>
 
+  <section id="tab-tools" class="hide">
+    <div class="card">
+      <h2>Ara &amp; Değiştir</h2>
+      <p style="margin:0 0 10px;color:var(--muted)">
+        Kurstaki bütün metin kutularında arar. <b>Değiştir</b> kaydeder;
+        “dosyanın kendisine yaz” işaretli değilse <code>.edited.story</code>
+        adında bir kopya üretilir.
+      </p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+        <input id="findQuery" placeholder="aranan metin" style="flex:1;min-width:180px">
+        <input id="findRepl" placeholder="yerine yazılacak" style="flex:1;min-width:180px">
+      </div>
+      <div style="display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <button id="findBtn">Ara</button>
+        <button class="primary" id="replBtn">Hepsini değiştir</button>
+        <label style="margin:0;display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink)">
+          <input type="checkbox" id="findInPlace"> dosyanın kendisine yaz
+        </label>
+      </div>
+      <div id="findBox" style="margin-top:12px"><p class="empty">—</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Slayda görsel ekle</h2>
+      <p style="margin:0 0 10px;color:var(--muted)">
+        Slaydı seçin, dosyayı seçtiğinizde görsel doğrudan yerleşir. Storyline
+        dosyayı açık tutuyorsa panel önce kaydedip kapatır.
+      </p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+        <select id="imgSlide" style="flex:1;min-width:220px"><option value="">— önce dosya seçin —</option></select>
+        <button class="primary" id="imgBtn">Görsel seç ve ekle</button>
+      </div>
+      <div id="imgBox" style="margin-top:12px"><p class="empty">—</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Donör havuzu</h2>
+      <p style="margin:0 0 10px;color:var(--muted)">
+        Buton görünüşleri bu havuzdan gelir. <b>Havuz yoksa kod uyarı vermez</b>
+        ve her kurs aynı gömülü butonu giyer — bu yüzden durumu buradan
+        görebilirsiniz.
+      </p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <button id="donorBtn">Durumu göster</button>
+        <button id="donorOpen">Klasörü aç</button>
+      </div>
+      <div id="donorBox" style="margin-top:12px"><p class="empty">—</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Üretim günlüğü</h2>
+      <p style="margin:0 0 10px;color:var(--muted)">
+        Panelin yaptığı her kaydı ve doğrulama sonucunu listeler.
+        <b>Dikkat:</b> <code>verified_ok</code> “Storyline bunu açar” demek
+        değildir — paket bütünlüğünü ölçer, açılırlığı değil.
+        Ayrıca komut kutusundan geçen düzenlemeler bu günlüğe <b>yazılmaz</b>.
+      </p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+        <button id="logBtn">Son kayıtları göster</button>
+        <button id="revealBtn">Dosyayı klasörde göster</button>
+      </div>
+      <pre id="logBox" style="margin-top:12px;white-space:pre-wrap;font-size:12px;color:var(--muted)">—</pre>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -426,6 +492,7 @@ function loadSummary(data) {
   $("lockBanner").classList.toggle("hide", !data.locked);
 
   renderTree(data.scenes);
+  doluSlaytSecimi();
   loadQuiz();
   loadAudit();
   loadMedia();
@@ -953,6 +1020,98 @@ async function loadThemes() {
   };
   paintThemePreview();
 }
+
+
+/* ----------------------------------------------------------------- araclar
+   Bu blogun tamami ZATEN VAR OLAN Api metotlarini gorunur kiliyor; yeni
+   yetenek eklemiyor. Olculdu 2026-09-05: 25 Api metodunun 12'sini arayuzden
+   cagiran hicbir sey yoktu -- kod calisiyordu, kullanici ulasamiyordu.
+
+   BILEREK DISARIDA BIRAKILANLAR:
+     list_js_capabilities  JS sekmesi c89b7c8'de KASTEN kaldirildi
+     apply / preview       islem kuyrugu API'si; panelde kuyruk kavrami yok
+     file_locked           ic yardimci, kilit zaten baska yoldan ele aliniyor
+*/
+function doluSlaytSecimi() {
+  const sel = $("imgSlide");
+  if (!sel) return;
+  const scenes = (S.summary && S.summary.scenes) || [];
+  const opts = [];
+  scenes.forEach((sc) => sc.slides.forEach((s) => {
+    opts.push(`<option value="${escapeHtml(s.slide)}">${escapeHtml(s.name || s.slide)} — ${escapeHtml(s.slide)}</option>`);
+  }));
+  sel.innerHTML = opts.length ? opts.join("")
+    : `<option value="">— bu dosyada slayt yok —</option>`;
+}
+
+function dosyaGerekli() {
+  if (!S.path) { note("Önce bir .story dosyası seçin.", "err"); return false; }
+  return true;
+}
+
+$("findBtn").onclick = async () => {
+  if (!dosyaGerekli()) return;
+  const q = $("findQuery").value.trim();
+  if (!q) { note("Aranacak metni yazın.", "err"); return; }
+  try {
+    const hits = await call("search", S.path, q);
+    $("findBox").innerHTML = hits.length
+      ? `<p style="margin:0 0 8px;color:var(--muted)">${hits.length} eşleşme</p>` +
+        hits.slice(0, 40).map((h) => `<div class="slide"><b>${escapeHtml(h.slide_name || h.slide || "")}</b>
+          <span class="tag">${escapeHtml(h.slide || "")} · ${escapeHtml(String(h.text || "")).slice(0, 80)}</span></div>`).join("")
+      : `<p class="empty">Eşleşme yok.</p>`;
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("replBtn").onclick = async () => {
+  if (!dosyaGerekli()) return;
+  const q = $("findQuery").value.trim();
+  if (!q) { note("Aranacak metni yazın.", "err"); return; }
+  try {
+    const r = await call("replace_all", S.path, q, $("findRepl").value,
+                         $("findInPlace").checked);
+    const n = r.applied ?? "?";
+    note(`${n} metin değiştirildi (${(r.slides_changed || []).length} slayt) → ${r.written || "(yazılmadı)"}`);
+    $("findBox").innerHTML = `<p style="margin:0;color:var(--muted)">Yazılan dosya: <b>${escapeHtml(r.written || "—")}</b></p>`;
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("imgBtn").onclick = async () => {
+  if (!dosyaGerekli()) return;
+  const slide = $("imgSlide").value;
+  if (!slide) { note("Bir slayt seçin.", "err"); return; }
+  try {
+    const r = await call("add_image_to_slide", S.path, slide);
+    if (!r) { note("Dosya seçilmedi."); return; }
+    note("Görsel eklendi.");
+    $("imgBox").innerHTML = `<p style="margin:0;color:var(--muted)">Doğrulama: <b>${r.verified && r.verified.ok ? "temiz" : "SORUN VAR"}</b></p>`;
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("donorBtn").onclick = async () => {
+  try {
+    const d = await call("donor_status");
+    $("donorBox").innerHTML = `<pre style="margin:0;white-space:pre-wrap;font-size:12px;color:var(--muted)">${escapeHtml(JSON.stringify(d, null, 2))}</pre>`;
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("donorOpen").onclick = async () => {
+  try { await call("open_donors_folder"); }
+  catch (e) { note(e.message, "err"); }
+};
+
+$("logBtn").onclick = async () => {
+  try {
+    const t = await call("production_log_text", 20);
+    $("logBox").textContent = t || "—";
+  } catch (e) { note(e.message, "err"); }
+};
+
+$("revealBtn").onclick = async () => {
+  if (!dosyaGerekli()) return;
+  try { await call("reveal", S.path); }
+  catch (e) { note(e.message, "err"); }
+};
 
 window.addEventListener("pywebviewready", async () => {
   try {
