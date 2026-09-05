@@ -22,6 +22,17 @@ from pathlib import Path
 from . import compose, media
 from .package import StoryPackage, StoryError
 
+# Production logging (panel operations)
+try:
+    from .panel.production import record as record_production
+except ImportError:  # pragma: no cover
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "panel"))
+        from production import record as record_production
+    except ImportError:  # pragma: no cover
+        record_production = None  # Logging optional if module not available
+
 TURLER = ("gorsel", "video")
 # Modelin alan ayiramadigi duzenler icin (compose_slide yalnizca cover ve
 # content duzenlerinde yer ayirir). Sag sutun, metnin altina inmeyen bir kart.
@@ -243,6 +254,19 @@ def uygula(story: str | Path, secimler: list[dict]) -> dict:
                          "sure_ms": cikti.get("duration_ms")})
 
     rapor = pkg.save(Path(story), backup=True)
+    
+    # Log to production if available
+    if record_production:
+        try:
+            record_production(
+                story,
+                "apply_media",
+                rapor,
+                context={"media_added": len(sonuclar)},
+            )
+        except Exception:
+            pass  # Logging failure shouldn't stop the operation
+    
     yaz(story, istekler)
     return {"eklendi": sonuclar, "kalan": bekleyen_sayisi(istekler),
             "verified": rapor["verified"], "written": rapor["written"]}
