@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -38,6 +38,7 @@ SINANAN YIRMI BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    19  quizsiz kaynak             quiz yoksa zincir kurulmuyordu  (#3c)
    20  gonderiden geciyor         soru hic submit edilmiyordu      (#4)
    21  sahne adi okunur           menude '01_YZ_Nedir' goruluyordu  (#8)
+   22  son slayt ILERI            gidecek yer yokken dugme duruyordu (#10)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -97,6 +98,10 @@ def kur(yol: Path) -> dict:
         {"Kutu bir": ["Kisa ad", "Kisa ad"], "Kutu iki": ["Kisa ad", "Kisa ad"]})
     taahhut = authoring.add_text_question(pkg, "Bir somut adim yaz.", None)
     sonuc = authoring.add_results_slide(pkg)
+    # Ureticinin build() sonunda yaptigi son adim: kursun son slaydinda
+    # olu ILERI dugmesini kapat. `produced.py` bu yolu gezmiyor (olculdu:
+    # ilerleme.kur oradaki kosuda hic calismiyor), o yuzden kapi burada.
+    authoring.son_slaydin_ilerisini_kapat(pkg)
 
     pkg.save(yol, backup=False)
     return {"icerik": icerik_parcalari, "katman": katman, "soru": soru,
@@ -408,6 +413,20 @@ def main() -> int:
     bak("sahne adi okunur", "#8", not _teknik,
         "%d teknik ad %s" % (len(_teknik), _teknik[:2]))
 
+    # 22 -- son slaytta olu ILERI kalmasin
+    _idx = list(model.slide_index(pkg).items())
+    _spart, _sref = _idx[-1]
+    _sroot = pkg.parse(_spart)
+    _nav = next(_sroot.iter("navData"), None)
+    _olu = [1 for _tl in _sroot.iter("trigLst") for _t in _tl
+            if _t.find("data") is not None
+            and _t.find("data").get("event") == "OnNextButtonClick"
+            and _t.find("data").get("actSubType") == "next"]
+    _kapali = (_nav is not None and _nav.get("next") == "false" and not _olu)
+    bak("son slayt ILERI", "#10", _kapali,
+        "%s next=%s olu_tetikleyici=%d" % (_sref.basename,
+        _nav.get("next") if _nav is not None else "?", len(_olu)))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -418,7 +437,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi bir sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi iki sinifin hicbirini tasimiyor.")
     return 0
 
 

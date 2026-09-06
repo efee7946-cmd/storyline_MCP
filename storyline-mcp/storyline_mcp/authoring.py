@@ -2687,6 +2687,56 @@ def _quizi_sonuc_slaydina_bagla(pkg: StoryPackage, slayt_guid: str) -> dict:
     return rapor
 
 
+def son_slaydin_ilerisini_kapat(pkg: StoryPackage) -> dict:
+    """Kursun SON slaydinda olu ILERI dugmesini kapatir.
+
+    OLCULDU 2026-09-06: son slaytta `OnNextButtonClick -> jumpToSlide/next`
+    tetikleyicisi duruyor ama gidecek slayt YOK. Ogrenci ILERI'ye basiyor,
+    hicbir sey olmuyor. Kullanicinin 10 numarali bulgusu.
+
+    "KURSU BITIR" YAZILMADI, cunku kopyalanacak ornek YOK: yedi gercek
+    kursta (alti donor + 0_duz_kopya) `exitCourse`, `closeWnd`,
+    `finishCourse` eylemlerinin hicbiri BIR KEZ BILE gecmiyor. Bu projede
+    sifirdan eylem uydurmak bir turu goturdu (gradOvrlyFill dersi) ve bu
+    oturumda az kalsin bir kez daha goturuyordu (actionG'yi "donor artigi"
+    sanmak).
+
+    YAPILAN SEY DAHA MUTEVAZI VE OLCULEBILIR: gidecek yer yoksa ILERI
+    GOSTERILMEZ. Calismayan bir dugme, olmayan bir dugmeden kotudur --
+    ogrenci ona basar ve kursun bozuk oldugunu dusunur.
+
+    Proje duzeyindeki `finishAction` yerinde kaliyor; onu tetikleyecek
+    dogru bicim olculmedigi icin ona DOKUNULMUYOR.
+    """
+    idx = model.slide_index(pkg)
+    if not idx:
+        return {"kapatildi": False, "why": "slayt yok"}
+    son_part = list(idx)[-1]
+    root = pkg.parse(son_part)
+    degisti = False
+
+    for tl in root.iter("trigLst"):
+        for t in list(tl):
+            d = t.find("data")
+            if d is None:
+                continue
+            if (d.get("event") == "OnNextButtonClick"
+                    and d.get("action") in ("jumpToSlide", "jumpToScene")
+                    and d.get("actSubType") == "next"):
+                tl.remove(t)
+                degisti = True
+
+    nav = next(root.iter("navData"), None)
+    if nav is not None and nav.get("next") != "false":
+        nav.set("next", "false")
+        nav.set("nextGesture", "false")
+        degisti = True
+
+    if degisti:
+        pkg.replace_xml(son_part, root)
+    return {"kapatildi": degisti, "slayt": idx[son_part].basename}
+
+
 def add_results_slide(
     pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuçlar"
 ) -> dict:
