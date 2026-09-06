@@ -609,6 +609,26 @@ def _hacim_bulgulari(konu_hacmi: list[dict]) -> list[str]:
             out.append("%s: %d icerik planlandi, %d kuruldu (sebep icin "
                        "yukaridaki red/takas satirlarina bakin)"
                        % (h["sahne"], h["planlanan"], h["kurulan"]))
+    # ASIM YONU DE IZLENIR -- ve bu bir DUZELTME.
+    #
+    # Kural once tek yonlu yazilmisti, cunku endise "butce tukenmesi sonu
+    # inceltir" diye cerceveleniyordu. Olculdu 2026-09-07: kanarya kursunda
+    # dort sahnenin DORDUNDE de `kurulan` planlanandan tam +1 -- yani hareket
+    # eden yon obur yondu ve kimse izlemiyordu. (O fikstuurde asim kanaryanin
+    # KENDI sekli: outline 3 icerik planliyor, icerik asamasi 4 donduruyor.
+    # Ama yonun izlenmemesi gercek bosluktu.)
+    #
+    # ESIK ORANLI, cunku `slide_budget` bir SIPARIS: bir slaytlik sapma
+    # gurultu, ucte birlik sapma baska bir kurs.
+    _plan_top = sum(h["planlanan"] for h in konu_hacmi)
+    _kur_top = sum(h["kurulan"] for h in konu_hacmi)
+    _fark = _kur_top - _plan_top
+    _asti = bool(_plan_top) and _fark >= 2 and _fark / _plan_top >= 0.25
+    if _asti:
+        out.append("icerik butcesi asildi: %d planlandi, %d kuruldu "
+                   "(+%%%.0f) -- siparis edilen slayt sayisi tutmuyor"
+                   % (_plan_top, _kur_top, _fark / _plan_top * 100))
+
     sayilar = [h["kurulan"] for h in konu_hacmi]
     if len(sayilar) >= 3 and all(a >= b for a, b in zip(sayilar, sayilar[1:]))             and sayilar[0] - sayilar[-1] >= 2:
         out.append("konular bastan sona tek yonlu inceliyor (%s); bu "
@@ -1884,9 +1904,17 @@ def build(
                     # konulmustu; sebep artik yok, cunku buton bandi
                     # _button_band ile SAYIDAN ayriliyor (bes buton
                     # 5*4.0 + 4*1.6 = %26.4 ve banda siğar).
+                    # DUSEN SORU ICERIK SAYILMAZ. Bu satir soruyu bir
+                    # `menu` content slaydina ceviriyor ve akis asagi
+                    # dusuyor -- yani `_kur_icerik` sayacina ULASIYOR.
+                    # Sayilirsa gercek bir icerik eksikligi maskelenir:
+                    # 3 icerik planlayip 2 icerik + 1 dusen soru kuran
+                    # sahne "3 kuruldu" okur ve kapi sessiz gecer.
+                    # (Kanaryada bugun ATESLEMIYOR -- olculdu, sorular soru
+                    # olarak kuruluyor. Kor nokta yine de gercek.)
                     spec = {"kind": "content", "layout": "menu",
                             "title": spec.get("prompt", "Soru"),
-                            "buttons": choices}
+                            "buttons": choices, "_dusen_soru": True}
 
             duzen = spec.get("layout") or "content"
             # Bir sahnede tek istek: ikinci bir alan, bir bolumu doldurulmayi
@@ -1918,7 +1946,8 @@ def build(
             reveal_items = (spec.get("items") or []) if duzen == "reveal" else []
             butonlar = ([str(i.get("label") or "")[:40] for i in reveal_items]
                         if reveal_items else spec.get("buttons"))
-            _kur_icerik += 1
+            if not spec.get("_dusen_soru"):
+                _kur_icerik += 1
             laid = compose.compose_slide(
                 pkg, new["new_slide"], duzen,
                 title=spec.get("title"), eyebrow=spec.get("eyebrow"),

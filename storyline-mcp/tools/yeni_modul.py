@@ -1247,6 +1247,13 @@ def main() -> int:
     # BIRIM OLARAK, elle yazilmis beklentilerle: bu bir PLAN kurali ve
     # `build()` icinde satir ici dururken kapinin ulasabilecegi tek yol kursu
     # bastan kurmakti.
+    #
+    # KAPSAM DISI, ACIKCA: `_dusen_soru` isaretinin sayacta atlanmasi burada
+    # SINANMIYOR. O yol, motorun bir soruyu reddedip `menu` content slaydina
+    # cevirmesini gerektiriyor ve bu fikstuurde ATESLEMIYOR (olculdu:
+    # kanaryada sorular soru olarak kuruluyor). Isaret konuldu cunku kor
+    # nokta gercek -- sayilirsa gercek bir icerik eksikligi maskelenir --
+    # ama kapsandigi iddia edilmiyor.
     from panel import builder as _b34
 
     def _H34(*ciftler):
@@ -1262,6 +1269,15 @@ def main() -> int:
             ("artan 1,2,3", _H34((1, 1), (2, 2), (3, 3)), 0),
             # Esit sayi BULGU DEGIL -- "dengeli" esit demek degil.
             ("esit 2,2,2", _H34((2, 2), (2, 2), (2, 2)), 0),
+            # ASIM YONU. Kural once tek yonluydu ("butce tukenmesi sonu
+            # inceltir") ve olcum obur yonun hareket ettigini gosterdi:
+            # kanarya kursunda dort sahnenin dordunde de kurulan = planlanan
+            # + 1. Esik ORANLI -- bir slaytlik sapma gurultu, ucte birlik
+            # sapma baska bir kurs.
+            ("butce asimi 3->4 x4",
+             _H34((3, 4), (3, 4), (3, 4), (3, 4)), 1),
+            ("kucuk sapma 3->4 x1",
+             _H34((3, 4), (3, 3), (3, 3)), 0),
     ):
         _cikan = len(_b34._hacim_bulgulari(_h34))
         if _cikan != _bekle34:
