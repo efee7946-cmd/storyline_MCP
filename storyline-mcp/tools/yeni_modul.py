@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN OTUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN OTUZ BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -995,6 +995,67 @@ def main() -> int:
     bak("puanlama zinciri", "#3", not _zincir_kirik,
         "%d kirik %s" % (len(_zincir_kirik), _zincir_kirik[:1]))
 
+    # 31 -- AYRILAN GORSEL ALANI GERCEKTEN BOS MU
+    #
+    # `compose_slide` disariya "gorsel buraya" diye bir alan bildiriyor
+    # (`image_area`) ve cagiran dosyayi TAM oraya koyuyor. O alanin uzerinde
+    # yazi varsa resim metnin ustune duser.
+    #
+    # Olculdu 2026-09-07, `yan-gorsel` + dort madde + gorsel alani:
+    #
+    #     ayrilan alan            x=54  w=46
+    #     BOLUM / baslik / govde  x 8 -> 92
+    #     iki kart                x 54 -> 90
+    #
+    # BES oge resmin alanindaydi. Sebep bir kacis kapagi: kartlar dar sutuna
+    # sigmayinca metin tam genislige geri aciliyordu, ve o kapak ayrilmis
+    # sutundan habersizdi. Kodun KENDI YORUMU dogru kurali yaziyordu
+    # ("gorsel icin ayrilmis bir alan yokken genisletilir") ama kosul
+    # yazilmamisti -- yorumla kod ayrismisti.
+    _ustune = []
+    for _v31 in ("yan-gorsel", None):
+        _yol32 = Path(tempfile.gettempdir()) / ("alan_%s.story" % (_v31 or "auto"))
+        shutil.copy2(BLANK, _yol32)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p32 = StoryPackage(_yol32)
+            clone.create_scene(_p32, "B")
+            _r32 = authoring.add_slide(
+                _p32, list(model.slide_index(_p32).values())[0].basename,
+                scene="B")
+            _laid32 = compose.compose_slide(
+                _p32, _r32["new_slide"], "content",
+                title="Oltalama isaretleri", eyebrow="Bolum",
+                body="Her birini sirayla kontrol et.",
+                bullets=["Gonderen adresini dogrula",
+                         "Aciliyet dilinden supheelen",
+                         "Baglantiyi tiklamadan once bak",
+                         "Ekleri acmadan tara"],
+                palette=compose.theme_palette("gece"),
+                variant=_v31, image_area=True, image_style="bleed")
+            _p32.save(_yol32, backup=False)
+        _alan = _laid32.get("image_area")
+        if not _alan:
+            continue                     # alan ayrilmadiysa iddia da yok
+        _p32 = StoryPackage(_yol32)
+        _k32 = _p32.parse(_p32.slide_part_for(_r32["new_slide"]))
+        _w32, _h32 = shapes.slide_size(_k32)
+        _gx0, _gx1 = _alan["x"], _alan["x"] + _alan["w"]
+        _gy0, _gy1 = _alan["y"], _alan["y"] + _alan["h"]
+        for _sh32 in list(_k32.find("shapeLst") or []):
+            _t32 = (model.shape_text(_k32, _sh32.get("g") or "") or "").strip()
+            _rc32 = shapes.shape_rect(_sh32)
+            if not _rc32 or not _t32:
+                continue
+            _x0 = _rc32[0] / _w32 * 100; _x1 = _rc32[2] / _w32 * 100
+            _y0 = _rc32[1] / _h32 * 100; _y1 = _rc32[3] / _h32 * 100
+            if (min(_x1, _gx1) - max(_x0, _gx0) > 0.5
+                    and min(_y1, _gy1) - max(_y0, _gy0) > 0.5):
+                _ustune.append("%s: %r alanin ustunde"
+                               % (_v31 or "auto", _t32[:24]))
+    bak("ayrilan alan bos", "#14", not _ustune,
+        "%d yazi %s" % (len(_ustune), _ustune[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -1005,7 +1066,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen otuz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen otuz bir sinifin hicbirini tasimiyor.")
     return 0
 
 

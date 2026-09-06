@@ -3586,9 +3586,27 @@ def compose_slide(
             # Kosullu: yalnizca OLCUM dar dediginde ve gorsel icin ayrilmis
             # bir alan yokken (`not reserved`) genisletilir; aksi halde
             # varyantin sutun karari korunur.
+            # `not reserved` KOSULU YUKARIDA YAZILIYDI AMA KODDA YOKTU.
+            #
+            # Yorum "gorsel icin ayrilmis bir alan yokken genisletilir"
+            # diyor; kosul yalnizca `text_w < CONTENT_W` soruyordu. Olculdu
+            # 2026-09-07, `yan-gorsel` + dort madde + gorsel alani:
+            #
+            #     ayrilan gorsel alani   x=54  w=46
+            #     BOLUM / baslik / govde x 8 -> 92
+            #     iki kart               x 54 -> 90
+            #
+            # BES oge, resmin gelecegi alanin uzerinde duruyordu. Sira su:
+            # alan 54..100'e ayrilip CIZILIYOR, sonra kartlar dar sutuna
+            # sigmayinca metin tam genislige geri aciliyor -- ve kacis kapagi
+            # ayrilmis sutundan habersiz.
+            #
+            # Kartlar dar sutuna sigmiyorsa dogru davranis genislemek DEGIL,
+            # varyantin sutun kararini KORUMAK; alan gercekten tasinamiyorsa
+            # cagiran zaten `image_area` yokluguna bakip istegi birakiyor.
             if _band > (bottom - ceiling) * 0.62 and text_w < CONTENT_W:
                 _r2, _b2 = _card_band(page, bullets, CONTENT_W)
-                if _b2 < _band:
+                if _b2 < _band and not reserved:
                     text_x, text_w = MARGIN_X, CONTENT_W
                     _rows, _band = _r2, _b2
             need = min(_band, (bottom - ceiling) * 0.62)
