@@ -1456,7 +1456,16 @@ def yabanci_katmanlari_doldur(root) -> int:
 
     yazilan = 0
     for katman in katmanlar:
-        kutu_sayisi = sum(1 for _ in model._iter_text_shapes(katman))
+        # DUGMELER SAYILMAZ -- ve bu bir REGRESYON duzeltmesi (2026-09-06).
+        #
+        # Ayrim "iki kutu = geri bildirim, alti kutu = liste" idi ama sayim
+        # `_iter_text_shapes`ten geliyordu ve o DUGMELERI de donduruyor.
+        # Yanlis geri bildirim katmani (baslik + govde + dugme = 3) esigi
+        # asti, LISTE sanildi ve govdesine bir cevap sikki yazildi:
+        # ogrenci geri bildirim yerine "Kritik rakamlari kaynakla
+        # karsilastirmak" okuyor. Kullanicinin 6 numarali bulgusu.
+        kutu_sayisi = sum(1 for _sh, _e, _d, _st in model._iter_text_shapes(katman)
+                          if _sh.tag not in ("btn", "rsltBtn", "feedBackBtn"))
         # AYRIM KUTU SAYISINDAN, ROLDEN DEGIL -- ve bu bir duzeltme.
         #
         # Ilk yazim "rolu olani atla" diyordu; `geri_bildirim_rolleri` HER
@@ -1486,13 +1495,27 @@ def yabanci_katmanlari_doldur(root) -> int:
         # sirasindan bagimsiz.
         kutular.sort(key=lambda kd: (shapes.shape_rect(kd[0]) or (0, 0, 0, 0))[1])
         govde = kutular[1:] if len(kutular) > 1 else []
+        _sw, _sh2 = shapes.slide_size(root)
         for i, (sh, doc) in enumerate(govde):
             hedef = dogrular[i] if i < len(dogrular) else ""
             mevcut = model._doc_text(doc).strip()
-            if mevcut == hedef:
+            if mevcut != hedef:
+                set_shape_text(katman, sh.get("g") or "", hedef)
+                yazilan += 1
+            if not hedef:
+                # FAZLA KUTU BOS BIRAKILMAZ, KALDIRILIR. Tohum bes maddelik;
+                # soru uc dogru cevap tasiyorsa iki kutu bos kalir ve ogrenci
+                # listenin altinda iki bos satir gorur. Bos bir kutu, olmayan
+                # bir maddeyi vaat eder.
+                _liste = katman.find("shapeLst")
+                if _liste is not None and sh in list(_liste):
+                    _liste.remove(sh)
                 continue
-            set_shape_text(katman, sh.get("g") or "", hedef)
-            yazilan += 1
+            # SLAYDIN DISINA TASMASIN. Tohum 1920 uzayindan cevrildi ve
+            # yuvarlama kenari asabiliyor -- olculdu: r=722 > 720.
+            _rect = shapes.shape_rect(sh)
+            if _rect and _rect[2] > _sw:
+                shapes.set_loc(sh, _rect[0], _rect[1], _sw, _rect[3])
     return yazilan
 
 
