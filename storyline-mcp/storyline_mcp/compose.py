@@ -1745,7 +1745,7 @@ FEEDBACK_DEFAULT = {
 }
 
 
-def katman_dugmelerini_bagla(root) -> int:
+def katman_dugmelerini_bagla(root, pkg) -> int:
     """Dallanma katmanlarinin dugmelerini ROLE gore yeniden baglar.
 
     NICIN. Tohumda dogru katman "Cevap2"ydi ve dugmeler ona gore
@@ -1812,7 +1812,29 @@ def katman_dugmelerini_bagla(root) -> int:
             if hedef is None:
                 hedef = ET.SubElement(data, "sldLayer")
             hedef.set("showG", dogru)
-            etiket = "Doğru Cevabı Gör"
+            # ETIKET KUTUYA GORE SECILIR -- OLCULDU 2026-09-06.
+            #
+            # Ilk yazim kosulsuz "Dogru Cevabi Gor" yaziyordu ve `invariants`
+            # UC fikstuurde kirmiziya dondu: etiket kutuyu asiyor, kirpilmiyor
+            # ve komsusuna biniyor. Dugme BUYUTULMEZ (`katman_yazisini_sigdir`
+            # kutuyu buyutebiliyor ama dugmede o, bandin duzenini bozar), o
+            # yuzden SIGAN en uzun etiket seciliyor.
+            #
+            # Uc secenek de ayni seyi soyluyor, farkli uzunlukta; en kisasi
+            # her zaman sigiyor cunku tohumun kendi etiketi ("Devam") o boyda.
+            _rect = shapes.shape_rect(dugme)
+            _c2, _sz2, _b2, _a2 = _preview._text_style(dugme)
+            _uzay2 = shapes.space_of(root, shapes.stage_size(pkg))
+            etiket = "Devam"
+            for _aday in ("Doğru Cevabı Gör", "Cevabı Gör"):
+                if not _rect or not _sz2:
+                    break
+                _ger = shapes.measured_text_height(
+                    _aday, _sz2, _rect[2] - _rect[0], _uzay2,
+                    wrap=shapes.wraps(dugme))
+                if _ger <= (_rect[3] - _rect[1]):
+                    etiket = _aday
+                    break
         set_shape_text(katman, dugme.get("g") or "", etiket)
         degisen += 1
     return degisen
@@ -2156,7 +2178,7 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     baglanan = intrprops_baglan(root)
     acilan = cikissiz_katmani_ac(root)
     yabanci = yabanci_katmanlari_doldur(root)
-    baglanan_dugme = katman_dugmelerini_bagla(root)
+    baglanan_dugme = katman_dugmelerini_bagla(root, pkg)
     hizalanan = katman_dugmelerini_hizala(root)
     sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
     pkg.replace_xml(part, root)
