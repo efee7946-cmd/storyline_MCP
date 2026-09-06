@@ -388,10 +388,27 @@ def install_slide(
     in_menu = _add_toc_entry(story, scene_el.get("g", ""), new_slide_guid)
     pkg.replace_xml(STORY_PART, story)
 
+    # TOHUMUN UZAYINI KURSUNKINE CEVIR.
+    #
+    # Gomulu soru/sonuc tohumlari 1920x1080'de hasat edildi. 720x540 bir
+    # kursa girdiklerinde kendi olculerini koruyor ve kurs IKI ayri
+    # koordinat uzayi tasimaya basliyor -- kullanicinin 16 numarali
+    # bulgusu. Korpus bunun anormal oldugunu soyluyor: yedi insan yapimi
+    # kursun hepsinde her slayt kursun olcusunde.
+    #
+    # `clone_slide`da GEREKMEZ: orada kaynak zaten AYNI kursun bir slaydi.
+    from . import shapes as _shapes
+    _hedef = _shapes.stage_size(pkg)
+    _kok = pkg.parse(new_part)
+    _cevrilen = _shapes.uzayi_cevir(_kok, _hedef[0], _hedef[1])
+    if _cevrilen:
+        pkg.replace_xml(new_part, _kok)
+
     return {
         "new_slide": new_part.rsplit("/", 1)[1],
         "part": new_part,
         "slide_guid": new_slide_guid,
+        "uzay_cevrildi": _cevrilen,
         "scene": scene_el.get("name", ""),
         "guids_regenerated": len(mapping),
         # Kac kopuk atlama onarildi. SIFIR OLMAYAN DEGER SESSIZ KALMAZ:

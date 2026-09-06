@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN ON IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -28,6 +28,7 @@ SINANAN ON BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
     9  oynatici etiketleri        Next/Submit/resume Ingilizce   (#20)
    10  puanlama zinciri           soru->quiz->sonuc->LMS      (#3/#24)
    11  dekoratif sekil gizli      metinsiz sekil acc=true        (#22)
+   12  koordinat uzayi tek        720 ve 1920 karisik            (#16)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -217,6 +218,15 @@ def main() -> int:
     bak("dekoratif sekil gizli", "#22", _acik == 0,
         "%d metinsiz sekil ekran okuyucuya acik" % _acik)
 
+    # 12 -- koordinat uzayi tek mi
+    from storyline_mcp import shapes as _shapes
+    _sahne = _shapes.stage_size(pkg)
+    _uzaylar = {_shapes.slide_size(pkg.parse(_p))
+                for _p in model.slide_index(pkg)}
+    bak("koordinat uzayi tek", "#16", _uzaylar == {_sahne},
+        "sahne=%dx%d slayt uzaylari=%s" % (_sahne[0], _sahne[1],
+                                           sorted(_uzaylar)))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -227,7 +237,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on bir sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen on iki sinifin hicbirini tasimiyor.")
     return 0
 
 

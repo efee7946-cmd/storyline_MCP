@@ -1358,3 +1358,54 @@ def shape_document(shape: ET.Element) -> ET.Element | None:
         if (text_el.text or "").strip().startswith("<Document"):
             return text_el
     return None
+
+
+def uzayi_cevir(root: ET.Element, genislik: float, yukseklik: float) -> int:
+    """Slaydin KOORDINAT UZAYINI hedef kursunkine cevirir. Kac sekil, doner.
+
+    NICIN GEREKLI, ve kanit korpustan. Gomulu soru/sonuc tohumlari
+    1920x1080 uzayinda hasat edildi; 720x540 bir kursa girdiklerinde kendi
+    olculerini KORUYORLAR ve kurs iki ayri uzay tasimaya basliyor.
+
+    Olculdu 2026-09-06: yedi insan yapimi kursun (alti donor + elle
+    yapilmis 0_duz_kopya) HEPSINDE her slayt kursun olcusunde -- sifir
+    karisim. `bos.story` de temiz. Yani karisim Storyline'in normali DEGIL,
+    bizim tohumlarimizin getirdigi bir tutarsizlik. Kullanicinin 16
+    numarali bulgusu: "Punto degerleri iki grupta ayni, bu yuzden iki grup
+    arasinda tipografi olcegi eslesmiyor."
+
+    DAMGALAMAK TEK BASINA YETMEZ, ve bu onemli: `set_shape_slide_size`
+    yalnizca `sldSz`i degistiriyor. Koordinatlar oldugu gibi kalirsa
+    l=1890 degeri 720 genisliginde okunur ve sekil slaydin disina duser.
+    Burada `loc` de ORANLA olcekleniyor, yani sekil ayni GORECELI yerde
+    kaliyor.
+
+    Her sekil kendi `sldSz`/`loc` ciftini tasiyor (olculdu: bir tohumda
+    64'e 64), o yuzden cevrim sekil sekil yapiliyor ve kaynak uzay her
+    seklin KENDI damgasindan okunuyor -- slaydin kokunden degil.
+    """
+    sayac = 0
+    for el in root.iter():
+        sz = el.find("sldSz")
+        loc = el.find("loc")
+        if sz is None or loc is None:
+            continue
+        try:
+            kaynak_w = float(sz.get("w", 0))
+            kaynak_h = float(sz.get("h", 0))
+        except ValueError:
+            continue
+        if kaynak_w <= 0 or kaynak_h <= 0:
+            continue
+        if kaynak_w == genislik and kaynak_h == yukseklik:
+            continue
+        ow, oh = genislik / kaynak_w, yukseklik / kaynak_h
+        for ad, oran in (("l", ow), ("t", oh), ("r", ow), ("b", oh)):
+            try:
+                loc.set(ad, _num(float(loc.get(ad, 0)) * oran))
+            except ValueError:
+                pass
+        sz.set("w", _num(genislik))
+        sz.set("h", _num(yukseklik))
+        sayac += 1
+    return sayac
