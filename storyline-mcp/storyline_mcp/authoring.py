@@ -2227,6 +2227,59 @@ def _adapt_text_slide(pkg: StoryPackage, part: str, *,
     return {"removed": removed, "kept": kept, **laid, **layers}
 
 
+def _yazma_degiskenini_kur(pkg: StoryPackage, part: str) -> dict:
+    """Metin kutusunun yazacagi degisken YOKSA kurar.
+
+    OLCULDU 2026-09-06, kullanicinin tuzla.story'si: yazma kutusunun
+    `createVarG`si `163dc4e1-...` diyor ama o GUID projede TANIMSIZ --
+    dosyanin tamaminda yalnizca o oznitelikte, bir kez geciyor. Ustune
+    `OnLostFocus -> adjustVar` tetikleyicisi de yok. Yani kutu var,
+    degisken var (`Yanit`), ikisi bagli degil ve ogrencinin yazdigi cumle
+    KAYBOLUYOR.
+
+    TETIKLEYICIYI SILEN BENIM TEMIZLIGIMDI, ve dogru davrandi:
+    `_olu_degisken_tetikleyicileri` tanimsiz bir degiskene yazan
+    tetikleyiciyi kaldiriyor. Eksik olan tetikleyici degil, DEGISKENIN
+    KENDISIYDI -- ve dogru cozum silineni geri koymak degil, beklenen
+    degiskeni kurmaktir.
+
+    `bos.story`de bu degisken VAR (`TextEntry1`), o yuzden oradan baslayan
+    kurslarda sorun gorunmuyordu. Kullanicinin baslangic dosyasinda yoktu:
+    ayni sinif quiz'de de cikti (kaynak dosya neyi tasimiyorsa, tohumun
+    bekledigi sey orada bosa duser).
+
+    Bicim uydurulmadi, `bos.story`den okundu.
+    """
+    root = pkg.parse(part)
+    kutu = next((e for e in root.iter("textEntry")), None)
+    if kutu is None:
+        return {"kuruldu": False, "why": "yazma kutusu yok"}
+    hedef = kutu.get("createVarG") or ""
+    if not hedef or hedef.startswith("00000000"):
+        return {"kuruldu": False, "why": "createVarG bos"}
+
+    story = pkg.parse(model.STORY_PART)
+    var_listesi = story.find("varLst")
+    if var_listesi is None:
+        return {"kuruldu": False, "why": "varLst yok"}
+    if any(v.get("g") == hedef for v in var_listesi):
+        return {"kuruldu": False, "why": "zaten var"}
+
+    adlar = {v.get("name") for v in var_listesi}
+    ad = "TextEntry1"
+    n = 1
+    while ad in adlar:
+        n += 1
+        ad = "TextEntry%d" % n
+    ET.SubElement(var_listesi, "var", {
+        "g": hedef, "verG": clone.new_guid(), "name": ad,
+        "dataType": "text", "val": "", "type": "user", "propPath": "",
+        "isRandom": "false", "randomMin": "0", "randomMax": "0",
+        "defaultEmptyIfZero": "false"})
+    pkg.replace_xml(model.STORY_PART, story)
+    return {"kuruldu": True, "ad": ad}
+
+
 def add_text_question(
     pkg: StoryPackage,
     prompt: str,
@@ -2255,6 +2308,11 @@ def add_text_question(
 
     root = pkg.parse(part)
     _tag, intr = _find_interaction(root)
+    # DEGISKEN, TEMIZLIKTEN ONCE. `_adapt_text_slide` tanimsiz degiskene
+    # yazan tetikleyiciyi kaldiriyor; degisken once kurulursa tetikleyici
+    # KALIR ve ogrencinin yazdigi sey bir yere gider.
+    yazma_degiskeni = _yazma_degiskenini_kur(pkg, part)
+    root = pkg.parse(part)
     entry = next((sh for sh in root.find("shapeLst") if sh.tag == "textEntry"), None)
     stem = _stem_shape_guid(root, [entry.get("g") or ""] if entry is not None else [])
     if stem:

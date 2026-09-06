@@ -1875,6 +1875,22 @@ def katman_dugmelerini_bagla(root, pkg) -> int:
             # terk ediyor.
             trig_listesi = next((tl for tl in katman.iter("trigLst")
                                  if trig in list(tl)), None)
+            # FAZLA ATLAMA SILINIR -- ve bu bir REGRESYON duzeltmesi.
+            #
+            # `cikissiz_katmani_ac` cikisi olmayan bir katmanin
+            # `hideSubSlide`ini atlamaya ceviriyor; burasi da mevcut
+            # tetikleyiciyi atlamaya ayarliyor. Katmanda iki tetikleyici
+            # varsa IKISI de atlama oluyor ve dugme iki kez ilerlemeye
+            # calisiyor. Olculdu (kullanicinin tuzla.story'si, slidea ve
+            # slideb): ['submitInteraction', 'jumpToSlide', 'jumpToSlide'].
+            if trig_listesi is not None:
+                for _fazla in list(trig_listesi):
+                    if _fazla is trig:
+                        continue
+                    _fd = _fazla.find("data")
+                    if _fd is not None and _fd.get("action") in (
+                            "jumpToSlide", "jumpToScene"):
+                        trig_listesi.remove(_fazla)
             zaten = any((t.find("data") is not None
                          and t.find("data").get("action") == "submitInteraction")
                         for t in (list(trig_listesi) if trig_listesi is not None else []))

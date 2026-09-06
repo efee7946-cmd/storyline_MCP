@@ -176,6 +176,14 @@ def _olu_degisken_tetikleyicileri(raw: str, bilinen: set[str]) -> tuple[str, int
     dokunulmaz; NULL varG'ye dokunulmaz (o zaten "degisken yok" demek ve
     baska amaclarla her yerde geciyor).
     """
+    # SLAYDIN KENDI BEYAN ETTIGI DEGISKEN KOPUK SAYILMAZ -- OLCULDU
+    # 2026-09-06. `<textEntry createVarG="...">` bir REFERANS degil, bir
+    # BEYAN: "bu kutu su degiskeni olusturacak". Onu tanimsiz sayip yazma
+    # tetikleyicisini silmek, kutuyu sessizce ise yaramaz hale getiriyordu
+    # (kullanicinin tuzla.story'si: ogrencinin yazdigi cumle hicbir yere
+    # gitmiyor). Degiskeni `authoring._yazma_degiskenini_kur` kuruyor.
+    beyan = set(re.findall(r'createVarG="(' + GUID + r')"', raw))
+    beyan.discard(NULL_GUID)
     sayac = 0
 
     def _ele(m: "re.Match") -> str:
@@ -184,7 +192,8 @@ def _olu_degisken_tetikleyicileri(raw: str, bilinen: set[str]) -> tuple[str, int
         if 'action="adjustVar"' not in blok:
             return blok
         hedefler = re.findall(rf'<other[^>]*\svarG="({GUID})"', blok)
-        kopuk = [g for g in hedefler if g != NULL_GUID and g not in bilinen]
+        kopuk = [g for g in hedefler
+                 if g != NULL_GUID and g not in bilinen and g not in beyan]
         if not kopuk:
             return blok
         sayac += 1

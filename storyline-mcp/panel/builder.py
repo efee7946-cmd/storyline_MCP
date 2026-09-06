@@ -1875,17 +1875,6 @@ def build(
     except Exception:
         pass
 
-    # SON SLAYDIN ILERISI, HER SEY YERINE OTURDUKTAN SONRA. Hangi slaydin
-    # SON oldugu ancak butun sahneler ve sonuc slaydi kurulduktan sonra
-    # bilinir; daha erken kapatmak yanlis slaydi kapatirdi.
-    try:
-        _son = authoring.son_slaydin_ilerisini_kapat(pkg)
-        if _son.get("kapatildi"):
-            on_progress("son slaytta olu ILERI dugmesi kapatildi (%s)"
-                        % _son.get("slayt"))
-    except Exception as _exc:
-        on_progress("son slayt kapatilamadi: %s" % str(_exc)[:60])
-
     dallanma_raporu = dallanma.kur(
         pkg, konu_adlari,
         # Ogrenciye MAKINE ADI gosterilmez. `_sahne_basligi` zaten bu isi
@@ -1948,8 +1937,23 @@ def build(
         on_progress(f"✓ Hareket kurgusu '{hareket}': "
                     f"{_kurgulanan} nesne zaman cizgisine dizildi")
 
+    # SON SLAYDIN ILERISI, EN SONDA. Ilk yazimda dallanmadan ONCE cagriliyordu ve olculdu ki
+    # etkisi kayboluyor -- aradaki adimlardan biri son slaydi yeniden
+    # yaziyor. Artik kaydetmenin hemen onunde: sonrasinda hicbir sey
+    # yok, yani uzerine yazilamaz. Hangi slaydin
+    # SON oldugu ancak butun sahneler ve sonuc slaydi kurulduktan sonra
+    # bilinir; daha erken kapatmak yanlis slaydi kapatirdi.
+    try:
+        _son = authoring.son_slaydin_ilerisini_kapat(pkg)
+        if _son.get("kapatildi"):
+            on_progress("son slaytta olu ILERI dugmesi kapatildi (%s)"
+                        % _son.get("slayt"))
+    except Exception as _exc:
+        on_progress("son slayt kapatilamadi: %s" % str(_exc)[:60])
+
     # SAVE WITH GUARANTEED LOGGING
     try:
+
         report = pkg.save(Path(path), backup=True)
     except Exception as save_err:
         # Log the save failure before re-raising
