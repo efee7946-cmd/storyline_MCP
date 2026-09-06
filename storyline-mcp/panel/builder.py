@@ -562,12 +562,38 @@ def _sorular_kapali(options: dict) -> bool:
 
 
 def _konu_araligi(scenes: list[dict]):
-    """Konu sahneleri: ilk ve son disindakiler.
+    """Konu sahneleri: ilk ve son disindakiler -- ama SON, kapanissa.
 
     Giris ve kapanis muaf -- ORTAK_KURALLAR da onlari disarida birakiyor,
     ve iki yerde iki farkli tanim olsaydi kapi promptla celiserdi.
+
+    SON SAHNENIN KAPANIS OLDUGU VARSAYILMIYOR ARTIK. Kural konumdan
+    okunuyordu ("son = kapanis") ve planin kapanisla bittigini hicbir sey
+    dogrulamiyor: prompt kapanis slaydindan soz ediyor ama SART kosmuyor.
+    Plan kapanissiz gelirse son KONU sahnesi kapanis sanilir ve ilerleme
+    takibinin disinda kalir.
+
+    Olculdu 2026-09-06, iki plan, ayni kod:
+
+        [giris, T1, T2, kapanis]  ->  konu: T1, T2   esik 2
+        [giris, T1, T2]           ->  konu: T1       esik 1, T2 IZLENMIYOR
+
+    Bedeli sessiz ve buyuk: T2'nin tamamlama bayragi hic kurulmuyor ve
+    kilit esigi bire dusuyor -- yani ogrenci IKI bolumun BIRINI bitirince
+    sonuc ekrani aciliyor. "Butun konulari bitirmeden sinava giremezsin"
+    kuralinin tam tersi, ve dosya gecerli, kurs aciliyor, hicbir kapi
+    bagirmiyor.
+
+    AYIRT EDICI OLCUT PROMPTUN KENDI CUMLESI: "HER KONU SAHNESI en az bir
+    puanli soru tasir. Giris ve kapanis sahneleri..." (panel/ogretim.py).
+    Yani puanli sorusu olmayan son sahne kapanistir; olan sahne konudur.
+    Yeni bir kural uydurulmuyor, yazili olan okunuyor.
     """
-    return range(1, len(scenes) - 1) if len(scenes) > 2 else range(len(scenes))
+    if len(scenes) <= 2:
+        return range(len(scenes))
+    son = len(scenes) - 1
+    kapanis = not any(_soru_mu(s) for s in (scenes[son].get("slides") or []))
+    return range(1, son if kapanis else son + 1)
 
 
 # PUANLANAN HER SEY SORUDUR, YALNIZCA "question" DEGIL.

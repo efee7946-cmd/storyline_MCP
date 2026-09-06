@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI YEDI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI SEKIZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -805,6 +805,46 @@ def main() -> int:
     bak("ayni is ayni ad", "#9", not _ayrik,
         "%d slaytta ayrisik etiket %s" % (len(_ayrik), _ayrik[:1]))
 
+    # 28 -- KONU SAHNESI SAYIMI: son sahne kapanis SANILMASIN
+    #
+    # `_konu_araligi` konu sahnelerini KONUMDAN okuyordu ("ilk = giris,
+    # son = kapanis") ve planin kapanisla bittigini hicbir sey dogrulamiyor:
+    # prompt kapanis slaydindan soz ediyor ama SART kosmuyor.
+    #
+    # Olculdu 2026-09-06, iki plan, ayni kod:
+    #
+    #     [giris, T1, T2, kapanis]  ->  konu T1,T2   esik 2
+    #     [giris, T1, T2]           ->  konu T1      esik 1, T2 IZLENMIYOR
+    #
+    # Bedeli sessiz ve buyuk: T2'nin tamamlama bayragi hic kurulmuyor ve
+    # kilit esigi bire dusuyor -- ogrenci IKI bolumun BIRINI bitirince sonuc
+    # ekrani aciliyor. "Butun konulari bitirmeden sinava giremezsin"
+    # kuralinin tam tersi, ve dosya gecerli, kurs aciliyor.
+    #
+    # BIRIM OLARAK SINANIR, boru hattindan degil: kural bir PLAN kurali ve
+    # beklentiler elle yaziliyor -- kapinin `_konu_araligi`yi yardimci diye
+    # cagirip kendi varsayimini olcmesi boyle onleniyor.
+    from panel import builder as _builder
+    _S = [{"kind": "content"}, {"kind": "question"}]       # puanli sahne
+    _O = [{"kind": "content"}, {"kind": "commitment"}]     # okuma sahnesi
+
+    def _plan(*govdeler):
+        return [{"name": "S%d" % i, "slides": g} for i, g in enumerate(govdeler)]
+
+    _bekleme = [
+        ("giris,T1,T2,kapanis", _plan(_O, _S, _S, _O), [1, 2]),
+        ("giris,T1,T2  (kapanissiz)", _plan(_O, _S, _S), [1, 2]),
+        ("giris,T1,kapanis", _plan(_O, _S, _O), [1]),
+        ("giris,T1     (iki sahne)", _plan(_O, _S), [0, 1]),
+    ]
+    _sapan = []
+    for _ad28, _plan28, _bek28 in _bekleme:
+        _cikan = list(_builder._konu_araligi(_plan28))
+        if _cikan != _bek28:
+            _sapan.append("%s: %s (beklenen %s)" % (_ad28, _cikan, _bek28))
+    bak("konu sahnesi sayimi", "#11", not _sapan,
+        "%d sapma %s" % (len(_sapan), _sapan[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -815,7 +855,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi yedi sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi sekiz sinifin hicbirini tasimiyor.")
     return 0
 
 
