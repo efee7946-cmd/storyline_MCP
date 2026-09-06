@@ -1213,3 +1213,66 @@ hiyerarsisi icin. Kalan 12/16pt `rsltBtn`ler kusur DEGIL.
 Yeni fikstuur, `produced`in gormedigi bir kusur sinifini acti (K33:
 "kapi, fikstuurunun gezmedigi yoldaki kusuru goremez"). Yediden uce indi;
 kalan uc olculdu ama bu turda ele alinmadi.
+
+## 2026-09-06 (yedinci tur) — kalan uc madde: ikisi KANITSIZ, biri DOKUNULMAZ
+
+Yirmi dort maddenin yirmi ikisi kaynakta kapandi. Kalan uc madde bu turda
+olculdu ve UCU DE "duzeltilmedi" ile kapandi -- her biri ayri sebeple.
+
+### #19 sik ovallerinde Hover/Down yok — KANIT YOK
+
+Tekrarlaniyor: cok secmeli soruda (`freePickManyIntr`) sik sekilleri `oval`
+ve yalnizca `Normal` + `Selected` tasiyor. Tek secmelide (`freePickOneIntr`)
+sikler `btn` ve alti durumun hepsi var. Yani ic tutarsizlik GERCEK.
+
+Ama duzeltmenin dogrusunu soyleyecek kanit yok:
+
+    insan yapimi kurslarda OVAL durum kumeleri:  ('Normal',)  20 kez
+
+Yirmi ovalin hicbirinde Hover/Down yok -- ama o ovallerin SIK olup olmadigi
+ayirt edilemedi (donorlerde cok secmeli soru yok). Yani "gercek kurslar da
+yapmiyor" denemez; "olculemedi" denir.
+
+Duzeltmek `<state>` XML'i sentezlemek demek ve bu projede sifirdan XML kurmak
+bir turu goturdu (gradOvrlyFill dersi: "sekli UYDURMA, projeden KOPYALA").
+Kopyalanacak kaynak yok. Acmak icin gereken: cok secmeli soru tasiyan gercek
+bir donor kurs.
+
+### #21 artik medya — OLCULDU, DOKUNULMUYOR
+
+Projenin kendi yapisal sondasi (`paket_farki.py`):
+
+    savunma.story    kirik_iliski=0  ct_hayalet=0  yinelenen=0
+
+Yani `R6NEbtTzW4uV.jpg` KIRIK degil: iliski cozuluyor, dosya duruyor,
+yalnizca hicbir slaytta kullanilmiyor. Bedeli dosya boyutu.
+
+DOKUNULMUYOR, ve sebebi kusur degil MULKIYET: panel var olan bir dosyayi
+sectiriyor (`pick_file`) ve kurs onun ustune kuruluyor. O medya kullanicinin
+KENDI dosyasindan geliyor; Storyline'da sonradan kullanmak isteyebilir.
+Kullanicinin icerigini silmek bizim karar alanimiz degil.
+
+(Kendi sondalarim bu maddede IKI KEZ yanlis olctu -- once `r:id` arayarak,
+sonra `Id=...Target=` sirasi varsayarak. Ucuncu bir ad-hoc sonda yazmak
+yerine tek otoriteye soruldu.)
+
+### #23 olu `Yanit` degiskeni — DEVRALINAN, DOKUNULMUYOR
+
+Olculdu: `Yanit` GUID'i pakette TEK KEZ geciyor, yani yalnizca tanimi var --
+hic yazilmiyor, hic gosterilmiyor. Ama tanim `bos.story`den geliyor, yani
+kullanicinin baslangic dosyasindan. Ayni gerekce: devralinan degiskeni
+silmek, kullanicinin dosyasindan bir sey silmektir.
+
+Kullanicinin ASIL kaygisi ("ogrencinin yazdigi taahhut kayboluyor") bu
+degisken degil: taahhut slaydi kendi degiskenine YAZIYOR (`Yanit2`, iki
+gecis = tanim + yazma). Kaybolan sey yazma degil, GERI GOSTERME -- ve onun
+nerede gosterilecegi (sonuc slaydinda mi, kapanis katmaninda mi) bir URUN
+karari, kusur degil.
+
+### Kapanmayan dorduncu: #18 (onceki turda kaydedildi)
+
+Ayni aile: korpusta drag tasiyan kurs yok, `returnStart` icin kanit yok.
+
+**Ucunun ortak dersi:** "duzeltilmedi" uc ayri sey olabilir -- kanit yok
+(#18, #19), kapsam disi (#21, #23), ya da olculdu ve zararsiz. Uctur de
+kayitli; hicbiri unutuldugu icin acik degil.
