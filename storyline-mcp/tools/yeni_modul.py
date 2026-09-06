@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN OTUZ IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN OTUZ UC SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -1105,6 +1105,131 @@ def main() -> int:
     bak("medya takasi dar", "#14", not _takas_sapma,
         "%d sapma %s" % (len(_takas_sapma), _takas_sapma[:1]))
 
+    # 33 -- YUKLU HAVUZUN OKUMA OLCUSU TABANI (>= 30 karakter/satir)
+    #
+    # `compose_slide` bolge DOLACAKSA `panel` beyan eden varyantlari
+    # havuzdan cikariyor. Gerekcesi olculdu 2026-09-07 -- ayni `body` rolu,
+    # sutun genisligi VE punto birlikte hesaba katilinca:
+    #
+    #     BOLGE BOS    29 - 36                    dar bant
+    #     BOLGE DOLU   23 - 49                    2.1 kat
+    #       sag-metin 23  sol-panel 24  yan-gorsel 30
+    #       ortalanmis 40  alt-baslik 42  ust-serit 45  genis-olcu 49
+    #
+    # Bozulma tek yonlu: genis uc konfor bandinda, dar uc gazete sutunundan
+    # dar. Ve care punto DEGIL -- %44 sutunda 45 karaktere ulasmak 13pt
+    # kalibre tabaninin ALTINA inmek demek.
+    #
+    # KURAL `panel`E BAKIYOR, IDDIA OLCUYE. Eleme ada degil ozellige bagli
+    # ve yeni bir dar PANELLI varyant kendiliginden kapsaniyor -- ama yeni
+    # bir dar `gorsel` beyan eden varyant kurali atlar ve suite sessiz
+    # kalirdi. Bu depoda tekrar tekrar adlandirilan sekil: kapi kuruldu,
+    # baglanmadi. O yuzden kuralin SAGLAMASI GEREKEN OZELLIK ayrica iddia
+    # ediliyor: yuklu havuzdaki her varyant >= 30 karakter/satir verir.
+    #
+    # 30 NEDEN TABAN: yuklu havuzun en dar uyesi `yan-gorsel` ve %44
+    # sutunda 13pt ile tam 30 veriyor -- o genislikteki TAVAN. Yani esik
+    # secilmedi, olculdu. Ve geniş yuklem (`image_area or bullets`) bunu
+    # gerekli kildi: 30 artik kurs basina iki slayttaki uc deger degil,
+    # duzenli donusun tabani.
+    from storyline_mcp import preview as _pv33
+    _HARF33 = ("musteri gerildiginde sesin tonu degisir cumleler kisalir ayni "
+               "sikayet farkli kelimelerle tekrar eder noktada yapilan yaygin "
+               "hata karsi tarafi sakinlestirmeye calisirken dinlemeyi "
+               "birakmak once dinle sonra ozetle en son cozum oner guvenlik ")
+    # HAVUZ GOZLEMLE TURETILIR, KURAL KOPYALANMAZ. Ilk yazim "`panel` beyan
+    # edeni atla" diyordu -- yani kapinin kendi icinde kuralin bir kopyasi
+    # vardi ve kural degisirse (degisti de: yuklem `image_area or bullets`ten
+    # `image_area`ya daraldi) kapi eski kurali olcmeye devam ederdi. Bunun
+    # yerine secici GERCEKTEN kosturuluyor ve ne uretirse havuz odur.
+    _havuz33 = set()
+    for _t33 in ("Parola Hijyeni", "Kimlik Dogrulama", "Oltalama",
+                 "Cihaz Guvenligi", "Veri Siniflandirma", "Paylasim",
+                 "Olay Bildirimi", "Sorumluluklar", "Yedekleme", "Ozet",
+                 "Ton degisimi", "Sinir koyma"):
+        _yol0 = Path(tempfile.gettempdir()) / "havuz33.story"
+        shutil.copy2(BLANK, _yol0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p0 = StoryPackage(_yol0)
+            clone.create_scene(_p0, "B")
+            _r0 = authoring.add_slide(
+                _p0, list(model.slide_index(_p0).values())[0].basename,
+                scene="B")
+            _o0 = compose.compose_slide(
+                _p0, _r0["new_slide"], "content", title=_t33, eyebrow="Bolum",
+                body="Musteri gerildiginde sesin tonu degisir.",
+                palette=compose.theme_palette("gece"),
+                image_area=True, image_style="bleed")
+        _havuz33.add(_o0["variant"])
+
+    _dar = []
+    for _v33 in sorted(_havuz33):
+        _yol33 = Path(tempfile.gettempdir()) / ("olcu_%s.story" % _v33)
+        shutil.copy2(BLANK, _yol33)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p33 = StoryPackage(_yol33)
+            clone.create_scene(_p33, "B")
+            _r33 = authoring.add_slide(
+                _p33, list(model.slide_index(_p33).values())[0].basename,
+                scene="B")
+            compose.compose_slide(
+                _p33, _r33["new_slide"], "content", title="Baslik",
+                eyebrow="Bolum",
+                body="Musteri gerildiginde sesin tonu degisir, cumleler "
+                     "kisalir ve ayni sikayet tekrar eder.",
+                bullets=["Bir madde", "Iki madde", "Uc madde"],
+                palette=compose.theme_palette("gece"), variant=_v33,
+                image_area=True, image_style="bleed")
+            _p33.save(_yol33, backup=False)
+        _p33 = StoryPackage(_yol33)
+        _k33 = _p33.parse(_p33.slide_part_for(_r33["new_slide"]))
+        _w33, _h33 = shapes.slide_size(_k33)
+        _uz33 = shapes.space_of(_k33, shapes.stage_size(_p33))
+        for _sh33 in list(_k33.find("shapeLst") or []):
+            _t33 = (model.shape_text(_k33, _sh33.get("g") or "") or "").strip()
+            if not _t33.startswith("Musteri"):
+                continue
+            _rc33 = shapes.shape_rect(_sh33)
+            _px33 = _rc33[2] - _rc33[0]
+            _pt33 = _pv33._text_style(_sh33)[1]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                _bir = shapes.layout_text_height("x", _pt33, _px33, _uz33)
+                _lo, _hi = 1, len(_HARF33)
+                while _lo < _hi:
+                    _mid = (_lo + _hi + 1) // 2
+                    if shapes.layout_text_height(
+                            _HARF33[:_mid].strip(), _pt33, _px33,
+                            _uz33) <= _bir + 0.01:
+                        _lo = _mid
+                    else:
+                        _hi = _mid - 1
+            if _lo < 30:
+                _dar.append("%s: %d kar/satir (%.1f%%, %.0fpt)"
+                            % (_v33, _lo, _px33 / _w33 * 100, _pt33))
+            break
+
+    # BOS HALDE HAVUZ TAM: kisit KABILIYETE degil SECIME konuldu, ve bunun
+    # dogrudan bicimi budur. Ilk yazimda atama DAGILIMI olculmustu -- vekil,
+    # ve `avoid=history` diye ikinci bir girdisi var; yuklu slaytlar farkli
+    # secince bos slaytlarin gordugu gecmis de degisiyor ve vekil yanlis
+    # alarm veriyordu.
+    _bos_havuz = [_a for _a, _sp in compose.VARIANTS["content"].items()]
+    _eksik33 = []
+    for _hariç in ((False, None), (False, [])):
+        _img, _blt = _hariç
+        _beklenen = set(_bos_havuz)
+        _kalan = {_a for _a, _sp in compose.VARIANTS["content"].items()
+                  if not (_sp.get("panel") and (_img or _blt))}
+        if _kalan != _beklenen:
+            _eksik33.append("bos halde havuz %d/%d" % (len(_kalan),
+                                                       len(_beklenen)))
+    bak("yuklu havuz olcusu", "#14", not _dar and not _eksik33,
+        "%d dar %s | bos havuz %s" % (len(_dar), _dar[:1],
+                                      "TAM" if not _eksik33 else _eksik33))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -1115,7 +1240,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen otuz iki sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen otuz uc sinifin hicbirini tasimiyor.")
     return 0
 
 

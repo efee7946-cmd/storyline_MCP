@@ -3336,9 +3336,81 @@ def compose_slide(
     oksuz = drop_orphan_submit(root)
 
     look = style_for(style, seed=(title or "") + layout[:1])
+    # PANEL BEYAN EDEN VARYANT, PANEL DOLACAKSA ADAY DEGIL.
+    #
+    # Kisit varyantin NE TASIYABILECEGINE degil, NE ZAMAN SECILEBILECEGINE
+    # konuyor. Ayni `body` rolu, sutun genisligi VE punto birlikte hesaba
+    # katilinca su okuma olcusunu veriyor (karakter/satir, olculdu
+    # 2026-09-07):
+    #
+    #     BOLGE BOS (sutun metne veriliyor)   29 - 36   dar bant
+    #     BOLGE DOLU (madde ve/veya gorsel)   23 - 49   2.1 kat
+    #
+    #         sag-metin  23    sol-panel  24    yan-gorsel 30
+    #         ortalanmis 40    alt-baslik 42    ust-serit  45
+    #         genis-olcu 49
+    #
+    # Bozulma TEK YONLU: genis uc (45, 49) tipografik konfor bandinin
+    # icinde; dar uc (23, 24) gazete sutunundan dar. Care punto DEGIL --
+    # %44'luk sutunda 45 karaktere ulasmak 13pt kalibre tabaninin ALTINA
+    # inmek demek; `yan-gorsel`in 30'u o genislikteki TAVAN.
+    #
+    # BOS HALDE ELENMIYORLAR, cunku orada bandin EN IYI ucundalar (36).
+    # Ortak durumda en iyi olcen iki varyanti elemek kazandigindan
+    # fazlasini gotururdu.
+    #
+    # YUKLEM `image_area`, `bullets` DEGIL -- VE BU BIR GERI ADIM.
+    #
+    # Ilk yazim `image_area or bullets` diyordu: yalniz-madde halinde de
+    # sag-metin 23 / sol-panel 24 olculmustu, yani kusur orada da "vardi".
+    # Sayi dogruydu, CERCEVE yanlisti -- sayinin neyin karsiligi oldugu
+    # sorulmamisti. Olculdu, `sol-panel` + madde:
+    #
+    #     metin    8 -> 53        kartlar  57 -> 92     iki sutun, slayt dolu
+    #     (elenince `ortalanmis`) 22 -> 78 tek sutun, iki yan bos
+    #
+    # Dar govde sutunu bir kusur degil, KART SUTUNUNUN KARSILIGI. Elemek,
+    # iyi bir iki sutunlu duzeni tek sutunla degistiriyor: `tools/deadband.py`
+    # maddeli slaytlarda toplam bosu %25 tabanindan %29'a cikardi. Ve
+    # 23 karakter yalnizca govde UZUN PARAGRAFKEN acitiyor; kisa govde iki
+    # satir surer.
+    #
+    # `image_area` farkli: orada bolgeyi RESIM aliyor, dar govdenin
+    # karsiliginda bir kart sutunu KALMIYOR -- telafi yok.
+    #
+    # KAYDA GECEN DERS: "hayatta kalanlarin hepsi bantta, o yuzden eleme
+    # tasma uretemez" bir HASAR testiydi, MALIYET testi degil. Elemenin neyi
+    # bozabilecegini olcuyordu, neye mal olacagini degil. Iyi bir duzeni
+    # kotusuyle degistirmek hicbir invaryanti kirmaz ve yine de kayiptir.
+    #
+    # GORSELLI DAL AYRICA OLCULDU, cunku daraltmadan sonra kalan yari
+    # argumana dayaniyordu ("kart sutunu yok, telafi yok") ve bu oturumda
+    # iki kez sayi dogruyken cerceve yanlis cikti. `deadband`in kendi
+    # olcusuyle, maddesiz + gorsel alanli bes slayt, eleme var/yok:
+    #
+    #     eleme VAR   toplam bos %4-%5   ortalama %4.4
+    #     eleme YOK   toplam bos %4-%5   ortalama %4.4
+    #
+    # Maliyet YOK. Yani daraltilmis yuklem iki dalda da olculdu: maddeli
+    # dalda eleme 4 puana mal oluyordu (geri alindi), gorselli dalda hicbir
+    # seye mal olmuyor (korundu).
+    #
+    # ELEME BURADA GUVENLI, `ortalanmis` vakasinda degildi: orada hayatta
+    # kalan punto tabaninda TASIYORDU (46 > 42). Burada hayatta kalanlarin
+    # HEPSI bandin icinde (30, 40, 42, 45, 49).
+    #
+    # AD DEGIL OZELLIK: elenen ikisi tam olarak `panel` BEYAN EDENLER. Ama
+    # kural yalnizca `panel`e bakiyor; dar bir `gorsel` varyanti eklenirse
+    # gormez. O yuzden kuralin saglamasi gereken OZELLIK ayrica iddia
+    # ediliyor (tools/yeni_modul.py, 33. sinif): yuklu havuzdaki her varyant
+    # >= 30 karakter/satir verir.
+    _kacin = list(avoid_variant or [])
+    if image_area:
+        _kacin += [_ad for _ad, _sp in (VARIANTS.get(layout) or {}).items()
+                   if _sp.get("panel")]
     shape_var = variant_for(layout, name=variant,
                             seed=(title or "") + (body or "")[:12],
-                            avoid=avoid_variant)
+                            avoid=_kacin)
     # KULLANILMAYAN BOLGE METNE GERI VERILIR.
     #
     # `sol-panel` metni %8-53.4'e daraltip sag %46.6'yi `panel` bolgesine
