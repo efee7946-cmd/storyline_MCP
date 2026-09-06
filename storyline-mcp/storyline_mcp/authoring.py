@@ -2910,6 +2910,46 @@ def _quizi_sonuc_slaydina_bagla(pkg: StoryPackage, slayt_guid: str) -> dict:
             rapor["lmsResultSlideG"] += 1
 
     pkg.replace_xml(model.STORY_PART, story)
+
+    # UCUNCU KUSUR, VE BAGIN OBUR YARISI -- OLCULDU 2026-09-07.
+    #
+    # Yukarisi quiz -> SLAYT yonunu onariyor (`resultSldG`, `lmsResultSlideG`).
+    # Ama bag CIFT YONLU: sonuc slaydinin kendi `rsltsIntr`i de bir `quizG`
+    # tasiyor ve o REFERANS tohumdan oldugu gibi geliyor. `install_slide`
+    # yalnizca slaydin TANIMLADIGI guid'leri yeniler.
+    #
+    # Sonucu: kurucu yoldan cikan kursta bile sonuc slaydi bir HAYALET
+    # quiz'i gosteriyordu.
+    #
+    #     dosya                    quiz.g      rsltsIntr.quizG
+    #     0_duz_kopya (insan)      a8f5b72b    a8f5b72b   eslesiyor
+    #     tuzla       (insan+arac) a8f5b72b    a8f5b72b   eslesiyor
+    #     uretilmis   (kurucu yol) b577f71e    a8f5b72b   ESLESMIYOR
+    #
+    # Ilk iki satir bunun bir DEGISMEZ oldugunu soyluyor: insan yapimi
+    # kurslarda quizG her zaman var olan bir quiz'i gosteriyor. Yani
+    # duzeltme uydurma degil, korpusun kuralini geri koymak.
+    #
+    # KISMI TAMAMLANMA BASARIDAN AYIRT EDILEMIYORDU: iki yon ayri adimlarda
+    # yaziliyor ve her adim tek basina "yapildi" gorunuyor. Ikisini ayni
+    # fonksiyonda tutmak, birinin unutulmasini imkansiz kilmaz ama
+    # `completeness.puanlama_zinciri` artik ucunu birden tek iddiada soruyor.
+    quiz_guidleri = [q.get("g") for q in story.iter("quiz") if q.get("g")]
+    if quiz_guidleri:
+        for _part, _ref in idx.items():
+            if _ref.guid != slayt_guid:
+                continue
+            _kok = pkg.parse(_part)
+            _degisti = False
+            for _r in _kok.iter():
+                if _r.tag != "rsltsIntr":
+                    continue
+                if (_r.get("quizG") or "") not in quiz_guidleri:
+                    _r.set("quizG", quiz_guidleri[0])
+                    rapor["quizG"] = rapor.get("quizG", 0) + 1
+                    _degisti = True
+            if _degisti:
+                pkg.replace_xml(_part, _kok)
     return rapor
 
 
@@ -2993,8 +3033,19 @@ def add_results_slide(
     # Olculdu: quiz'i olmayan bir kaynaktan iki soru eklenip sonuc slaydi
     # kondugunda quiz KURULUYOR ama kayitli=0 kaliyordu. Kurulum kaydin
     # onunu aciyor; acmakla yetinmek, acilan kapidan kimseyi gecirmemek olur.
+    # KOSULSUZ, VE BU BIR DUZELTME -- OLCULDU 2026-09-07.
+    #
+    # Once `if quiz_kurulumu.get("kuruldu")` kapisinin arkasindaydi ve
+    # gerekcesi makuldu: quiz yeni kurulduysa onceki sorular kayitsiz kalmis
+    # olur. Ama tersi de oluyor -- quiz ZATEN VARSA (kullanicinin taban
+    # dosyasindan gelmis, ya da ikinci bir sonuc slaydi ekleniyor) daha once
+    # eklenmis sorular hic kaydedilmiyordu ve bu da SESSIZDI.
+    #
+    # `register_question` quiz yoksa erken donuyor ve kayitliysa
+    # "registered" demiyor, yani kosulsuz cagirmanin bedeli yok; kapinin
+    # bedeli ise kayitsiz kalan bir sorunun puanının toplama hic girmemesi.
     geri_kayit: list[str] = []
-    if quiz_kurulumu.get("kuruldu"):
+    if True:
         for _part, _ref in model.slide_index(pkg).items():
             if _ref.guid == result["slide_guid"]:
                 continue                    # sonuc slaydinin kendisi

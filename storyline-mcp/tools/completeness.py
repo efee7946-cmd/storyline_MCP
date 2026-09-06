@@ -172,42 +172,10 @@ def dangling_triggers(pkg: StoryPackage) -> list[tuple[str, str]]:
     return out
 
 
-def _tracking(pkg: StoryPackage, index: dict) -> dict:
-    """Puanlama zincirinin ikinci ve ucuncu halkasi: kayit ve hedef.
-
-    questionIdLst'in cocuklari <item> ve guid ONITELIKTE DEGIL METINDE durur;
-    attrib bos gelir. Oniteligi okumaya calisan bir surum her kaydi
-    "cozulemedi" sayar ve saglam bir kursu bozuk gosterirdi.
-    """
-    story = pkg.parse("story/story.xml")
-    by_guid = {ref.guid: ref.basename for ref in index.values()}
-    manager = story.find("quizMgr")
-    registered: dict[str, str] = {}       # slayt -> quiz adi
-    quizzes: list[dict] = []
-    for quiz in story.iter("quiz"):
-        id_list = quiz.find("questionIdLst")
-        items = [(el.text or "").strip()
-                 for el in (list(id_list) if id_list is not None else [])]
-        name = quiz.get("name") or "(isimsiz)"
-        for guid in items:
-            if guid in by_guid:
-                registered[by_guid[guid]] = name
-        target = quiz.get("resultSldG") or ""
-        quizzes.append({
-            "name": name,
-            "kayit": len(items),
-            "cozulemeyen": [g for g in items if g not in by_guid],
-            "sonuc_slaydi": by_guid.get(target),
-            "sonuc_guid_bos": not target or target.startswith("00000000"),
-        })
-    lms = (manager.get("lmsResultSlideG") or "") if manager is not None else ""
-    return {
-        "quizzes": quizzes,
-        "registered": registered,
-        "lms_hedefi": by_guid.get(lms),
-        "lms_bos": not lms or lms.startswith("00000000"),
-        "track_mode": manager.get("trackMode") if manager is not None else None,
-    }
+# TEK YETKILI KAYNAK `storyline_mcp.puanlama` -- URETIM yolu da onu
+# cagiriyor ve `tools/` orada sys.path'te YOK. Burada yalnizca ad devrali.
+from storyline_mcp.puanlama import izleme as _tracking          # noqa: E402
+from storyline_mcp.puanlama import zincir as puanlama_zinciri   # noqa: E402
 
 
 def survey(pkg: StoryPackage) -> dict:

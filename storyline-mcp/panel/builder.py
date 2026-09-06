@@ -2047,6 +2047,37 @@ def build(
     else:
         medya.temizle(path)
 
+    # PUANLAMA ZINCIRI: OLCU DEGIL, KAPI -- OLCULDU 2026-09-07.
+    #
+    # Ogretim olcusunun aksine bu bir SAYI degil, bir IDDIA, ve tutmazsa
+    # kurs teslim edilmez. Gerekce oncelik: eksik gorseli yazar dosyayi
+    # acinca gorur; sifir puanli bir SCORM paketini musterinin LMS
+    # yoneticisi, insanlar kursu ALDIKTAN sonra gorur. Ayni sinif kusur
+    # degil.
+    #
+    # `verified_ok` bunu goremiyordu: o olcu XML butunlugune bakiyor (parca
+    # sayisi, BOM, ayristirma). Kullanicinin savunma.story'si kusursuz
+    # bicimliydi ve LMS'e hicbir sey raporlamiyordu.
+    #
+    # KAYDEDILMIS DOSYA UZERINDE, bellekteki pkg degil -- ogrencinin aldigi
+    # sey diskteki dosya.
+    # `storyline_mcp.puanlama`dan, `tools/completeness`ten DEGIL: panelin
+    # sys.path'inde `tools/` YOK (yalnizca depo koku ve `panel/`), yani
+    # oradan import etmek panelde ImportError verir ve asagidaki except onu
+    # "olculemedi" diye okuyup HER kurulumu dusururdu. `tools/produced.py`
+    # bunu goremezdi -- kendi path'ine `tools/`u ekliyor.
+    from storyline_mcp import puanlama as _puanlama
+    try:
+        _zincir = _puanlama.zincir(StoryPackage(path))
+    except Exception as exc:
+        _zincir = ["puanlama zinciri olculemedi: %s" % str(exc)[:120]]
+    if _zincir:
+        for _k in _zincir:
+            on_progress("PUANLAMA ZINCIRI KIRIK: %s" % _k)
+        raise StoryError(
+            "Kurs kaydedildi ama puanlama zinciri kirik, LMS'e puan "
+            "raporlanmaz: " + "; ".join(_zincir))
+
     # OGRETIM OLCUSU, KAYDEDILMIS DOSYA UZERINDE. Bugune kadar raporun her
     # alani BICIMI olcuyordu -- variety, question_looks, verified -- ve
     # "bu kurs PowerPoint mu" sorusuna bakan hicbir sayi yoktu. pedagogy.olc

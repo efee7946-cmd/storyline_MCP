@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN OTUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -917,6 +917,84 @@ def main() -> int:
     bak("bos bolge deligi", "#14", not _delik,
         "%d varyant %s" % (len(_delik), _delik[:1]))
 
+    # 30 -- PUANLAMA ZINCIRI BUTUN MU (TEK BIRLESIK IDDIA)
+    #
+    # Kullanicinin uc kursu ikili degil bir TAYF gosterdi (olculdu
+    # 2026-09-07):
+    #
+    #     dosya             quizLst   rsltsIntr.quizG      lmsResultSlideG
+    #     savunma           bos       a8f5b72b (yabanci)   00000000...
+    #     etkiliyapayzeka   bos       a8f5b72b (yabanci)   slide10  OK
+    #     tuzla             1 quiz    a8f5b72b (eslesiyor) slided   OK
+    #
+    # Ortadaki satir mesele: LMS hedefi YAZILMIS, quiz hic kurulmamis. Iki
+    # adim, tek ortak iddia yok -- ve her adim tek basina "yapildi" gorunuyor.
+    # `verified_ok` bunu goremiyor: o XML butunlugune bakiyor, dosya kusursuz
+    # bicimli olup LMS'e hicbir sey raporlamayabiliyor.
+    #
+    # UCUNCU KIRIK KURUCU YOLDA CIKTI: `uretilmis.story`nin quiz'i
+    # b577f71e, sonuc slaydinin `quizG`si a8f5b72b -- yani sonuc slaydi bir
+    # HAYALETI gosteriyordu. Insan yapimi iki kursta (0_duz_kopya, tuzla)
+    # ikisi HER ZAMAN eslesiyor, yani bu bir degismez.
+    #
+    # IKI YOLDA DA SINANIR. Medya bulgusunun bir ust katmandaki aynisi: bir
+    # kontrol yalnizca `builder.build` icinde yasarsa, o kontrolu kosmayan
+    # yoldan cikan dosyalari iskalar -- bozuk iki dosya tam olarak oyle
+    # cikmisti.
+    from storyline_mcp import puanlama as _puanlama
+    _zincir_kirik = []
+    for _etiket30, _paket30 in (("komut yolu", pkg),
+                                ("quizsiz kaynak", StoryPackage(_yol2))):
+        for _k30 in _puanlama.zincir(_paket30):
+            _zincir_kirik.append("%s: %s" % (_etiket30, _k30))
+
+    # SONUC SLAYDINDAN SONRA EKLENEN SORU da kayitli olmali: `etkiliyapayzeka`
+    # kalibi. Geriye donuk kayit bir donem `if quiz_kurulumu["kuruldu"]`
+    # kapisinin arkasindaydi -- quiz ZATEN varsa hic kosmuyordu ve bu
+    # sessizdi.
+    _yol30 = Path(tempfile.gettempdir()) / "zincir_sonradan.story"
+    shutil.copy2(BLANK, _yol30)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p30 = StoryPackage(_yol30)
+        clone.create_scene(_p30, "B")
+        authoring.add_question(_p30, None, "Soru bir?",
+                               ["A secenegi", "B secenegi", "C secenegi"], [0])
+        authoring.add_results_slide(_p30)
+        authoring.add_question(_p30, None, "Soru iki?",
+                               ["A secenegi", "B secenegi", "C secenegi"], [1])
+        _p30.save(_yol30, backup=False)
+    for _k30 in _puanlama.zincir(StoryPackage(_yol30)):
+        _zincir_kirik.append("sonradan soru: %s" % _k30)
+
+    # KOPYALANAN SORU DA KAYITLI OLMALI, ve geriye donuk kaydin KOSULSUZ
+    # olmasinin gerekcesi tam olarak bu vaka. `clone_slide` bir soru slaydini
+    # cogaltir ama `register_question` cagirmaz -- ajanin sohbet yolunda
+    # yapacagi en dogal sey. Quiz ZATEN var oldugu icin eski
+    # `if quiz_kurulumu["kuruldu"]` kapisi geriye donuk kaydi hic
+    # kosturmuyordu.
+    #
+    # Olculdu 2026-09-07, ayni fikstur iki surumle:
+    #     kosulsuz  -> geriye_donuk_kayit ['slide.xml','slide5.xml'], zincir TEMIZ
+    #     kosullu   -> geriye_donuk_kayit [], "1 puanli slayt kayitli degil"
+    _yol31 = Path(tempfile.gettempdir()) / "zincir_kopya.story"
+    shutil.copy2(BLANK, _yol31)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p31 = StoryPackage(_yol31)
+        clone.create_scene(_p31, "B")
+        _q31 = authoring.add_question(
+            _p31, None, "Soru bir?",
+            ["A secenegi", "B secenegi", "C secenegi"], [0])
+        clone.clone_slide(_p31, _q31["new_slide"])
+        authoring.add_results_slide(_p31)
+        _p31.save(_yol31, backup=False)
+    for _k30 in _puanlama.zincir(StoryPackage(_yol31)):
+        _zincir_kirik.append("kopyalanan soru: %s" % _k30)
+
+    bak("puanlama zinciri", "#3", not _zincir_kirik,
+        "%d kirik %s" % (len(_zincir_kirik), _zincir_kirik[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -927,7 +1005,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi dokuz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen otuz sinifin hicbirini tasimiyor.")
     return 0
 
 
