@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI DORT SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI YEDI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -60,7 +60,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import completeness
-from storyline_mcp import authoring, clone, compose, model, preview
+from storyline_mcp import authoring, clone, compose, model, preview, shapes
 from storyline_mcp.package import StoryPackage
 
 BLANK = ROOT.parent / "test" / "bos.story"
@@ -216,21 +216,71 @@ def main() -> int:
            _bagli[0]["sonuc_slaydi"] if _bagli else None))
 
     # 11 -- dekoratif sekiller ekran okuyucudan gizli mi
-    _acik = 0
-    for _part, _ref in model.slide_index(pkg).items():
-        _root = pkg.parse(_part)
-        _sl = _root.find("shapeLst")
-        for _sh in (list(_sl) if _sl is not None else []):
-            if _sh.tag.endswith("Intr") or _sh.tag in (
-                    "btn", "rsltBtn", "feedBackBtn", "pic", "textEntry"):
+    #
+    # UC KEZ GENISLETILDI ve her genisleme bir olcumden geldi:
+    #
+    # (a) KATMANLAR DAHIL. Ilk surumu yalnizca `root.shapeLst`i geziyordu --
+    #     duzelttigi kodla AYNI kor noktayi paylasiyordu, yani kusuru degil
+    #     kodun varsayimini olcuyordu. Olculdu 2026-09-06: temelde 0,
+    #     katmanlarda 7 acik dekoratif sekil.
+    #
+    # (b) KAYNAK DOSYANIN SLAYTLARI HARIC. O yedinin ikisi `bos.story`nin
+    #     kendi slaydindaydi (slideb, "TIK1"/"TIK2") -- kullanicinin kendi
+    #     icerigi. Bu arac ona dokunmuyor.
+    #
+    # (c) SORU-ILK BIR KURULUM DA SINANIR. `shapes.find_seed` "once
+    #     projeninki" diyor: `page.band` yeni dikdortgen uretmez, pakette
+    #     olani klonlar. Bir icerik slaydi once bestelenmisse onun temiz
+    #     dikdortgeni kaynak olur ve soru slaydi TEMIZ dogar; hicbir icerik
+    #     slaydi yoksa gomulu tohum kaynak olur ve KIRLI dogar. Bu
+    #     fikstuurde her zaman once icerik slaydi var, yani kapi kusuru
+    #     goremezdi (K33) -- ikinci bir paket, soruyla BASLAYARAK kuruluyor.
+    _kaynak_slaytlar = set()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for _kp in model.slide_index(StoryPackage(BLANK)):
+            _kaynak_slaytlar.add(_kp)
+
+    def _acc_tara(_paket):
+        _bulunan = []
+        for _p11, _r11 in model.slide_index(_paket).items():
+            if _p11 in _kaynak_slaytlar:
                 continue
-            _g = _sh.get("g") or ""
-            if not _g or model.shape_text(_root, _g).strip():
-                continue
-            if (_sh.get("acc") or "") == "true":
-                _acik += 1
-    bak("dekoratif sekil gizli", "#22", _acik == 0,
-        "%d metinsiz sekil ekran okuyucuya acik" % _acik)
+            _k11 = _paket.parse(_p11)
+            for _ad11, _gv11 in model.bodies(_k11):
+                _sl11 = _gv11.find("shapeLst")
+                for _sh11 in (list(_sl11) if _sl11 is not None else []):
+                    if _sh11.tag.endswith("Intr") or _sh11.tag in (
+                            "btn", "rsltBtn", "feedBackBtn", "pic", "textEntry"):
+                        continue
+                    _g11 = _sh11.get("g") or ""
+                    if not _g11 or model.shape_text(_gv11, _g11).strip():
+                        continue
+                    if (_sh11.get("acc") or "") == "true":
+                        _bulunan.append("%s/%s/%s(%s)" % (
+                            _r11.basename, _ad11 or "temel", _sh11.tag,
+                            _sh11.get("name") or "-"))
+        return _bulunan
+
+    _acik_yer = _acc_tara(pkg)
+
+    _yol11 = Path(tempfile.gettempdir()) / "yeni_modul_sorufirst.story"
+    shutil.copy2(BLANK, _yol11)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p11k = StoryPackage(_yol11)
+        clone.create_scene(_p11k, "Bolum Bir")
+        authoring.add_question(
+            _p11k, None, "Hangisi dogru?",
+            ["A secenegi", "B secenegi", "C secenegi"], [0],
+            palette=compose.theme_palette("gece"), eyebrow="Bolum Bir",
+            variant="sag")
+        _p11k.save(_yol11, backup=False)
+    _acik_yer += ["soru-ilk: " + x for x in _acc_tara(StoryPackage(_yol11))]
+
+    bak("dekoratif sekil gizli", "#22", not _acik_yer,
+        "%d metinsiz sekil ekran okuyucuya acik %s"
+        % (len(_acik_yer), _acik_yer[:2]))
 
     # 12 -- koordinat uzayi tek mi
     from storyline_mcp import shapes as _shapes
@@ -580,6 +630,14 @@ def main() -> int:
     _grad = _kap('<sldLayer><bg><gradOvrlyFill type="def"/></bg></sldLayer>')
     if authoring.kap_zemini(_grad, {}) is not None:
         _kanarya.append("cozulemeyen zemin None donmuyor")
+    # `compose.kucuk` DE PAYLASILAN BIR COZUCU: 26. sinif etiket eslemesini
+    # ona yaptiriyor. Bozulursa esleme sessizce bosa duser ve kapi yesil
+    # kalir -- `kap_zemini`de tam olarak boyle olmustu.
+    for _ham, _bek in (("IŞIK", "ışık"), ("İLKE", "ilke"),
+                       ("Cevapları Göster", "cevapları göster")):
+        if compose.kucuk(_ham) != _bek:
+            _kanarya.append("kucuk(%r) = %r, beklenen %r"
+                            % (_ham, compose.kucuk(_ham), _bek))
     for _zor in ("#C0504D", "#9BBB59"):
         _sec = authoring.yazi_rengi_sec(compose.theme_palette("orman"), _zor)
         _o = _kontrast(_rgb(_sec), _rgb(_zor))
@@ -587,6 +645,165 @@ def main() -> int:
             _kanarya.append("%s icin secilen %s = %.2f" % (_zor, _sec, _o))
     bak("cozucu kanaryasi", "#3/#5", not _kanarya,
         "%d sorun %s" % (len(_kanarya), _kanarya[:1]))
+
+    # 25 -- SORU VARYANTLARINDA OLU BANT
+    #
+    # `sag` varyanti metni %35'ten baslatiyordu ve sol bantta yalnizca zemin
+    # vardi: 35 x 94.5, yani slaydin UCTE BIRI, hem de kursun en yogun slayt
+    # tipinde. Diger uc varyantin bos bandi %8 -- o bir kenar bosluğu; bu bir
+    # delikti. Kullanicinin sozuyle "eksik yarisi olan bir karar".
+    #
+    # DORT VARYANT DA ACIKCA KURULUYOR, hash'in secmesi beklenmiyor: varyant
+    # kok metninden turetiliyor ve bu fikstuurun kokU her kosuda ayni sonucu
+    # verir -- yani uc varyant hic gezilmezdi (K33).
+    #
+    # KURAL: metin sutunundan genis bir bant bos kaliyorsa (kenar
+    # bosluğundan buyuk), orada TAM BOY bir sekil olmali. Tam kapli zemin ve
+    # etkilesim ogesi sayilmaz -- ikisi de her slaytta var ve hicbir seyi
+    # doldurmuyor; vurgu isareti de sayilmaz, cunku `Kose` sol ustte
+    # %5.5 yukseklikte duruyor ve altindaki bosluğu kapatmiyor.
+    _KENAR = 10.0                      # 8 kenar bosluğu + olcum payi
+    _olu = []
+    for _v, _spec in sorted(compose.QUESTION_VARIANTS.items()):
+        _yol5 = Path(tempfile.gettempdir()) / ("varyant_%s.story" % _v)
+        shutil.copy2(BLANK, _yol5)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p5 = StoryPackage(_yol5)
+            clone.create_scene(_p5, "Bolum Bir")
+            _r5 = authoring.add_question(
+                _p5, None, "Tersanelerin yogunlastigi bolge hangisidir?",
+                ["Icmeler", "Orhanli", "Aydinli", "Tersaneler"], [3],
+                palette=compose.theme_palette("gece"), eyebrow="Bolum Bir",
+                variant=_v)
+            _p5.save(_yol5, backup=False)
+        _p5 = StoryPackage(_yol5)
+        _k5 = _p5.parse(_p5.slide_part_for(_r5["new_slide"]))
+        _w5, _h5 = shapes.slide_size(_k5)
+        _sol = min(_spec["stem"][0], _spec["choices"][0])
+        _sag = max(_spec["stem"][0] + _spec["stem"][1],
+                   _spec["choices"][0] + _spec["choices"][1])
+
+        def _dolduran(bant_x0, bant_x1):
+            """Bandi kapatan tam boy bir sekil var mi."""
+            _genis = bant_x1 - bant_x0
+            for _sh in list(_k5.find("shapeLst") or []):
+                if _sh.tag.endswith("Intr"):
+                    continue
+                _r = shapes.shape_rect(_sh)
+                if not _r:
+                    continue
+                _x0, _y0, _x1, _y1 = (_r[0] / _w5 * 100, _r[1] / _h5 * 100,
+                                      _r[2] / _w5 * 100, _r[3] / _h5 * 100)
+                if _x1 - _x0 >= 99.0:
+                    continue                      # tam kapli zemin
+                if _y1 - _y0 < 50.0:
+                    continue                      # vurgu seridi degil, pano
+                if _x0 <= bant_x0 + 1 and _x1 - _x0 >= _genis * 0.6:
+                    return True
+            return False
+
+        # OLCUT SIMETRI, GENISLIK DEGIL.
+        #
+        # Ilk surumu "kenardan genis her bant dolmali" diyordu ve
+        # `ortalanmis`i (18/18) da kirmizi yapti -- oysa iki yani esit olan
+        # bir sutun genis kenarli, ORTALANMIS bir karardir; bakan onu
+        # kasitli okur. Kusur genislikte degil DENGESIZLIKTE: `sag` bir yana
+        # 35, obur yana 8 birakiyordu. Kullanicinin sozu de tam buydu --
+        # "eksik YARISI olan bir karar".
+        _bos = {"sol": _sol, "sag": 100.0 - _sag}
+        _buyuk = max(_bos, key=_bos.get)
+        _fark = _bos[_buyuk] - min(_bos.values())
+        if _fark > _KENAR:
+            _bant = (0.0, _sol) if _buyuk == "sol" else (_sag, 100.0)
+            if not _dolduran(*_bant):
+                _olu.append("%s: %s %.0f%% bos, karsisi %.0f%%"
+                            % (_v, _buyuk, _bos[_buyuk], min(_bos.values())))
+    bak("varyantta olu bant", "#6", not _olu,
+        "%d varyant %s" % (len(_olu), _olu[:2]))
+
+    # 26 -- DUGME ETIKETI YAPTIGI ISI DOGRU ANLATIYOR MU
+    #
+    # Olculdu 2026-09-06, taze modul (uretim yolu), surukle-birak slaydi:
+    #
+    #     katman  dugme "Cevaplari Goster"  ->  ['jumpToSlide']
+    #
+    # Etiket cevaplari gosterecegini soyluyor, tetikleyici slaydi terk
+    # ediyor, ve o slaytta gosterilecek bir cevap katmani zaten YOK. Etiket
+    # donorun kursundan geliyordu.
+    #
+    # Kural HER SLAYT tipinde taraniyor, yalnizca surukle-birakta degil:
+    # ayni tohum ailesi soru slaytlarinda da kullaniliyor ve kusurun
+    # gorunmedigi bir yol, kusurun olmadigi anlamina gelmez.
+    _yalan = []
+    for _part6, _ref6 in model.slide_index(pkg).items():
+        _k6 = pkg.parse(_part6)
+        for _kat6 in (_k6.find("sldLayerLst") or []):
+            _eylem = {_t.find("data").get("action")
+                      for _tl in _kat6.iter("trigLst") for _t in _tl
+                      if _t.find("data") is not None}
+            _sl6 = _kat6.find("shapeLst")
+            for _d6 in (list(_sl6) if _sl6 is not None else []):
+                if _d6.tag not in ("btn", "rsltBtn", "feedBackBtn"):
+                    continue
+                _m6 = (model.shape_text(_kat6, _d6.get("g") or "") or "").strip()
+                if not _m6:
+                    continue
+                # SOZ VEREN etiket: "... Gor" / "... Goster"
+                if not compose.kucuk(_m6).endswith(
+                        ("gor", "gör", "goster", "göster")):
+                    continue
+                if "showSubSlide" not in _eylem:
+                    _yalan.append("%s/%s: %r ama %s"
+                                  % (_ref6.basename,
+                                     (_kat6.get("name") or "-")[:12],
+                                     _m6[:22], sorted(_eylem)))
+    bak("dugme sozunu tutuyor", "#2", not _yalan,
+        "%d yalan etiket %s" % (len(_yalan), _yalan[:1]))
+
+    # 27 -- AYNI ISI YAPAN DUGMELER AYNI ADI TASIYOR MU
+    #
+    # Olculdu 2026-09-06, taze modul: ayni soru slaydinda
+    #
+    #     Cevap2  "Cevabi Gor"          -> DOGRU katmani
+    #     Cevap3  "Dogru Cevabi Gor"    -> DOGRU katmani
+    #
+    # Iki dugme, ayni hedef, iki ayri isim. Kullanicinin 9 numarali bulgusu.
+    # Sebep benim onceki duzeltmemdi: etiket dugme BASINA, o dugmenin kendi
+    # kutusuna sigacak sekilde seciliyordu ve kutular farkli genislikteydi.
+    #
+    # KAPSAM: bir SIKKA bagli geri bildirim katmanlari. Onlarin dugmeleri
+    # tanim geregi ayni isi yapiyor (yanlis katmanlar dogru katmani acar),
+    # yani "ayni is" burada tahmin degil, `geri_bildirim_rolleri`nin verdigi
+    # bir olgu. Sonuc slaydinin iki dugmesi ("Gozden Gecir" / "Yeniden Dene")
+    # farkli isler yapiyor ve bu kurala girmiyor.
+    _ayrik = []
+    for _part7, _ref7 in model.slide_index(pkg).items():
+        _k7 = pkg.parse(_part7)
+        _sik7 = set(compose.katman_sik_etiketleri(_k7))
+        if len(_sik7) < 2:
+            continue
+        _rol7 = compose.geri_bildirim_rolleri(_k7)
+        _dogru7 = next((_g for _g in _sik7 if _rol7.get(_g) is True), None)
+        if _dogru7 is None:
+            continue
+        _etiketler = {}
+        for _kat7 in (_k7.find("sldLayerLst") or []):
+            _g7 = _kat7.get("g")
+            if _g7 not in _sik7 or _g7 == _dogru7:
+                continue                    # yalnizca YANLIS katmanlar
+            _sl7 = _kat7.find("shapeLst")
+            _d7 = [x for x in (list(_sl7) if _sl7 is not None else [])
+                   if x.tag in ("btn", "rsltBtn", "feedBackBtn")]
+            if len(_d7) != 1:
+                continue
+            _t7 = (model.shape_text(_kat7, _d7[0].get("g") or "") or "").strip()
+            if _t7:
+                _etiketler[(_kat7.get("name") or "-")] = _t7
+        if len(set(_etiketler.values())) > 1:
+            _ayrik.append("%s: %s" % (_ref7.basename, _etiketler))
+    bak("ayni is ayni ad", "#9", not _ayrik,
+        "%d slaytta ayrisik etiket %s" % (len(_ayrik), _ayrik[:1]))
 
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
@@ -598,7 +815,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi dort sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi yedi sinifin hicbirini tasimiyor.")
     return 0
 
 

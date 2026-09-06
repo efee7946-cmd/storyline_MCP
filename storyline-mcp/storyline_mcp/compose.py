@@ -105,6 +105,21 @@ def buyuk(metin: str) -> str:
     return metin.replace("i", "İ").replace("ı", "I").upper()
 
 
+def kucuk(metin: str) -> str:
+    """Turkce kucuk harf. `str.lower()` bu dilde YANLIS sonuc veriyor.
+
+    `buyuk()` ve `baslik()` ile ayni sinif: Python `I`yi `i`ye cevirir,
+    Turkcede `I`nin kucugu `i` DEGIL `ı`dir; noktali `İ`nin kucugu `i`dir.
+
+        "IŞIK".lower()   -> "işık"   (dogrusu "ışık")
+        "İLKE".lower()   -> "i̇lke"   (birlesik nokta, dogrusu "ilke")
+
+    Etiket karsilastirmasi icin gerekli: "GÖSTER" ile "Göster"i esitlemek
+    icin kucultuyoruz ve yanlis kucultme, esitligi sessizce kaciririr.
+    """
+    return (metin or "").replace("I", "ı").replace("İ", "i").lower()
+
+
 def baslik(metin: str) -> str:
     """Turkce baslik bicimi. `str.title()` bu dilde YANLIS sonuc veriyor.
 
@@ -541,14 +556,26 @@ def variant_for(layout: str, *, name: str | None = None, seed: str = "",
 
 
 def _apply_style(page: "_Page", colors: dict, style: str | None,
-                 pkg: StoryPackage) -> dict:
-    """Zemin ve vurgu isareti. UC CERCEVE DE BURADAN GECER.
+                 pkg: StoryPackage, *, panel: "tuple[float, float] | None" = None) -> dict:
+    """Zemin, istege bagli yan pano, ve vurgu isareti. UC CERCEVE DE BURADAN GECER.
 
     Ayri yazilmasinin sebebi kopyalamamak degil, UNUTMAMAK: uc cerceveden
     biri bu adimi atlarsa o tip slayt kursun icinde duz zeminli ve
     isaretsiz durur, ve fark ancak yan yana konunca gorunur. Kural tek
     yerde durunca "yeni bir cerceve yazildi, uslup baglanmadi" durumu
     olamaz.
+
+    PANO NEDEN BURADA VE NEDEN SIRA ONEMLI. `panel` metin sutununun BOS
+    kalan yanini kaplayan tam boy bir yuzey -- `sag` soru varyantinin
+    ihtiyaci. Zeminin USTUNDE cizilmeli (yoksa gorunmez) ve vurgunun
+    ALTINDA (yoksa vurguyu orter): `rail` isareti tam sol kenarda,
+    `corner` ise sol ustte duruyor, ve ikisi de panonun icine dusuyor.
+    Uc isaretin de en ustte kalmasi zaten dogru z-sirasi -- vurgu, uzerinde
+    durdugu seyi degil, slaydi isaretler.
+
+    Sirayi cagirana birakmak, "once pano mu once vurgu mu" sorusunu her
+    cerceveye ayri ayri sormak olurdu; bu dosyanin bilinen kusuru tam
+    olarak bu.
     """
     look = style_for(style, seed=pkg.path.stem)
     kind, angle = look.get("ground", ("flat", 0))
@@ -556,6 +583,12 @@ def _apply_style(page: "_Page", colors: dict, style: str | None,
         page.background(colors["bg"], to=colors["deep"], angle=angle)
     else:
         page.background(colors["bg"])
+    if panel:
+        # `Gorsel Alani` ile AYNI cagri: medya duzenleri de bir yani
+        # `surface` ile, tam opak, tam boy kapliyor. Ayni is icin ikinci
+        # bir gorunum uretmemek -- pano bu kursta zaten bilinen bir nesne.
+        page.scrim(panel[0], 0, panel[1], 100, colors["surface"],
+                   alpha=1.0, name="Yan Pano")
     _mark(page, look, colors, "content")
     return look
 
@@ -588,7 +621,16 @@ QUESTION_VARIANTS: dict[str, dict] = {
     "tam":        {"stem": (8.0, 84.0),  "choices": (8.0, 84.0),  "anchor": "orta"},
     "ortalanmis": {"stem": (18.0, 64.0), "choices": (18.0, 64.0), "anchor": "orta"},
     "girintili":  {"stem": (8.0, 84.0),  "choices": (22.0, 70.0), "anchor": "ust"},
-    "sag":        {"stem": (35.0, 57.0), "choices": (35.0, 57.0), "anchor": "orta"},
+    # `sag` PANOSUYLA BIRLIKTE GELIR, cunku panosuz hali eksik yarisi olan
+    # bir karardi. Olculdu 2026-09-06, dort sikli bir soru: metin %35'ten
+    # basliyor ve sol bantta yalnizca zemin var -- 35 x 94.5, yani slaydin
+    # UCTE BIRI, hem de kursun en yogun slayt tipinde. Diger uc varyantin
+    # bos bandi %8 (kenar bosluğu); bu, bir kenar bosluğu degil bir delik.
+    #
+    # Pano %27'de biter, metin %35'te baslar: aradaki 8 puan bu dosyanin
+    # her yerde kullandigi kenar olcusu, yani bosluk da sozlugun icinden.
+    "sag":        {"stem": (35.0, 57.0), "choices": (35.0, 57.0), "anchor": "orta",
+                   "panel": (0.0, 27.0)},
 }
 QUESTION_DEFAULT = "tam"
 
@@ -673,7 +715,8 @@ def _question_frame_once(pkg: StoryPackage, part: str, *,
     # oysa uslup kurs ICINDE sabit, kurslar ARASINDA farkli olmali; bu,
     # donors.choose'un zaten uyguladigi kural. Varyant soru basina degisir,
     # uslup degismez: biri ritim, digeri kimlik.
-    look = _apply_style(page, colors, style, pkg)
+    spec_on = QUESTION_VARIANTS.get(variant) or QUESTION_VARIANTS[QUESTION_DEFAULT]
+    look = _apply_style(page, colors, style, pkg, panel=spec_on.get("panel"))
     if eyebrow and look["eyebrow_case"] == "title":
         eyebrow = baslik(eyebrow)
     else:
@@ -1860,6 +1903,47 @@ def katman_dugmelerini_bagla(root, pkg) -> int:
         return 0
 
     katmanlar = {k.get("g"): k for k in (root.find("sldLayerLst") or [])}
+
+    # YANLIS KATMANLARIN ETIKETI ORTAK, ve EN DAR kutuya gore secilir.
+    #
+    # Olculdu 2026-09-06, taze modul: ayni slaytta Cevap2 "Cevabi Gor",
+    # Cevap3 "Dogru Cevabi Gor" yaziyordu -- ayni isi yapan (ikisi de DOGRU
+    # katmanini acan) iki dugme, iki ayri isim. Kullanicinin 9 numarali
+    # bulgusu buydu ve sebebi benim onceki duzeltmemdi: etiket dugme BASINA,
+    # o dugmenin kendi kutusuna gore seciliyordu, kutular da farkli
+    # genislikte.
+    #
+    # Sigma kurali korunuyor (o kural `invariants`i uc fikstuurde kirmiziya
+    # dondurmustu), yalnizca KAPSAMI degisiyor: "her dugme kendi kutusuna
+    # sigsin" yerine "secilen etiket HEPSINE sigsin". En dar kutuda sigan,
+    # digerlerinde de sigar.
+    _uzay2 = shapes.space_of(root, shapes.stage_size(pkg))
+
+    def _sigar_mi(aday: str, dugme) -> bool:
+        _rect = shapes.shape_rect(dugme)
+        _c2, _sz2, _b2, _a2 = _preview._text_style(dugme)
+        if not _rect or not _sz2:
+            return False
+        return shapes.measured_text_height(
+            aday, _sz2, _rect[2] - _rect[0], _uzay2,
+            wrap=shapes.wraps(dugme)) <= (_rect[3] - _rect[1])
+
+    def _tek_dugme(guid: str):
+        _kat = katmanlar.get(guid)
+        _sl = _kat.find("shapeLst") if _kat is not None else None
+        _d = [x for x in (list(_sl) if _sl is not None else [])
+              if x.tag in ("btn", "rsltBtn", "feedBackBtn")]
+        return _d[0] if len(_d) == 1 else None
+
+    _yanlis_dugmeler = [d for d in (_tek_dugme(g) for g in sik_katmanlari
+                                    if g != dogru) if d is not None]
+    # "Devam" her zaman sigar: tohumun kendi etiketi o boyda.
+    ortak_etiket = "Devam"
+    for _aday in ("Doğru Cevabı Gör", "Cevabı Gör"):
+        if _yanlis_dugmeler and all(_sigar_mi(_aday, d) for d in _yanlis_dugmeler):
+            ortak_etiket = _aday
+            break
+
     degisen = 0
     for guid in sik_katmanlari:
         katman = katmanlar.get(guid)
@@ -1941,31 +2025,122 @@ def katman_dugmelerini_bagla(root, pkg) -> int:
             if hedef is None:
                 hedef = ET.SubElement(data, "sldLayer")
             hedef.set("showG", dogru)
-            # ETIKET KUTUYA GORE SECILIR -- OLCULDU 2026-09-06.
-            #
-            # Ilk yazim kosulsuz "Dogru Cevabi Gor" yaziyordu ve `invariants`
-            # UC fikstuurde kirmiziya dondu: etiket kutuyu asiyor, kirpilmiyor
-            # ve komsusuna biniyor. Dugme BUYUTULMEZ (`katman_yazisini_sigdir`
-            # kutuyu buyutebiliyor ama dugmede o, bandin duzenini bozar), o
-            # yuzden SIGAN en uzun etiket seciliyor.
-            #
-            # Uc secenek de ayni seyi soyluyor, farkli uzunlukta; en kisasi
-            # her zaman sigiyor cunku tohumun kendi etiketi ("Devam") o boyda.
-            _rect = shapes.shape_rect(dugme)
-            _c2, _sz2, _b2, _a2 = _preview._text_style(dugme)
-            _uzay2 = shapes.space_of(root, shapes.stage_size(pkg))
-            etiket = "Devam"
-            for _aday in ("Doğru Cevabı Gör", "Cevabı Gör"):
-                if not _rect or not _sz2:
-                    break
-                _ger = shapes.measured_text_height(
-                    _aday, _sz2, _rect[2] - _rect[0], _uzay2,
-                    wrap=shapes.wraps(dugme))
-                if _ger <= (_rect[3] - _rect[1]):
-                    etiket = _aday
-                    break
+            # ETIKET YUKARIDA, HEPSI ICIN BIR KEZ SECILDI. Dugme basina
+            # secmek ayni isi yapan iki dugmeye iki ad veriyordu.
+            etiket = ortak_etiket
         set_shape_text(katman, dugme.get("g") or "", etiket)
         degisen += 1
+    return degisen
+
+
+def dekoratifi_gizle(root) -> int:
+    """Metni olmayan şekilleri ekran okuyucudan çıkarır. KATMANLAR DAHİL.
+
+    Tohumdan gelen her sekil `acc="true"` tasiyor. Metni olmayan bir sekil --
+    arka plan, vurgu seridi, kart, cizgi, tik isareti, numara kutusu -- ekran
+    okuyucuya BOS bir nesne olarak okunur. Kullanicinin urettigi kursta 50,
+    taze bir modulde 18 tane vardi (22 numarali bulgu).
+
+    KURAL METINE BAKAR, ADA DEGIL. "Arka Plan", "Vurgu", "Kart" gibi adlari
+    listelemek denenebilirdi ve kirilgan olurdu: ad Turkce, Ingilizce ya da
+    bos olabilir. Metni olmayan bir sekil, ekran okuyucunun okuyacagi hicbir
+    sey tasimiyor demektir -- olcut bu.
+
+    DEGER UYDURULMADI: insan yapimi kurslarda `acc="false"` 38 kez geciyor,
+    yani Storyline'in kendi kullandigi bicim.
+
+    DISARIDA BIRAKILANLAR: dugmeler ve etkilesim ogeleri (metinsiz olsa bile
+    TIKLANABILIRLER, yani gizlenmemeliler) ve resimler (alternatif metinleri
+    baska yerde durabilir; olculmedi, o yuzden dokunulmuyor).
+
+    SIRA BAGIMLILIGI, ve asil bulgu bu. `shapes.find_seed` "once projeninki"
+    diyor -- `page.band`/`scrim` yeni bir dikdortgen uretmiyor, pakette VAR
+    OLAN birini klonluyor. Yani bir icerik slaydi once bestelenmisse onun
+    temizlenmis dikdortgeni (`acc="false"`) kaynak oluyor ve sonraki slaytlar
+    temiz DOGUYOR; hicbir icerik slaydi yoksa kaynak gomulu tohum
+    (`acc="true"`) ve slayt kirli doguyor. Olculdu 2026-09-06, ayni cagri
+    iki fikstuurde:
+
+        icerik slaydindan SONRA kurulan soru   Arka Plan acc="false"
+        dogrudan kurulan soru                  Arka Plan acc="true"
+
+    Panelin urettigi kurslarda hep once bir icerik slaydi geldigi icin bu
+    SANS ESERI dogru cikiyordu. Sansa birakilmis bir erisilebilirlik ozelligi,
+    bir sonraki farkli sirali kursta sessizce kaybolur.
+
+    KATMANLAR NEDEN SONRADAN EKLENDI. Ilk yazim yalnizca `root.shapeLst`i
+    geziyordu ve kapisi da oyle olctu -- ikisi ayni kor noktayi paylasti.
+    Olculdu 2026-09-06, taze modul: temelde 0 acik dekoratif sekil, ama
+    KATMANLARDA 7 tane (soru tohumunun "Cevaplar" katmanindaki dort oval ve
+    tik isaretleri). Bu, bu dosyada UCUNCU kez ayni sinif: animasyon ve tohum
+    temizligi de bir donem yalnizca temeli geziyordu. Kural artik `model.bodies`
+    uzerinden, tek yerde.
+    """
+    gizlenen = 0
+    for _ad, govde in model.bodies(root):
+        sl = govde.find("shapeLst")
+        for sh in (list(sl) if sl is not None else []):
+            if sh.tag.endswith("Intr") or sh.tag in (
+                    "btn", "rsltBtn", "feedBackBtn", "pic", "textEntry"):
+                continue
+            g = sh.get("g") or ""
+            if not g or model.shape_text(govde, g).strip():
+                continue
+            if (sh.get("acc") or "") == "true":
+                sh.set("acc", "false")
+                gizlenen += 1
+    return gizlenen
+
+
+def dugme_sozunu_tut(root) -> int:
+    """Bir düğmenin ETİKETİ, yaptığı işi yanlış anlatıyorsa düzeltir.
+
+    Olculdu 2026-09-06, taze modul (uretim yolu), surukle-birak slaydi:
+
+        katman  dugme "Cevaplari Goster"  ->  ['jumpToSlide']
+
+    Etiket cevaplari GOSTERECEGINI soyluyor, tetikleyici ise slaydi terk
+    ediyor -- ve o slaytta gosterilecek bir cevap katmani zaten YOK. Etiket
+    donorun kursundan geliyor; orada bir "Cevaplar" katmani vardi, burada
+    gelmedi. Kullanicinin ikinci denetimindeki 2 numarali bulgu buydu.
+
+    NEDEN "METNI KORU" KURALI BURADA GECERSIZ. `compose_feedback_layers`
+    dugme metnini bilerek korur ve gerekcesi dogru: "rolu tiklamak,
+    aciklamak degil" -- bir dugmenin yazisi onun ROLUDUR. Ama bu, yazinin
+    rolu DOGRU anlatmasi halinde gecerli. Yalan soyleyen bir etiket
+    korunacak bir rol degil, duzeltilecek bir kusurdur.
+
+    DAR TUTULUYOR, cunku etiket yazmak icerige karismaktir:
+
+      * yalnizca bir SOZ VEREN etiket ("... Gor", "... Goster") ve
+      * o katmanda `showSubSlide` HIC yoksa
+
+    ikisi birden dogruysa etiket "Devam"a cekilir. Soz tutuluyorsa
+    (showSubSlide var) dokunulmaz -- `katman_dugmelerini_bagla` yanlis cevap
+    katmanlarina bilerek "Dogru Cevabi Gor" yaziyor ve o etiket DOGRU.
+
+    "Devam" her zaman SIGAR: tohumlarin kendi etiketi o boyda, ve degistirdigimiz
+    etiketler ondan uzun. Yani kucultme kutuyu asamaz.
+    """
+    _SOZ_SONLARI = ("gor", "göster", "goster", "gör")
+    degisen = 0
+    for katman in (root.find("sldLayerLst") or []):
+        eylemler = {t.find("data").get("action")
+                    for tl in katman.iter("trigLst") for t in tl
+                    if t.find("data") is not None}
+        if "showSubSlide" in eylemler:
+            continue                       # soz tutuluyor
+        sl = katman.find("shapeLst")
+        for dugme in (list(sl) if sl is not None else []):
+            if dugme.tag not in ("btn", "rsltBtn", "feedBackBtn"):
+                continue
+            metin = (model.shape_text(katman, dugme.get("g") or "") or "").strip()
+            if not metin:
+                continue
+            if not kucuk(metin).endswith(_SOZ_SONLARI):
+                continue
+            set_shape_text(katman, dugme.get("g") or "", "Devam")
+            degisen += 1
     return degisen
 
 
@@ -2331,6 +2506,12 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     acilan = cikissiz_katmani_ac(root)
     yabanci = yabanci_katmanlari_doldur(root)
     baglanan_dugme = katman_dugmelerini_bagla(root, pkg)
+    sozunu_tutan = dugme_sozunu_tut(root)
+    # Katman sekilleri BURADA son halini aliyor (metin yeniden yaziliyor,
+    # panel/dugme boyaniyor), yani "metni var mi" sorusu ancak simdi dogru
+    # cevaplanabilir -- daha once kosarsa yeniden yazilacak bir kutuyu
+    # "metinsiz" sayardi.
+    gizlenen_kat = dekoratifi_gizle(root)
     hizalanan = katman_dugmelerini_hizala(root)
     sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
     pkg.replace_xml(part, root)
@@ -2340,6 +2521,8 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             "yabanci_katman_yazisi": yabanci,
             "dugme_hizalandi": hizalanan,
             "dugme_baglandi": baglanan_dugme,
+            "dugme_etiketi_duzeltildi": sozunu_tutan,
+            "dekoratif_gizlendi": gizlenen_kat,
             "katman_yazisi_kucultuldu": sigan,
             "olcege_alinan": olceklenen}
 
@@ -3674,37 +3857,11 @@ def compose_slide(
                                 height=height, space=page.space,
                                 bottom=FLOOR)
 
-    # DEKORATIF SEKILLER EKRAN OKUYUCUDAN CIKSIN -- OLCULDU 2026-09-06.
-    #
-    # Tohumdan gelen her sekil `acc="true"` tasiyor. Metni olmayan bir
-    # sekil -- arka plan, vurgu seridi, kart, cizgi, numara kutusu --
-    # ekran okuyucuya BOS bir nesne olarak okunur. Kullanicinin urettigi
-    # kursta 50, taze bir modulde 18 tane vardi (22 numarali bulgu).
-    #
-    # KURAL METINE BAKAR, ADA DEGIL. "Arka Plan", "Vurgu", "Kart" gibi
-    # adlari listelemek denenebilirdi ve kirilgan olurdu: ad Turkce,
-    # Ingilizce ya da bos olabilir. Metni olmayan bir sekil, ekran
-    # okuyucunun okuyacagi hicbir sey tasimiyor demektir -- olcut bu.
-    #
-    # DEGER UYDURULMADI: insan yapimi kurslarda `acc="false"` 38 kez
-    # geciyor, yani Storyline'in kendi kullandigi bicim.
-    #
-    # DISARIDA BIRAKILANLAR: dugmeler ve etkilesim ogeleri (metinsiz olsa
-    # bile tiklanabilirler, yani ekran okuyucudan gizlenmemeliler) ve
-    # resimler (alternatif metinleri baska yerde durabilir; olculmedi,
-    # o yuzden dokunulmuyor).
-    _gizlenen = 0
-    _sl = root.find("shapeLst")
-    for _sh in (list(_sl) if _sl is not None else []):
-        if _sh.tag.endswith("Intr") or _sh.tag in (
-                "btn", "rsltBtn", "feedBackBtn", "pic", "textEntry"):
-            continue
-        _g = _sh.get("g") or ""
-        if not _g or model.shape_text(root, _g).strip():
-            continue
-        if (_sh.get("acc") or "") == "true":
-            _sh.set("acc", "false")
-            _gizlenen += 1
+    # DEKORATIF SEKILLER EKRAN OKUYUCUDAN CIKSIN. Kural `dekoratifi_gizle`de,
+    # cunku ayni kurala geri bildirim katmanlarinin da ihtiyaci var ve iki
+    # kopya ayrisirdi (bir donem ayrildi da: bu satirlar yalnizca temeli
+    # geziyordu, katmanlarda yedi sekil acik kaldi).
+    _gizlenen = dekoratifi_gizle(root)
 
     # OYNATICI ETIKETLERI TURKCE OLSUN.
     #
