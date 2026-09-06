@@ -105,6 +105,36 @@ def buyuk(metin: str) -> str:
     return metin.replace("i", "İ").replace("ı", "I").upper()
 
 
+def baslik(metin: str) -> str:
+    """Turkce baslik bicimi. `str.title()` bu dilde YANLIS sonuc veriyor.
+
+    `buyuk()` ile ayni sinif, ikinci yuzu. Python her kelimenin ilk harfini
+    ASCII kurallariyla buyutur ve kalanini kucultur; Turkcede iki harf bunu
+    bozar:
+
+        "TARIH"   .title() -> "Tari̇h"   (I kucultulunce noktali i)
+        "ısık"  .title() -> "Isik"    (ı buyutulunce noktali I)
+
+    Kullanicinin ucuncu denetiminde bir eyebrow "Tarih Ve Kultur" diye
+    goruundu; uslup `eyebrow_case="title"` oldugu icin BICIM dogru, ama
+    harfler yanlisti.
+
+    KISALTMA YOK: "ve", "ile" gibi baglaclari kucuk tutan bir liste
+    EKLENMEDI -- o bir yazim tercihi ve uydurmak yerine dokunulmuyor.
+    Duzeltilen sey yalnizca HARF: dogru buyuk, dogru kucuk.
+    """
+    def _kucuk(s: str) -> str:
+        return s.replace("I", "ı").replace("İ", "i").lower()
+
+    out = []
+    for kelime in metin.split(" "):
+        if not kelime:
+            out.append(kelime)
+            continue
+        out.append(buyuk(kelime[0]) + _kucuk(kelime[1:]))
+    return " ".join(out)
+
+
 def snap(size: float) -> float:
     """En yakın merdiven basamağı."""
     return min(TYPE_LADDER, key=lambda step: (abs(step - size), step))
@@ -645,7 +675,7 @@ def _question_frame_once(pkg: StoryPackage, part: str, *,
     # uslup degismez: biri ritim, digeri kimlik.
     look = _apply_style(page, colors, style, pkg)
     if eyebrow and look["eyebrow_case"] == "title":
-        eyebrow = eyebrow.title()
+        eyebrow = baslik(eyebrow)
     else:
         eyebrow = buyuk(eyebrow) if eyebrow else eyebrow
     spec = QUESTION_VARIANTS.get(variant) or QUESTION_VARIANTS[QUESTION_DEFAULT]
@@ -954,7 +984,7 @@ def compose_drag_frame(pkg: StoryPackage, part: str, *,
     # dururdu -- tohumdan yalnizca anatomi alma kuralinin bedeli.
     look = _apply_style(page, colors, style, pkg)
     if eyebrow:
-        eyebrow = eyebrow.title() if look["eyebrow_case"] == "title" else buyuk(eyebrow)
+        eyebrow = baslik(eyebrow) if look["eyebrow_case"] == "title" else buyuk(eyebrow)
 
     by_guid = {s.get("g"): s for s in shape_list if s.get("g")}
     items: list[str] = []
@@ -1125,7 +1155,7 @@ def compose_text_frame(pkg: StoryPackage, part: str, *,
     top = CEILING
     if eyebrow:
         if look["eyebrow_case"] == "title":
-            eyebrow = eyebrow.title()
+            eyebrow = baslik(eyebrow)
         else:
             eyebrow = buyuk(eyebrow)
         h = page.text_height(eyebrow, "eyebrow", CONTENT_W)
@@ -2139,6 +2169,29 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             given = feedback.get("correct" if is_correct else "incorrect")
             if given:
                 body = str(given)
+                # YAZARIN METNI VARSA DA SIKKI ADLANDIR -- OLCULDU
+                # 2026-09-06 (kullanicinin kok neden analizi).
+                #
+                # Sikka ozel cumle `elif` dalindaydi, yani YALNIZCA yazar
+                # geri bildirim vermediginde calisiyordu. Planlayici HER
+                # ZAMAN veriyor (`builder.py` semasinda "feedback":
+                # {"correct": ..., "incorrect": ...}), dolayisiyla o dal
+                # uretimde HIC atesleniyordu.
+                #
+                # Sonuc uc kursta da ayni: Cevap2 ile Cevap3 birebir ayni
+                # metni tasiyor. En kotusu tuzla/slide8 -- Orhanli secen
+                # ogrenci bastan sona Aydinli'yi anlatan bir aciklama
+                # okuyor.
+                #
+                # YAZARIN CUMLESI SILINMIYOR, ONUNE SECIM KONUYOR: sema
+                # yanlis cevap basina TEK cumle tasiyor, yani ayirt edici
+                # olan tek sey sikkin KENDISI. Sema sik basina hale
+                # getirilene kadar dogru davranis bu.
+                _etiket0 = _sik_etiketleri.get(layer.get("g") or "")
+                if (not is_correct and _etiket0
+                        and sum(1 for _g in _sik_etiketleri
+                                if roller.get(_g) is False) > 1):
+                    body = "«%s»: %s" % (_etiket0, body)
         elif not is_correct:
             # AYNI CUMLE UC KATMANDA -- olculdu 2026-09-06, taze modulde:
             # `slidee.xml`in Cevap2 ve Cevap3 katmanlarinin metni BIREBIR
@@ -3114,7 +3167,7 @@ def compose_slide(
         page.background(colors["bg"])
     _mark(page, look, colors, layout)
     if eyebrow and look["eyebrow_case"] == "title":
-        eyebrow = eyebrow.title()
+        eyebrow = baslik(eyebrow)
     button_specs: list[dict] = []
     reserved: dict | None = None
 

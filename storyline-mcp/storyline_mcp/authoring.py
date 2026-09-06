@@ -1910,6 +1910,47 @@ def add_question(
     # Yalnizca birine baglanan bir duzeltme, sablonun nereden geldigine gore
     # bazen calisip bazen calismayan bir kurs uretirdi -- ve iki yol da gecerli
     # dosya urettigi icin hicbir sey bagirmazdi.
+    # CERCEVE VE PALET, KLON YOLUNDA DA -- OLCULDU 2026-09-06.
+    #
+    # Bu dalin belge dizesi "eyebrow / palette: yalnizca GOMULU tohum
+    # yolunda kullanilir" diyordu ve bu bir SINIRLAMA degil, KUSURDU.
+    # Sonucu urunde gorundu: `available_question_shapes` projede ZATEN
+    # duran soru slaytlarini sablon olarak listeliyor ve LRU siralamasi
+    # ikinci soruyu birincisini klonlamaya egilimli kiliyor -- yani
+    # ikinci ve ucuncu soru, BIRINCI sahnenin bolum etiketini tasiyor.
+    #
+    # Olculdu, uc kursta da ayni desen:
+    #   tuzla            slide8 tohumdan (dogru), slidea+slideb klon
+    #                    -> ikisi de "KONUM VE COGRAFYA"
+    #   etkiliyapayzeka  slideb tohumdan, slided klon -> yanlis etiket
+    #   savunma          tek soru, klon yok -> etiket dogru
+    #
+    # Yani "yanlis bolum etiketi" bir yazim hatasi degil, bu dalin
+    # eksikliginin dogrudan sonucu. Ayni sebeple PALET de dusuyordu:
+    # klonlanan slayt tohumun renklerini tasiyor.
+    #
+    # Tohum dalinin yaptigi iki adim burada da yapiliyor; ucuncusu
+    # (geri bildirim katmanlari) bu dalda zaten var.
+    if eyebrow or palette:
+        try:
+            from . import compose as _compose
+            _kok2 = pkg.parse(result["part"])
+            _tag2, _intr2 = _find_interaction(_kok2)
+            _cg = _choice_shape_guids(_intr2) if _intr2 is not None else []
+            _sg = _stem_shape_guid(_kok2, _cg)
+            _compose.compose_question_frame(
+                pkg, result["part"], eyebrow=eyebrow, palette=palette,
+                stem_guid=_sg, choice_guids=_cg,
+                style=style, variant=variant, avoid_variant=avoid_variant)
+            if palette:
+                _recolour_for_palette(pkg, result["part"], palette,
+                                      stem=_sg, choices=_cg, eyebrow=None)
+        except Exception:
+            # Cerceve kurulamazsa slayt YINE calisir: kok, sikler ve
+            # puanlama yerinde; yalnizca etiket ve renk tohumdan kalir.
+            pass
+        root = pkg.parse(result["part"])
+
     registration = register_question(pkg, root.get("g", ""))
     return {
         **geri_bildirim,
