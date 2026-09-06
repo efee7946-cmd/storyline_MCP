@@ -1848,6 +1848,33 @@ def build(
     # kullaniyor ve dallanma, ilerlemenin kurdugu sonuc slaydina degil
     # yalnizca soru slaytlarina dokunuyor -- sira aralarinda bagimlilik
     # kurmuyor, ama ikisi de ayni `konu_adlari`ni almali.
+    # PROJE DILI SOYLENIR, DEGISTIRILMEZ -- OLCULDU 2026-09-06.
+    #
+    # Kullanicinin kursunda `<languages primary-name="en-us">` duruyordu ve
+    # oynatici etiketleri Turkce oldugu halde yayinlanan ciktinin `lang`
+    # etiketi Ingilizce kalir; ekran okuyucular icin yanlis.
+    #
+    # DEGISTIRILMIYOR cunku GECERLI DEGERI KANITLAYAMIYORUM: kullanicinin
+    # otuz bes kursunun HEPSINDE "en-us" var, donorlerde de baska bir deger
+    # yok, Storyline kurulumunda da proje dili listesi bulunamadi. Bu, dosyayi
+    # bozabilecek bir alan; bu projede sifirdan deger uydurmak bir turu
+    # goturdu.
+    #
+    # Ustelik ETIKET BIZDEN GELMIYOR: `bos.story`de `<languages>` elemani
+    # HIC YOK -- kullanicinin baslangic dosyasindan devraliniyor. Yapilacak
+    # dogru sey, sessiz kalmak yerine SOYLEMEK.
+    try:
+        _st = pkg.parse("story/story.xml")
+        _dil = next((e.get("primary-name") for e in _st.iter("languages")
+                     if e.get("primary-name")), None)
+        if _dil and not _dil.lower().startswith("tr"):
+            on_progress("Proje dili '%s' (baslangic dosyasindan geldi). "
+                        "Oynatici etiketleri Turkce ama yayinlanan ciktinin "
+                        "dil etiketi bu kalacak; Storyline'da Design > "
+                        "Player > dil ayarindan degistirebilirsiniz." % _dil)
+    except Exception:
+        pass
+
     # SON SLAYDIN ILERISI, HER SEY YERINE OTURDUKTAN SONRA. Hangi slaydin
     # SON oldugu ancak butun sahneler ve sonuc slaydi kurulduktan sonra
     # bilinir; daha erken kapatmak yanlis slaydi kapatirdi.

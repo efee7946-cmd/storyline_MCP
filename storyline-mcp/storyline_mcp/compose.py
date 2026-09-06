@@ -3464,6 +3464,12 @@ def compose_slide(
                                    0.0))
             _slot = _band / len(items)
         head_bottom = bottom - _band - (UNIT * 100 if _band else 0.0)
+        # BOLUM ETIKETI (ayni gerekce menu/reveal dalinda yazili).
+        if eyebrow:
+            _e_h2 = page.text_height(buyuk(eyebrow), "eyebrow", CONTENT_W)
+            page.text(buyuk(eyebrow), head_top, role="eyebrow", height=_e_h2,
+                      w=CONTENT_W)
+            head_top += _e_h2 + UNIT * 40
         head_h = page.text_height(title or "Adimlar", "title", CONTENT_W)
         head_h = min(head_h, max(head_bottom - head_top, 0.0))
         page.text(title or "Adimlar", head_top, role="title", height=head_h,
@@ -3542,6 +3548,25 @@ def compose_slide(
                                         space=page.space)
         _b_head_bottom = FLOOR - _b_need - (UNIT * 100 if _b_need else 0.0)
         y = CEILING + 2
+        # BOLUM ETIKETI BURADA DA CIZILIR -- OLCULDU 2026-09-06.
+        #
+        # `cover`, `section`, `content` ve `bullets` eyebrow'u ciziyordu;
+        # `menu`/`reveal` ve `steps` cizmiyordu. Sonuc, ogrencinin bazi
+        # slaytlarda hangi bolumde oldugunu gormemesi -- kullanicinin 7
+        # numarali bulgusunun "hic yok" satirlari.
+        #
+        # `reveal` ozellikle onemli: ogretim tarafi kursu o duzene itiyor,
+        # yani etiketi orada eksik birakmak, kurs zenginlestikce daha cok
+        # slaydin etiketsiz kalmasi demek.
+        #
+        # Yer BASLIKTAN alinmiyor, USTUNE ekleniyor ve basligin tavani ayni
+        # kaliyor: `h` zaten `_b_head_bottom - y` ile sinirli, yani eyebrow
+        # kadar asagi kayan baslik kendini kisaltir.
+        if eyebrow:
+            _e_h = page.text_height(buyuk(eyebrow), "eyebrow", CONTENT_W)
+            page.text(buyuk(eyebrow), y, role="eyebrow", height=_e_h,
+                      w=CONTENT_W)
+            y += _e_h + UNIT * 40
         h = page.text_height(title or "Secim yapin", "title", CONTENT_W)
         h = min(h, max(_b_head_bottom - y, 0.0))
         page.text(title or "Secim yapin", y, role="title", height=h,
