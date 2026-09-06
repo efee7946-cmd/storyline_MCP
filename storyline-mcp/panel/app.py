@@ -205,6 +205,12 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
         if report.get("medya_istekleri"):
             note += (f" {report['medya_istekleri']} slayt için görsel/video "
                      "isteniyor — GÖRSEL & VİDEO sekmesinde yazıyor.")
+        elif report.get("medya_istekleri") == 0:
+            # SIFIR DA BIR HABERDIR. Bu satir yokken sonuc notu sessiz
+            # kaliyordu ve kullanici gorsel istenmedigini ancak kursu
+            # acinca goruyordu.
+            note += (" Bu kursta görsel/video istenmedi — GÖRSEL & VİDEO "
+                     "sekmesi boş kalacak.")
         _push_event({
             "kind": "final",
             "error": not verified["ok"],

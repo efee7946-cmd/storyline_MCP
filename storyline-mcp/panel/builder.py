@@ -1892,6 +1892,28 @@ def build(
     )
     # Defter kursla birlikte YENILENIR. Onceki kurulumun istekleri artik baska
     # slaytlari gosteriyor olurdu -- slayt dosyalari yeniden uretildi.
+    # SIFIR MEDYA SESSIZ KALMAZ -- OLCULDU 2026-09-06.
+    #
+    # Dusen TEK bir istek uyari uretiyordu ("medya istegi dusuruldu"), ama
+    # HIC istek olmadiginda kimse bir sey soylemiyordu. Panelin sonuc notu
+    # da yalnizca sayi sifirdan buyukse ciziliyor. Sonuc: kullanici kursu
+    # acip bakana kadar gorsel istenmedigini ogrenemiyor.
+    #
+    # Kullanici bunu bildirdi ("son 2-3 kursta hic gorsel istemedi") ve
+    # olculdu: 31 Agustos'a kadar uretilen kurslarda `.medya.json` var,
+    # 5-6 Eylul'dekilerde yok. Sebebi geriye donuk cozulemedi -- cunku
+    # kayit tutulmuyordu. Bu satir, bir dahaki sefere cozulebilmesi icin.
+    if not medya_istekleri:
+        _kip = _medya_kipi(options)
+        if _kip == "yok":
+            on_progress("Bu kursta gorsel/video ISTENMEDI: kunyede medya "
+                        "'yok' secili.")
+        else:
+            on_progress("Bu kursta gorsel/video ISTENMEDI. Beklenen bu "
+                        "degildi (kunye: %s) -- ya uygun slayt bulunamadi "
+                        "ya da yerlestirme adimi bos dondu. GORSEL & VIDEO "
+                        "sekmesi bos kalacak." % _kip)
+
     if medya_istekleri:
         medya.yaz(path, medya_istekleri)
         on_progress(f"{len(medya_istekleri)} medya istegi yazildi -- "
