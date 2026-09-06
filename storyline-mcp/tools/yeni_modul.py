@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON BES SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN ON ALTI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -32,6 +32,7 @@ SINANAN ON BES SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    13  soru katmani yabanci       baska kursun cevap listesi    (#11b)
    14  punto merdiveni            sonuc slaydi ayri olcekte      (#17)
    15  tasma                      baslik+govde tek kutuda        (#12)
+   16  degisken referanslari      %Quiz_Result...% cozulmuyor   (#3b)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -270,6 +271,16 @@ def main() -> int:
     bak("tasma", "#12", _o["tasma"] == 0,
         "%d tasan yazi (oran %.2f)" % (_o["tasma"], _o["tasma_orani"]))
 
+    # 16 -- ekrandaki %degisken% referanslari cozuluyor mu
+    import re as _re2, zipfile as _zip
+    _ham = "".join(pkg.read(_a).decode("utf-8", "replace")
+                   for _a in list(pkg._order) if _a.endswith(".xml"))
+    _ref = set(_re2.findall(r"%([A-Za-z_][A-Za-z0-9_.]{2,40})%", _ham))
+    _adlar2 = {v["name"] for v in model.variables(pkg)}
+    _kirik = sorted(_ref - _adlar2)
+    bak("degisken referanslari", "#3b", not _kirik,
+        "%d cozulmeyen %s" % (len(_kirik), _kirik[:2] or ""))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -280,7 +291,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on bes sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen on alti sinifin hicbirini tasimiyor.")
     return 0
 
 

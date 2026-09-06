@@ -2651,6 +2651,68 @@ def _sonuc_degiskenlerini_bagla(pkg: StoryPackage, part: str) -> list[str]:
                 cond.set(alan, hedef[ad])
                 baglanan.append(ad)
                 degisti = True
+    # EKRANDAKI %ad% REFERANSLARI DA BAGLANIR -- OLCULDU 2026-09-06.
+    #
+    # Yukaridaki dongu tetikleyici KOSULLARINDAKI GUID'leri baglıyor. Ama
+    # sonuc slaydi puani EKRANA metin olarak da yaziyor ve orada degisken
+    # ADIYLA anilıyor. Tohum donor kursun adlarini tasiyor:
+    #
+    #     ekranda   %Quiz_Result.ScorePoints%   (4 kez)
+    #     projede   Results.ScorePoints
+    #
+    # Ad tutmayinca Storyline referansi cozmez ve ogrenci PUANI HIC GORMEZ.
+    # Kullanicinin 3 numarali bulgusunun bu kolu, quiz baglantisi
+    # duzeltildikten SONRA da acik kalmisti; taze modulde yeniden olculunce
+    # gorundu.
+    #
+    # ESLESME SONEKTEN: "Quiz_Result.ScorePoints" ile "Results.ScorePoints"
+    # ayni sonu tasiyor. Sonek eslemesi, iki tarafin da adlandirma
+    # sozlesmesini bilmeyi gerektirmiyor -- yalnizca hangi OLCU oldugunu.
+    import re as _re
+    _ref = _re.compile(r"%([A-Za-z_][A-Za-z0-9_.]{2,40})%")
+    _adlar = list(hedef)
+    # KATMANLAR DA TARANIR. Ilk yazim yalnizca `root`u gezdi ve olculdu ki
+    # referanslarin bir kismi Success/Failure KATMANLARINDA duruyor --
+    # temel katman baglandi, katmanlar `Quiz_Result.*` olarak kaldi.
+    _kaplar = [root] + list(root.find("sldLayerLst") or [])
+    for _kap in _kaplar:
+      for _sh, _el, _doc, _st in model._iter_text_shapes(_kap):
+          if not _el.text or "%" not in _el.text:
+              continue
+          _yeni = _el.text
+          for _bulunan in set(_ref.findall(_el.text)):
+              if _bulunan in hedef:
+                  continue                  # zaten cozuluyor
+              _sonek = _bulunan.rsplit(".", 1)[-1]
+              _aday = next((a for a in _adlar
+                            if a.rsplit(".", 1)[-1] == _sonek), None)
+              if _aday:
+                  _yeni = _yeni.replace("%%%s%%" % _bulunan, "%%%s%%" % _aday)
+                  baglanan.append("%s -> %s" % (_bulunan, _aday))
+          if _yeni != _el.text:
+              _el.text = _yeni
+              degisti = True
+
+    # <plain> AYNASI DA YAZILIR. Zengin metnin yaninda duz bir kopya var
+    # ve referanslar orada da geciyor; yalnizca zengin metni yazmak ikisini
+    # AYRISTIRIR. Olculdu: ilk yazimdan sonra `Results.ScorePoints` zengin
+    # metinde vardi ama `<plain>` hala `Quiz_Result.ScorePoints` diyordu.
+    for _duz in root.iter("plain"):
+        if not _duz.text or "%" not in _duz.text:
+            continue
+        _y = _duz.text
+        for _bulunan in set(_ref.findall(_duz.text)):
+            if _bulunan in hedef:
+                continue
+            _sonek = _bulunan.rsplit(".", 1)[-1]
+            _aday = next((a for a in _adlar
+                          if a.rsplit(".", 1)[-1] == _sonek), None)
+            if _aday:
+                _y = _y.replace("%%%s%%" % _bulunan, "%%%s%%" % _aday)
+        if _y != _duz.text:
+            _duz.text = _y
+            degisti = True
+
     if degisti:
         pkg.replace_xml(part, root)
     return sorted(set(baglanan))
