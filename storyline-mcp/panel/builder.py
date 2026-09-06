@@ -100,6 +100,18 @@ Kurallar:
   olculdu: kalan alti duzenin hepsi "sayfaya yerlestirilmis metin" ve ogrenci
   onlarda ilerlemekten baska bir sey yapmiyor. Reveal, ogrencinin ELINI
   isin icine sokan tek icerik duzeni.
+- BIR CONTENT SLAYDINDA HEM `body` HEM `bullets` YAZIYORSAN: `body` en fazla
+  BIR CUMLE, `bullets` en fazla UC MADDE. Uzun bir paragrafla bes maddeyi
+  ayni slayta koyma; ikisi de gerekiyorsa slaydi IKIYE BOL.
+  Gerekcesi olculdu 2026-09-07: baslik + paragraf + bes madde + gorsel ayni
+  slayta girdiginde govde sutunu %44'e iniyor ve okuma olcusu 23
+  karakter/satira dusuyor -- gazete sutunundan dar. Yasak degil: maddeli
+  icerik ayakta, kesilen sey UCLU YUK. (Yerlesim tarafinda mekanizma zaten
+  var -- dar sutunlu varyantlar gorsel alani ayrilmisken secilmiyor -- bu
+  satir tabani yukseltir, onun yerine gecmez.)
+  KOSUL MODELIN BILDIGI BIR SEYE BAGLI, "gorsel istenen slayt" degil: medya
+  plani icerik tamamlandiktan SONRA kosuyor, yani sen yazarken hangi
+  slaydin gorsel alacagini bilmiyorsun.
 - GOVDE SLAYTLARINDA EN AZ UC FARKLI DUZEN KULLAN. Govde, cover ve section
   DISINDA kalanlardir. Hepsini content ve bullets yaparsan kurs bastan sona
   ayni gorunur -- olculdu 2026-08-29: uretilmis bir kursta 15 govde slaydi
@@ -559,6 +571,50 @@ def _sorular_kapali(options: dict) -> bool:
         return int(per) <= 0
     except (TypeError, ValueError):
         return False
+
+
+def _hacim_bulgulari(konu_hacmi: list[dict]) -> list[str]:
+    """Sahne hacminden çıkan ATIFLI bulgular. Saf: hiçbir şeyi değiştirmez.
+
+    "Sahne dengesi" bir HACIM hedefi degil: outline zaten "en fazla 2" diyor
+    ve bir icerik slaydi tasiyan sahne tamamen mesru olabilir. Sorulmasi
+    gereken sey esitsizligin SEBEBI -- konu agirligi mi, butce tukenmesi mi.
+    Ikisi disaridan ayni goruunur.
+
+    (1) BIRINCIL -- plan/kurulus sadakati. `kurulan < planlanan` olan sahne
+        adlandirilmis bulgu; sebebi ayni akista zaten yaziliyor (red, duzen
+        takasi, butce kirpmasi). `kurulan == planlanan` olan esitsizlik
+        BULGU DEGIL -- yazarin verdigi sekil.
+
+    (2) IKINCIL -- tek yonlu incelme. Icerik sayisi bastan sona hic
+        ARTMIYORSA ve ilk ile son arasindaki fark >= 2 ise bildirilir.
+        Konular onem sirasina gore azalarak gelmez; monoton incelme
+        neredeyse her zaman butce tukenmesidir.
+
+        ESIK 2, kucuk gurultuyu disarida tutuyor: kullanicinin
+        tuzla.story'sindeki 2,2,1,1 bu esikte ATESLEMEZ -- ve dogrusu bu,
+        orada ateslemesi gereken bir sey varsa (1)'den cikar.
+
+    "DENGELI" NE DEGIL: esit sayi. `span <= 1` gibi bir kural, bu dosyanin
+    "sayi degil ORAN sabittir" ilkesinin tersine cevrilmisi olurdu -- briefte
+    bir buyuk uc kucuk konu varsa deste de oyle olmali.
+
+    AYRI FONKSIYON, cunku kural elle yazilmis beklentilerle SINANIYOR
+    (tools/yeni_modul.py). `build()` icinde satir ici dururken kapinin
+    ulasabilecegi tek yol kursu bastan kurmakti.
+    """
+    out: list[str] = []
+    for h in konu_hacmi:
+        if h["kurulan"] < h["planlanan"]:
+            out.append("%s: %d icerik planlandi, %d kuruldu (sebep icin "
+                       "yukaridaki red/takas satirlarina bakin)"
+                       % (h["sahne"], h["planlanan"], h["kurulan"]))
+    sayilar = [h["kurulan"] for h in konu_hacmi]
+    if len(sayilar) >= 3 and all(a >= b for a, b in zip(sayilar, sayilar[1:]))             and sayilar[0] - sayilar[-1] >= 2:
+        out.append("konular bastan sona tek yonlu inceliyor (%s); bu "
+                   "genellikle butce tukenmesidir, konu agirligi degil"
+                   % ", ".join(str(n) for n in sayilar))
+    return out
 
 
 def _konu_araligi(scenes: list[dict]):
@@ -1608,6 +1664,16 @@ def build(
     varyant_gecmisi: list[str] = []
     variant_log: list[dict] = []
     kurulan_sahneler: list[str] = []
+    # SAHNE BASINA PLAN/KURULUS SADAKATI -- OLCU DEGIL ATIF.
+    #
+    # "Sahne dengesi" bir HACIM hedefi degil: outline zaten "en fazla 2"
+    # diyor ve bir icerik slaydi tasiyan sahne tamamen mesru olabilir.
+    # Sorulmasi gereken sey esitsizligin SEBEBI: konu agirligi mi, yoksa
+    # butce tukenmesi / red / duzen takasi mi. Ikisi disaridan ayni goruunur.
+    #
+    # `kurulan == planlanan` olan esitsizlik BULGU DEGIL -- yazarin verdigi
+    # sekil. `kurulan < planlanan` olan her sahne adlandirilmis bulgu.
+    sahne_hacmi: list[dict] = []
     # YAZILIP KONMAYAN GERI BILDIRIMLER. Sessiz kayip bu projenin
     # bilinen kusuru: model yaziyor, kurucu geciriyor, tohumda
     # konacak yer yok ve hicbir satir bunu soylemiyor.
@@ -1637,6 +1703,9 @@ def build(
         scene_name = _baslik if (_baslik and _baslik not in _kullanilan_sahne_adlari) else _teknik
         _kullanilan_sahne_adlari.add(scene_name)
         sahne_medyasi = 0
+        _plan_icerik = sum(1 for _s in (scene.get("slides") or [])
+                           if _s.get("kind") != "question")
+        _kur_icerik = 0
         try:
             compose.create_scene  # noqa: B018 - presence check only
         except AttributeError:
@@ -1849,6 +1918,7 @@ def build(
             reveal_items = (spec.get("items") or []) if duzen == "reveal" else []
             butonlar = ([str(i.get("label") or "")[:40] for i in reveal_items]
                         if reveal_items else spec.get("buttons"))
+            _kur_icerik += 1
             laid = compose.compose_slide(
                 pkg, new["new_slide"], duzen,
                 title=spec.get("title"), eyebrow=spec.get("eyebrow"),
@@ -1906,6 +1976,16 @@ def build(
                                 "variant": laid["variant"],
                                 "repeated": laid["variant_repeated"]})
             created += 1
+
+        sahne_hacmi.append({"sahne": scene_name,
+                            "planlanan": _plan_icerik,
+                            "kurulan": _kur_icerik})
+
+    # SAHNE HACMI: kural `_hacim_bulgulari`nda, cunku elle yazilmis
+    # beklentilerle sinaniyor.
+    for _b in _hacim_bulgulari([sahne_hacmi[i] for i in _konu_araligi(scenes)
+                                if i < len(sahne_hacmi)]):
+        on_progress("sahne hacmi -- %s" % _b)
 
     # ILERLEME KATMANI: degisken, kosullu tetikleyici, sonuc slaydi, kilit.
     # Slaytlar kuruldu ama kurs hala sayfa cevirmek -- degiskeni ve kosulu
@@ -2183,6 +2263,10 @@ def build(
         # bekliyor. Sayi raporda durmazsa istek yalnizca sekmede kalir ve
         # kimse bakmadikca bos panel kursla birlikte yayina gider.
         "medya_istekleri": len(medya_istekleri),
+        # SAHNE HACMI: sahne basina planlanan/kurulan icerik. Sayi degil
+        # ATIF -- esitsizligin sebebi (konu agirligi mi, butce tukenmesi mi)
+        # ancak ikisi yan yana durunca okunur.
+        "sahne_hacmi": sahne_hacmi,
         "scenes": len(scenes),
         "slides_created": created,
         "questions": questions,

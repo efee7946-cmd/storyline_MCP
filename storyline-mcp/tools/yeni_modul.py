@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN OTUZ UC SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN OTUZ DORT SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -1230,6 +1230,46 @@ def main() -> int:
         "%d dar %s | bos havuz %s" % (len(_dar), _dar[:1],
                                       "TAM" if not _eksik33 else _eksik33))
 
+    # 34 -- SAHNE HACMI: ATIFLI BULGU, HACIM HEDEFI DEGIL
+    #
+    # "Sahne dengesi" bir gozlem olarak bildirilmisti (tuzla: 2, 2, 1, 1) ama
+    # KANITLANMIS bir kusur degildi: outline kurali zaten "en fazla 2" diyor
+    # ve bir icerik slaydi tasiyan sahne mesru olabilir. Sayi dogruydu, neyin
+    # KARSILIGI oldugu sorulmamisti -- bu oturumda ayni cukura iki kez daha
+    # dusuldu (23 kar/satir bir kart sutununun bedeliydi; `deadband` kirmizisi
+    # bayat artefakttandi).
+    #
+    # O yuzden kural HACIM degil ATIF olcuyor:
+    #   (1) `kurulan < planlanan` -> adlandirilmis bulgu (red / takas / butce)
+    #   (2) tek yonlu incelme, ilk-son farki >= 2 -> butce tukenmesi isareti
+    # `kurulan == planlanan` olan esitsizlik BULGU DEGIL.
+    #
+    # BIRIM OLARAK, elle yazilmis beklentilerle: bu bir PLAN kurali ve
+    # `build()` icinde satir ici dururken kapinin ulasabilecegi tek yol kursu
+    # bastan kurmakti.
+    from panel import builder as _b34
+
+    def _H34(*ciftler):
+        return [{"sahne": "S%d" % _i, "planlanan": _a, "kurulan": _k}
+                for _i, (_a, _k) in enumerate(ciftler)]
+
+    _hacim_sapma = []
+    for _ad34, _h34, _bekle34 in (
+            # Kullanicinin bildirdigi kalip: esikte ATESLEMEZ, ve dogrusu bu.
+            ("tuzla kalibi 2,2,1,1", _H34((2, 2), (2, 2), (1, 1), (1, 1)), 0),
+            ("monoton incelme 4,3,2,1", _H34((4, 4), (3, 3), (2, 2), (1, 1)), 1),
+            ("eksik kurulum", _H34((3, 3), (3, 1), (3, 3)), 1),
+            ("artan 1,2,3", _H34((1, 1), (2, 2), (3, 3)), 0),
+            # Esit sayi BULGU DEGIL -- "dengeli" esit demek degil.
+            ("esit 2,2,2", _H34((2, 2), (2, 2), (2, 2)), 0),
+    ):
+        _cikan = len(_b34._hacim_bulgulari(_h34))
+        if _cikan != _bekle34:
+            _hacim_sapma.append("%s: %d bulgu (beklenen %d)"
+                                % (_ad34, _cikan, _bekle34))
+    bak("sahne hacmi atfi", "#12", not _hacim_sapma,
+        "%d sapma %s" % (len(_hacim_sapma), _hacim_sapma[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -1240,7 +1280,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen otuz uc sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen otuz dort sinifin hicbirini tasimiyor.")
     return 0
 
 
