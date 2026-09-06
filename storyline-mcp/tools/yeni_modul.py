@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON ALTI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN ON YEDI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -33,6 +33,7 @@ SINANAN ON ALTI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    14  punto merdiveni            sonuc slaydi ayri olcekte      (#17)
    15  tasma                      baslik+govde tek kutuda        (#12)
    16  degisken referanslari      %Quiz_Result...% cozulmuyor   (#3b)
+   17  katman metni ayri          iki yanlis katman ayni metin    (#9)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -281,6 +282,25 @@ def main() -> int:
     bak("degisken referanslari", "#3b", not _kirik,
         "%d cozulmeyen %s" % (len(_kirik), _kirik[:2] or ""))
 
+    # 17 -- yanlis cevap katmanlari birbirinden ayri mi
+    _ayni = []
+    for _part, _ref in model.slide_index(pkg).items():
+        _root = pkg.parse(_part)
+        _kl = list(_root.find("sldLayerLst") or [])
+        if len(_kl) < 3:
+            continue
+        _metinler = []
+        for _k in _kl:
+            _t = [model._doc_text(_d).strip()
+                  for _s2, _e2, _d, _st in model._iter_text_shapes(_k)
+                  if model._doc_text(_d).strip()]
+            if _t:
+                _metinler.append(_t[0])
+        if len(set(_metinler)) < len(_metinler):
+            _ayni.append(_ref.basename)
+    bak("katman metni ayri", "#9", not _ayni,
+        "%d slaytta ayni metin" % len(_ayni))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -291,7 +311,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on alti sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen on yedi sinifin hicbirini tasimiyor.")
     return 0
 
 

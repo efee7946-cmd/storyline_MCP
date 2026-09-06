@@ -1728,6 +1728,42 @@ FEEDBACK_DEFAULT = {
 }
 
 
+def katman_sik_etiketleri(root) -> dict:
+    """katman GUID -> o katmani ACAN sikkin etiketi.
+
+    `geri_bildirim_rolleri` ile AYNI yolu kullanir: sik sekli, kendi
+    katmanini `showSubSlide`/`showG` ile aciyor. Orada rol cikariliyor,
+    burada ETIKET -- iki ayri soru, tek mekanizma.
+
+    Etiket sikkin `<text>`inde degil, `shpG`nin gosterdigi SEKILDE duruyor
+    (olculdu: bes sikkin besinde de `<text>` bos).
+    """
+    intr = None
+    for etiket in _INTR_ETIKETLERI:
+        for x in root.iter(etiket):
+            intr = x
+            break
+        if intr is not None:
+            break
+    if intr is None:
+        return {}
+    out: dict = {}
+    for sik_guid in _choice_shape_guids(intr):
+        sekil = model._find_by_guid(root, sik_guid)
+        if sekil is None:
+            continue
+        yazi = model.shape_text(root, sik_guid).strip()
+        for trig in sekil.iter("trig"):
+            data = trig.find("data")
+            if data is None or data.get("action") != "showSubSlide":
+                continue
+            hedef = data.find("sldLayer")
+            hedef_guid = hedef.get("showG") if hedef is not None else None
+            if hedef_guid and yazi:
+                out[hedef_guid] = yazi
+    return out
+
+
 def compose_feedback_layers(pkg: StoryPackage, part: str, *,
                             palette: dict | None,
                             feedback: dict | None = None) -> dict:
@@ -1811,6 +1847,7 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     # ROL: tek karar yerinden. Eski "katman adindan cikar" yolu orada ARKA
     # sirada duruyor, yani adi dolu tohumlarda davranis degismiyor.
     roller = geri_bildirim_rolleri(root)
+    _sik_etiketleri = katman_sik_etiketleri(root)
 
     olceklenen = 0
     for index, layer in enumerate(layers):
@@ -1820,6 +1857,30 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             given = feedback.get("correct" if is_correct else "incorrect")
             if given:
                 body = str(given)
+        elif not is_correct:
+            # AYNI CUMLE UC KATMANDA -- olculdu 2026-09-06, taze modulde:
+            # `slidee.xml`in Cevap2 ve Cevap3 katmanlarinin metni BIREBIR
+            # ayni. Kullanicinin 9 numarali bulgusu: "Cevap3, 'Hemen ileri
+            # cikip pres yapar' secenegine ait ama aciklama baska secenegi
+            # anlatiyor."
+            #
+            # Sebep: geri bildirim ROLE gore yaziliyor, yani butun yanlis
+            # katmanlar tek cumleyi paylasiyor. Oysa dallanma sablonunda her
+            # katman BELIRLI bir sikka ait ve bu dosyada YAZILI.
+            #
+            # YALNIZCA VARSAYILAN METINDE. Yazar kendi geri bildirimini
+            # verdiyse ona dokunulmaz -- uc katmanda ayni cumleyi istemek
+            # onun karari olabilir; burada duzeltilen sey ARACIN kendi
+            # varsayilaninin ayirt etmemesi.
+            #
+            # SEBEP UYDURULMAZ, SECIM ADLANDIRILIR. "Bu secim yanlis, cunku
+            # ..." demek icin elimizde bilgi yok; ogrenciye HANGI secimin
+            # degerlendirildigini soylemek ise dosyadan okunuyor.
+            _etiket = _sik_etiketleri.get(layer.get("g") or "")
+            if _etiket:
+                body = ("«%s» bu durumda doğru değil. "
+                        "Soru kökü yeniden okunmalı."
+                        % _etiket)
 
         shape_list = layer.find("shapeLst")
         adaylar = []
