@@ -3008,6 +3008,24 @@ def compose_slide(
                                 height=height, space=page.space,
                                 bottom=FLOOR)
 
+    # OYNATICI ETIKETLERI TURKCE OLSUN.
+    #
+    # Kural slaydi KURAN yere degil, slaydi BESTELEYEN yere konuyor --
+    # slayt adiyla ayni gerekce: iki uretim yolu da (panel brief yolu ve
+    # komut yolu) buradan geciyor, oysa kurs kurma adimi ikisinde ayri.
+    # Fonksiyon idempotent, yani her slaytta cagrilmasi bedelsiz.
+    #
+    # Kullanicinin 20 numarali bulgusu: "Player metinleri Ingilizce --
+    # Next / Previous / Submit / 'Would you like to resume where you left
+    # off?'. Turkce kursta player etiketleri cevrilmeli."
+    try:
+        from . import settings as _settings
+        _settings.oynatici_turkcelestir(pkg)
+    except Exception:
+        # Oynatici cevrilemezse kurs YINE calisir; etiketler Ingilizce
+        # kalir. Kursu dusurmek, calisan bir slaydi yok saymak olurdu.
+        pass
+
     # SLAYT ADI BASLIKTAN TURESIN -- OLCULDU 2026-09-06.
     #
     # Slayt klonlanarak kuruluyor ve klon, tohumun adini tasiyor. Ad

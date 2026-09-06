@@ -350,3 +350,79 @@ def set_player_color(
         )
     pkg.replace_raw(PLAYER_PART, updated.encode("utf-8"))
     return {"color": name, "group": group, "rgb": rgb, "alpha": alpha, "occurrences": count}
+
+
+# OYNATICI ETIKETLERI, TURKCE -- ve KAPSAM ACIKCA SINIRLI (2026-09-06).
+#
+# `playerProps.xml` 210 etiket tasiyor; bunlarin hepsi ogrenciye gorunmuyor
+# (kisayol adlari, erisilebilirlik metinleri, video ayar menuleri...).
+# Burada YALNIZCA ogrencinin ekranda okudugu cekirdek kume var: gezinme
+# dugmeleri, devam sorusu, geri bildirim basliklari, menu sekmeleri ve
+# sonuc ekrani.
+#
+# NICIN LISTE ELLE YAZILDI. Storyline'in Turkce etiket seti bu makinede YOK
+# (arandi: AppData'da yok, kurulumda yalnizca KnownPlayerStrings.xml ve o da
+# Ingilizce). Yani kopyalanacak bir kaynak yok; ceviri yazilmak zorundaydi.
+# Bu, projenin "sekli uydurma, korpustan kopyala" kuralinin ISTISNASI degil:
+# o kural XML YAPISI icin gecerli ve yapiya dokunulmuyor -- yalnizca
+# `<string>` dugumlerinin METNI degisiyor.
+#
+# LISTEDE OLMAYAN ETIKETLER INGILIZCE KALIR ve bu bilerek: uydurma bir
+# ceviri, Ingilizce kalmis bir etiketten daha kotudur -- ogrenci ikincisini
+# "cevrilmemis" diye okur, birincisini "yanlis" diye.
+OYNATICI_TR = {
+    "next": "İLERİ",
+    "prev": "GERİ",
+    "submit": "GÖNDER",
+    "continue": "Devam",
+    "continueresponsive": "Devam",
+    "next_shortcut": "İleri",
+    "previous_shortcut": "Geri",
+    "submit_shortcut": "Gönder",
+    "replay_shortcut": "Tekrar oynat",
+    "restart": "Baştan başla",
+    "resume": "Kaldığım yerden",
+    "glossary": "Sözlük",
+    "resources": "Kaynaklar",
+    "closed_captions": "Altyazı",
+    "KnownPlayerString.ResumePlayerText":
+        "Kaldığınız yerden devam etmek ister misiniz?",
+    "KnownPlayerString.ResumePlayer": "Devam et",
+    "KnownPlayerString.CorrectFeedbackTitle": "Doğru",
+    "KnownPlayerString.IncorrectFeedbackTitle": "Yanlış",
+    "KnownPlayerString.YouAreCorrectText": "Doğru cevabı seçtiniz.",
+    "KnownPlayerString.ThatsInCorrectText": "Doğru cevabı seçmediniz.",
+    "KnownPlayerString.CorrectResponse": "Doğru cevap",
+    "KnownPlayerString.YourResultsText": "Sonuçlarınız.",
+    "KnownPlayerString.PrintResults": "Sonuçları yazdır",
+}
+
+
+def oynatici_turkcelestir(pkg: StoryPackage) -> int:
+    """Oynatici etiketlerini Turkceye cevirir. Kac etiket degisti, doner.
+
+    HAM METIN UZERINDE calisir, ElementTree ile DEGIL. `playerProps.xml` bu
+    projede bastan sona ayristirilip yeniden yazilmadi ve oyle kalmali:
+    bu dosyanin baska bir namespace'li parcada bedeli olculdu (ElementTree
+    `<Types xmlns=...>`i `<ns0:Types ...>` diye yeniden yaziyor ve Storyline
+    dosyayi reddediyor). Burada yalnizca bilinen `id`lerin METNI
+    degistiriliyor; baska tek bayta dokunulmuyor.
+
+    IDEMPOTENT: zaten Turkce olan bir etiket yeniden yazilmaz, yani her
+    slayt bestelenisinde cagrilmasi bedelsiz.
+    """
+    if not pkg.has_part(PLAYER_PART):
+        return 0
+    ham = pkg.read(PLAYER_PART).decode("utf-8-sig")
+    degisen = 0
+    for anahtar, turkce in OYNATICI_TR.items():
+        desen = re.compile(
+            r'(<string id="%s"[^>]*>)([^<]*)(</string>)' % re.escape(anahtar))
+        m = desen.search(ham)
+        if m is None or m.group(2) == turkce:
+            continue
+        ham = ham[:m.start(2)] + turkce + ham[m.end(2):]
+        degisen += 1
+    if degisen:
+        pkg.replace_raw(PLAYER_PART, ham.encode("utf-8-sig"))
+    return degisen

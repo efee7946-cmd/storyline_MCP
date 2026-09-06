@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YEDI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -24,7 +24,8 @@ SINANAN YEDI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
     5  katman kapaniyor mu        pop-up dugmesi olu             (#8)
     6  katmanda yabanci metin     baska kursun icerigi           (#11)
     7  slayt adlari ayri mi       menude dokuz kez "Intro Slide" (#15)
-    8  Turkce buyuk harf          I/Ist ayrimi                   (#13)
+    8  Turkce buyuk harf          I/I ayrimi                     (#13)
+    9  oynatici etiketleri        Next/Submit/resume Ingilizce   (#20)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -172,6 +173,17 @@ def main() -> int:
     bak("slayt adlari ayri", "#15", len(set(adlar)) == len(adlar),
         "%d slayt / %d ayri ad" % (len(adlar), len(set(adlar))))
 
+    # 9 -- oynatici etiketleri Turkce mi
+    import re as _re
+    _ham = pkg.read("story/playerProps.xml").decode("utf-8-sig", "replace")
+    _eksik = []
+    for _k, _tr in __import__("storyline_mcp.settings", fromlist=["x"]).OYNATICI_TR.items():
+        _m = _re.search(r'<string id="%s"[^>]*>([^<]*)</string>' % _re.escape(_k), _ham)
+        if _m is not None and _m.group(1) != _tr:
+            _eksik.append(_k)
+    bak("oynatici Turkce", "#20", not _eksik,
+        "%d etiket cevrilmemis" % len(_eksik))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -182,7 +194,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen sekiz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen dokuz sinifin hicbirini tasimiyor.")
     return 0
 
 
