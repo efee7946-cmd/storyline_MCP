@@ -2530,6 +2530,54 @@ def add_text_box(
 DECORATIVE_SHAPES = ("rect", "roundRect", "oval", "line", "textBox")
 
 
+def _quizi_sonuc_slaydina_bagla(pkg: StoryPackage, slayt_guid: str) -> dict:
+    """Quiz'i YENI sonuc slaydina baglar ve olu soru kayitlarini atar.
+
+    OLCULDU 2026-09-06. Sonuc slaydi ekleniyordu ama hicbir yere
+    BAGLANMIYORDU: quiz'in `resultSldG`si ve yoneticinin `lmsResultSlideG`si
+    tohumun geldigi kursu gosteriyor, yani bu kursta hicbir slayda
+    cozulmuyor. Sonucu, kullanicinin denetiminde 3 numarali bulgu:
+    "Sonuc slaydi hicbir seye bagli degil... SCORM'a puan gitmez."
+
+    IKINCI KUSUR AYNI YERDE. `bos.story`nin quiz'i ALTI cozulemeyen soru
+    kaydi tasiyor -- kaynak dosyanin devrettigi artik. Yeni kurs onlarin
+    ustune kendi sorularini ekliyor ve quiz "8 kayit, 2'si cozuluyor"
+    haline geliyor. Olu kayit puanlamayi bozar: quiz, var olmayan sorulari
+    bekler.
+
+    ATILAN KAYIT YALNIZCA COZULEMEYENDIR. Cozulen bir kaydi silmek gercek
+    bir soruyu puanlamadan cikarirdi; olculmeden dokunulmuyor.
+    """
+    story = pkg.parse(model.STORY_PART)
+    idx = model.slide_index(pkg)
+    slayt_guidleri = {ref.guid for ref in idx.values()}
+    rapor = {"resultSldG": 0, "lmsResultSlideG": 0, "atilan_olu_kayit": 0}
+
+    for quiz in story.iter("quiz"):
+        hedef = quiz.get("resultSldG") or ""
+        if hedef not in slayt_guidleri:
+            quiz.set("resultSldG", slayt_guid)
+            rapor["resultSldG"] += 1
+        id_listesi = quiz.find("questionIdLst")
+        for oge in list(id_listesi) if id_listesi is not None else []:
+            # GUID ONITELIKTE DEGIL METINDE durur (completeness'in kendi
+            # belge dizesinde yazili); oniteligi okuyan bir surum her
+            # kaydi "cozulemedi" sayar ve saglam bir quiz'i bosaltirdi.
+            if (oge.text or "").strip() not in slayt_guidleri:
+                id_listesi.remove(oge)
+                rapor["atilan_olu_kayit"] += 1
+
+    yonetici = story.find("quizMgr")
+    if yonetici is not None:
+        lms = yonetici.get("lmsResultSlideG") or ""
+        if lms not in slayt_guidleri:
+            yonetici.set("lmsResultSlideG", slayt_guid)
+            rapor["lmsResultSlideG"] += 1
+
+    pkg.replace_xml(model.STORY_PART, story)
+    return rapor
+
+
 def add_results_slide(
     pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuçlar"
 ) -> dict:
@@ -2547,9 +2595,11 @@ def add_results_slide(
         pkg, seed.read_text(encoding="utf-8"), scene=scene, name=name
     )
     baglanan = _sonuc_degiskenlerini_bagla(pkg, result["part"])
+    quiz_bagi = _quizi_sonuc_slaydina_bagla(pkg, result["slide_guid"])
     return {
         **result,
         "score_vars_rebound": baglanan,
+        "quiz_bagi": quiz_bagi,
         "note": ("Slayt eklendi ve dosya acilir durumda. Puanlama, devraldigi quiz "
                  "baglantilarina bagli; yayinlamadan dogrulanamaz."),
     }
