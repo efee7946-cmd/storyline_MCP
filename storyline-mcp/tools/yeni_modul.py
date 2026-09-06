@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI UC SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -60,7 +60,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import completeness
-from storyline_mcp import authoring, compose, model
+from storyline_mcp import authoring, clone, compose, model
 from storyline_mcp.package import StoryPackage
 
 BLANK = ROOT.parent / "test" / "bos.story"
@@ -427,6 +427,74 @@ def main() -> int:
         "%s next=%s olu_tetikleyici=%d" % (_sref.basename,
         _nav.get("next") if _nav is not None else "?", len(_olu)))
 
+    # 23 -- SONUC SLAYDININ ZEMINI kursun paletinden mi
+    #
+    # Yukaridaki fikstuur `add_results_slide(pkg)` cagiriyor -- PALETSIZ, yani
+    # boyamanin yolunu hic gezmiyor (K33). Panelin gercek yolu `ilerleme.kur`
+    # ve o paleti tasiyor; kapi da oradan gecmeli.
+    #
+    # NEYI TUTUYOR. Tohumun `bg`si `gradOvrlyFill` + `schemeClr accent1` +
+    # `tint 66%`, yani zemin TEMANIN accent1'inin acik yikamasi -- olculdu
+    # 2026-09-06: alti temanin ALTISINDA da #4F81BD, ~#8BACD3'e yikanmis.
+    # `_recolour_for_palette` bu zemini okuyamiyor (`slide_ground` gradyan
+    # icin None doner) ve `palette["bg"]`ye dusuyor; koyu temalarda beyaz yazi
+    # seciyor ve o beyaz, acik yikamanin uzerine dusuyordu:
+    #
+    #     gece 2.35   komur 2.10   murdum 2.11   orman 2.18   (esik 4.5)
+    #
+    # Yani alti temanin dordunde sonuc slaydinin yazisi GORUNMUYORDU, ve
+    # hicbir kapi bagirmiyordu. IKI TEMA sinaniyor, biri koyu biri acik:
+    # kusur her temada ayni (zemin temadan bagimsiz), ama duzeltmenin yazi
+    # rengini iki yone de cevirebildigi ancak iki kutupla gorulur.
+    from panel import ilerleme as _ilerleme
+    from storyline_mcp import preview as _preview, shapes as _shapes
+    from storyline_mcp.compose import _contrast as _kontrast
+    import shutil as _sh4
+
+    def _rgb(v):
+        h = _shapes.parse_color(v)
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+    _bulgu = []
+    for _tema in ("gece", "kagit"):
+        _palet = compose.theme_palette(_tema)
+        _yol4 = Path(tempfile.gettempdir()) / ("yeni_modul_%s.story" % _tema)
+        _sh4.copy2(BLANK, _yol4)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p4 = StoryPackage(_yol4)
+            _sab = list(model.slide_index(_p4).values())[0].basename
+            clone.create_scene(_p4, "Bolum Bir")
+            _r4 = authoring.add_slide(_p4, _sab, scene="Bolum Bir")
+            compose.compose_slide(_p4, _r4["new_slide"], "content",
+                                  title="Baslik", eyebrow="Baslik",
+                                  body="Govde metni.", palette=_palet)
+            _rap4 = _ilerleme.kur(_p4, ["Bolum Bir"], palette=_palet)
+            _p4.save(_yol4, backup=False)
+        _p4 = StoryPackage(_yol4)
+        _sk = _p4.parse(_p4.slide_part_for(_rap4["sonuc_slaydi"]))
+        _zemin = _preview.slide_ground(_sk, [])
+        if (_zemin or "").upper() != _palet["bg"].upper():
+            _bulgu.append("%s: zemin %s (beklenen %s)"
+                          % (_tema, _zemin, _palet["bg"]))
+            continue
+        # Zemin dogruysa yazilar da onun uzerinde okunmali. Katmanlar dahil:
+        # "Tebrikler" ve "Maalesef" metinleri orada yasiyor.
+        for _ad4, _gv in model.bodies(_sk):
+            for _sh5, _el, _d4, _st4 in model._iter_text_shapes(_gv):
+                if not (_el.text or "").strip():
+                    continue
+                _col, _sz, _b4, _a4 = _preview._text_style(_sh5)
+                _arka = _preview._fill_of(_sh5, []) or _zemin
+                if not (_col or "").startswith("#") or not _arka.startswith("#"):
+                    continue
+                _o = _kontrast(_rgb(_col), _rgb(_arka))
+                if _o < 4.5:
+                    _bulgu.append("%s/%s: %s uzerine %s = %.2f"
+                                  % (_tema, _ad4 or "temel", _arka, _col, _o))
+    bak("sonuc slaydi zemini", "#3", not _bulgu,
+        "%d sorun %s" % (len(_bulgu), _bulgu[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -437,7 +505,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi iki sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi uc sinifin hicbirini tasimiyor.")
     return 0
 
 

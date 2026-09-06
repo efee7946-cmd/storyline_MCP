@@ -164,7 +164,7 @@ def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
 
     try:
         sonuc = authoring.add_results_slide(pkg, scene=SONUC_SAHNESI,
-                                            name="Sonuçlar")
+                                            name="Sonuçlar", palette=palette)
         rapor["sonuc_slaydi"] = sonuc.get("new_slide")
         # Sahne ADI geri veriliyor, guid degil: guid'i cagiran story.xml'den
         # cozuyor. install_slide scene_guid dondurmuyor ve burada ikinci bir
@@ -195,12 +195,14 @@ def kur(pkg: StoryPackage, konu_sahneleri: list[str], *,
     except StoryError as exc:
         rapor["atlanan"].append(f"kilit: {exc}")
 
-    # SONUC SLAYDININ KATMANLARI DA KURSUN TEMASINI GIYER.
+    # KILIT KATMANI DA KURSUN TEMASINI GIYER.
     #
-    # `add_results_slide` ve `add_layer` PALETI BILMEZ: tohumu klonlar, metni
-    # yazar, yazi tohumun renginde (beyaz) kalir. Temel katman bundan
-    # etkilenmiyor -- oradaki yazilar vurgu dolgulu sekillerin uzerinde durur
-    # ve beyaz orada okunur. KATMANLAR farkli: "Tebrikler, sinavi gectin" ve
+    # Slaydin kendisi artik `add_results_slide(palette=...)` icinde boyaniyor
+    # -- ama KILIT KATMANI ondan SONRA ekleniyor, yani o boyamanin gormedigi
+    # bir metin. `add_layer` PALETI BILMEZ: tohumu klonlar, metni yazar, yazi
+    # tohumun renginde (beyaz) kalir. Temel katman bundan etkilenmiyor --
+    # oradaki yazilar vurgu dolgulu sekillerin uzerinde durur ve beyaz orada
+    # okunur. KATMANLAR farkli: "Tebrikler, sinavi gectin" ve
     # "Sinavi gecemedin!" dogrudan slayt zeminine dusuyor.
     #
     # Olculdu 2026-09-05, alti tema x tema fiksturu:

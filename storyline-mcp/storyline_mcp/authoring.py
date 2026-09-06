@@ -2837,7 +2837,8 @@ def son_slaydin_ilerisini_kapat(pkg: StoryPackage) -> dict:
 
 
 def add_results_slide(
-    pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuçlar"
+    pkg: StoryPackage, *, scene: str | None = None, name: str = "Sonuçlar",
+    palette: dict | None = None
 ) -> dict:
     """Add a quiz results slide.
 
@@ -2886,11 +2887,34 @@ def add_results_slide(
     from . import compose as _compose
     _kok = pkg.parse(result["part"])
     _oturan = _compose.merdivene_otur(_kok)
-    if _oturan:
+
+    # ZEMIN DE KURSUN TEMASINDAN. Tohumun `bg`si `gradOvrlyFill type="def"`
+    # tasiyor -- yani slaydin zemini TEMANIN varsayilani (acik), kursun geri
+    # kalani ise paletin `bg`si (koyu). Iki ayri sablon gibi gorunmesi bir
+    # yana, asil zarar sessiz: `_recolour_for_palette` zemini okuyamayinca
+    # `palette["bg"]`ye DUSUYOR ve yaziyi ona gore -- yani KOYU zemine gore --
+    # seciyor. Boyle bir zemin yokken bu, acik zeminde beyaz yazi demek.
+    #
+    # Olculdu 2026-09-06, taze modul: sonuc slaydinda yalnizca #000000 (x7) ve
+    # #FFFFFF (x3) vardi; ayni kursun icerik slaydinda #0E1B3D/#060C1E/#FFC72C.
+    # Yani duzeltme yeni bir varsayim eklemiyor -- boyayanin ZATEN yaptigi
+    # varsayimi dogru hale getiriyor.
+    #
+    # Katmanlarin (Success/Failure/Eksik) kendi zemini yok; Storyline'da
+    # zeminsiz katman temel slaydi gosterir, o yuzden tek boyama yetiyor.
+    if palette:
+        _paint_slide_ground(_kok, palette.get("bg", "#0E1B3D"))
+    if _oturan or palette:
         pkg.replace_xml(result["part"], _kok)
+    if palette:
+        # Yazi rengi zemin boyandiktan SONRA secilir; ters sirada ayni
+        # okuyamama durumuna geri dusulurdu.
+        _recolour_for_palette(pkg, result["part"], palette,
+                              stem=None, choices=set(), eyebrow=None)
     return {
         **result,
         "score_vars_rebound": baglanan,
+        "zemin_boyandi": bool(palette),
         "quiz_bagi": quiz_bagi,
         "quiz_kurulumu": quiz_kurulumu,
         "geriye_donuk_kayit": geri_kayit,
