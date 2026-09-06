@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI SEKIZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -845,6 +845,78 @@ def main() -> int:
     bak("konu sahnesi sayimi", "#11", not _sapan,
         "%d sapma %s" % (len(_sapan), _sapan[:1]))
 
+    # 29 -- BOLGE AYIRAN ICERIK VARYANTI, BOLGE BOSKEN DELIK BIRAKMASIN
+    #
+    # `sol-panel` metni %8-53.4'e daraltip sag %46.6'yi `panel`e ayirir;
+    # `sag-metin` aynisini solda, `yan-gorsel` sag %48'i gorsele. O bolgeler
+    # yalnizca IClerini dolduracak sey varken ciziliyor (`panel` -> kart ya
+    # da gorsel, `gorsel` -> gorsel); ikisi de yoksa sutun ayrilir ve BOS
+    # kalir. Kullanicinin urettigi tuzla.story slide6 tam bu durumdaydi.
+    #
+    # OLCUT SIMETRI DEGIL, BOLGENIN DOLULUGU. Yalnizca `panel`/`gorsel`
+    # BEYAN EDEN varyantlar sinaniyor: `alt-baslik` (fark 24.0) ve
+    # `genis-olcu` (15.1) de asimetrik ama hicbir sey ayirmiyorlar -- onlarin
+    # darligi bir OKUMA OLCUSU, bos bir yuva degil. Hepsini simetriye
+    # zorlamak tasarim dilini tek olcuye indirirdi.
+    #
+    # DUZELTME ELEME DEGIL GENISLETME, ve bu ikinci yol. Once bolge ayiran
+    # varyantlar havuzdan cikarildi; secim yeniden dagildi ve `variety`
+    # destesinde slide3 `alt-baslik`ten `ortalanmis`e kaydi -- orada govde
+    # punto TABANINDA (13pt) bile sigmiyor (46 > 42) ve `invariants` hakli
+    # olarak kirmiziya dondu. Eleme, deligin yerine tasma koyuyordu.
+    _delik = []
+    for _v29, _sp29 in sorted(compose.VARIANTS["content"].items()):
+        if not (_sp29.get("panel") or _sp29.get("gorsel")):
+            continue
+        _yol29 = Path(tempfile.gettempdir()) / ("bolge_%s.story" % _v29)
+        shutil.copy2(BLANK, _yol29)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _p29 = StoryPackage(_yol29)
+            clone.create_scene(_p29, "B")
+            _r29 = authoring.add_slide(
+                _p29, list(model.slide_index(_p29).values())[0].basename,
+                scene="B")
+            compose.compose_slide(
+                _p29, _r29["new_slide"], "content",
+                title="Gerginlik masaya nasil geliyor", eyebrow="Bolum",
+                body="Musteri gerildiginde sesin tonu degisir.",
+                palette=compose.theme_palette("gece"),
+                variant=_v29)               # GORSEL YOK, MADDE YOK
+            _p29.save(_yol29, backup=False)
+        _p29 = StoryPackage(_yol29)
+        _k29 = _p29.parse(_p29.slide_part_for(_r29["new_slide"]))
+        _w29, _h29 = shapes.slide_size(_k29)
+        _sol29, _sag29 = 100.0, 0.0
+        for _sh29 in list(_k29.find("shapeLst") or []):
+            if (_sh29.get("name") or "") in ("Arka Plan", "Vurgu", "Kose",
+                                             "Serit", "Blok")                     or _sh29.tag.endswith("Intr"):
+                continue
+            _rc29 = shapes.shape_rect(_sh29)
+            if not _rc29:
+                continue
+            _x0, _x1 = _rc29[0] / _w29 * 100, _rc29[2] / _w29 * 100
+            if _x1 - _x0 >= 99:
+                continue
+            _sol29, _sag29 = min(_sol29, _x0), max(_sag29, _x1)
+        _fark29 = abs(_sol29 - (100.0 - _sag29))
+        if _fark29 > 10.0:
+            _delik.append("%s: %.1f->%.1f, fark %.1f"
+                          % (_v29, _sol29, _sag29, _fark29))
+        # IKI OLCU, cunku iki AYRI kusur var ve biri otekini gizliyor.
+        #
+        # Bolgeyi metne verirken sag kenari icerik marjina kirpmak gerekiyor:
+        # `yan-gorsel`in gorsel sutunu slaydin ta kenarina (100) kadar gider
+        # -- gorsel icin dogru, YAZI icin degil. Kirpma kaldirildiginda
+        # denge olcusu bunu GOREMEZ, hatta iyilesmis gorur (8/0 -> fark 8,
+        # esigin altinda). Olculdu 2026-09-06: kanarya sessiz kaldi.
+        # Marj kendi basina bir kosul, dengenin turevi degil.
+        elif min(_sol29, 100.0 - _sag29) < 7.0:
+            _delik.append("%s: %.1f->%.1f, marj %.1f (en az 8 olmali)"
+                          % (_v29, _sol29, _sag29, min(_sol29, 100.0 - _sag29)))
+    bak("bos bolge deligi", "#14", not _delik,
+        "%d varyant %s" % (len(_delik), _delik[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -855,7 +927,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi sekiz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi dokuz sinifin hicbirini tasimiyor.")
     return 0
 
 

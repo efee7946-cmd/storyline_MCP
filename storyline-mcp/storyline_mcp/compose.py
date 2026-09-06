@@ -3339,6 +3339,51 @@ def compose_slide(
     shape_var = variant_for(layout, name=variant,
                             seed=(title or "") + (body or "")[:12],
                             avoid=avoid_variant)
+    # KULLANILMAYAN BOLGE METNE GERI VERILIR.
+    #
+    # `sol-panel` metni %8-53.4'e daraltip sag %46.6'yi `panel` bolgesine
+    # ayiriyor; `sag-metin` aynisini solda, `yan-gorsel` sag %48'i gorsele.
+    # Ama o bolgeler yalnizca ICLERINI dolduracak sey varken ciziliyor
+    # (`panel` -> kart ya da gorsel, `gorsel` -> gorsel). Ikisi de yoksa
+    # sutun ayrilir ve BOS kalir.
+    #
+    # Olculdu 2026-09-06, gorselsiz ve maddesiz bir content slaydinda,
+    # yedi varyant (bos bandin sol/sag farki):
+    #
+    #     sag-metin  40.0    sol-panel  38.6    yan-gorsel 40.0  <- bolge ayiran
+    #     alt-baslik 24.0    genis-olcu 15.1                     <- bolge YOK
+    #     ortalanmis  0.0    ust-serit   0.0
+    #
+    # Ilk uc satir delik; son ikisi degil -- `alt-baslik` ve `genis-olcu`
+    # hicbir sey ayirmiyor, dar olmalari bir OKUMA OLCUSU. Kural bu yuzden
+    # "her bant simetrik olsun" degil, "ayrilan bolge ya dolsun ya da
+    # birakilsin".
+    #
+    # VARYANT ELENMIYOR, GENISLETILIYOR -- ve bu, denenip olculen ikinci
+    # yol. Once bolge ayiran varyantlar havuzdan CIKARILDI; secim yeniden
+    # dagildi ve `variety` destesinde slide3 `alt-baslik`ten `ortalanmis`e
+    # kaydi. Orada govde punto TABANINDA (13pt) bile sigmiyor -- olculdu,
+    # 46 > 42 -- ve `invariants` hakli olarak kirmiziya dondu. Yani eleme,
+    # duzelttigi deligin yerine bir tasma koyuyordu.
+    #
+    # Genisletme siluetin KENDISINI korur: ayni varyant, ayni hiza, ayni
+    # vurgu; yalnizca metin, zaten bos kalacak sutunu de kullanir. Secim
+    # dagilimi degismedigi icin baska hicbir slaydin yerlesimi kimildamaz.
+    if shape_var.get("panel") or shape_var.get("gorsel"):
+        _dolan = ((shape_var.get("panel") and (image_area or bullets))
+                  or (shape_var.get("gorsel") and image_area))
+        if not _dolan:
+            _tx, _tw = shape_var["text"]
+            _bx, _bw = shape_var.get("gorsel") or shape_var["panel"]
+            # SAG KENAR ICERIK MARJINA KIRPILIR. `yan-gorsel`in gorsel
+            # sutunu slaydin ta kenarina (100) kadar gidiyor -- gorsel icin
+            # dogru, YAZI icin degil: kirpilmazsa metin sag kenara dayanir
+            # ve slaydin baska hicbir yerinde olmayan bir sifir marj olusur.
+            # Olculdu: 8 -> 100, digerlerinde 8 -> 92.
+            _sol = min(_tx, _bx)
+            _sag = min(max(_tx + _tw, _bx + _bw), MARGIN_X + CONTENT_W)
+            shape_var = {**shape_var, "panel": None, "gorsel": None,
+                         "text": (_sol, _sag - _sol)}
     page = _Page(pkg, root, colors)
     kind, angle = look.get("ground", ("flat", 0))
     # A cover carries the strongest wash; interior slides keep it quieter so
