@@ -638,12 +638,25 @@ def kap_zemini(kap: ET.Element, yuvalar: dict) -> str | None:
     Ilk surumunde kapi KENDI cozucusunu yazmisti ve ayni kor noktayi aynen
     devralmisti: kusuru degil, kodun varsayimini olcuyordu.
     """
+    from . import preview
+
     bg = kap.find("bg")
     if bg is None:
         return None
+    # GENIS BIR `except Exception` BURADAYDI VE BU FONKSIYONU OLDURDU.
+    # `preview` bu dosyada modul duzeyinde ICE AKTARILMIYOR (yalnizca
+    # `_recolour_for_palette` icinde, yerel olarak). Yani her cagri NameError
+    # atiyor, blok onu yutuyor ve fonksiyon HER ZAMAN None donuyordu -- yani
+    # yazdigim andan beri olu. Daha kotusu: cagiranlar None'i "zemin yok"
+    # diye okuyup `palette["bg"]`ye dusuyor, yani kusur bir hata olarak
+    # degil, MAKUL BIR VARSAYIM olarak gorunuyordu. Ustune kurdugum alti
+    # temalik olcum de bu yuzden gecerli degildi.
+    #
+    # Ice aktarma yukari tasindi ve blok daraltildi: bicimsiz XML'e karsi
+    # koruma kalsin, ama isim/imza hatasi GORUNSUN.
     try:
         duz = preview.slide_ground(kap, [])
-    except Exception:
+    except (AttributeError, ValueError, TypeError):
         duz = None
     if (duz or "").startswith("#"):
         return duz
@@ -651,6 +664,128 @@ def kap_zemini(kap: ET.Element, yuvalar: dict) -> str | None:
     if sema is not None and sema.get("val"):
         return yuvalar.get(sema.get("val"))
     return None
+
+
+def yazi_arkalari(root: ET.Element, yuvalar: dict, varsayilan_zemin: str):
+    """Slayttaki her YAZI için arkasında duran rengi çözer.
+
+    NICIN AYRI BIR FONKSIYON. Bu soruyu -- "bu yazinin arkasinda ne var" --
+    projede UC yer soruyordu: boyayan (`_recolour_for_palette`), kapi
+    (tools/yeni_modul.py) ve kontrast raporu. Uc kopya uc kez ayristi ve
+    her seferinde ayni iki tuzaga dustu:
+
+    (1) `_iter_text_shapes` IC sekli verir. Bir butonun etiketi durum
+        govdelerinde yasar ve her govdenin kendi guid'i vardir; dis guid'le
+        karsilastirmak butonlari atlar. Bir donem dort yazidan ucu
+        renkleniyordu.
+    (2) Sekil dolgusu `schemeClr` olabilir. `preview._fill_of` yalnizca
+        srgbClr okur ve sema dolgulu bir sekli "dolgusuz" sayar; o zaman yazi
+        rengi ARKASINDAKI yerine slayt zeminine gore secilir.
+
+    Kapinin kendi kopyasi oldugu surece kapi, kusuru degil kodun varsayimini
+    olcer -- 2026-09-06'da tam olarak boyle oldu: kapi yesil zemin uzerindeki
+    beyaz yaziyi (2.18) "sorun yok" diye gecti, cunku sahibi cozemedigi
+    yazilari sessizce atliyordu.
+
+    Uretir: (kap_adi, sekil, yazi_ogesi, arka_hex)
+    """
+    from . import preview
+
+    def _sema_dolgu(shape: ET.Element) -> str | None:
+        for yol in ("bG/solidFill/clr/schemeClr", "bG/solidFill/schemeClr"):
+            el = shape.find(yol)
+            if el is not None and el.get("val"):
+                return yuvalar.get(el.get("val"))
+        return None
+
+    zemin0 = kap_zemini(root, yuvalar)
+    if not (zemin0 or "").startswith("#"):
+        zemin0 = varsayilan_zemin
+
+    arka_of: dict[str, str] = {}
+    top: dict[str, ET.Element] = {}
+    # KATMANLAR DA TARANIR. Bir sure yalnizca slaydin kendi shapeLst'i
+    # geziliyordu; katman sekilleri `top` icinde bulunmadigi icin sahipleri
+    # cozulemiyor ve SESSIZCE atlaniyordu. Sonucu ekranda: slayt kursun
+    # temasini giyerken geri bildirim pop-up'i tohumun renklerinde kaliyordu
+    # (kullanici bildirdi 2026-09-05).
+    #
+    # Govde listesi model.bodies'ten gelir -- ayni kural animasyonda ve tohum
+    # temizliginde de unutulmustu, o yuzden arama tek yerde durur.
+    for _ad, govde in model.bodies(root):
+        # Katmanin KENDI zemini varsa o gecerli; yoksa slaydinki gorunur.
+        zemin = zemin0
+        if govde is not root:
+            kat = kap_zemini(govde, yuvalar)
+            if (kat or "").startswith("#"):
+                zemin = kat
+        for shape in list(govde.find("shapeLst") or []):
+            guid = shape.get("g") or ""
+            if not guid:
+                continue
+            own = preview._fill_of(shape, [])
+            if not (own or "").startswith("#"):
+                own = _sema_dolgu(shape)
+            arka_of[guid] = own if (own or "").startswith("#") else zemin
+            top[guid] = shape
+
+    parents = model._parent_map(root)
+    kap_of = {id(govde): ad for ad, govde in model.bodies(root)}
+    for shp, text_el, _doc, _state in model._iter_text_shapes(root):
+        node, owner = shp, None
+        while node is not None:
+            if node.get("g") in top and top[node.get("g")] is node:
+                owner = node.get("g")
+                break
+            node = parents.get(node)
+        # SAHIBI COZULEMEYEN YAZI SESSIZCE DUSMEZ, `arka=None` ile CIKAR.
+        #
+        # Bir donem burada `continue` vardi ve tam da gizlenmesi en pahali
+        # kusuru gizliyordu: sahip cozulemedigi an yazi ne boyaniyor ne de
+        # olculuyordu -- donorun renginde kaliyor ve hicbir sayi degismiyordu.
+        # ("dort yazidan ucu renkleniyordu" hatasinin sessiz kalma sebebi.)
+        # Boyayan None'i atlar (bilmedigi zemine gore renk secemez), kapi ise
+        # None'i BULGU sayar. Ayni veri, iki farkli dogru davranis.
+        yield (kap_of.get(id(parents.get(shp)), None), shp, text_el,
+               arka_of.get(owner))
+
+
+def yazi_rengi_sec(palette: dict, arka: str) -> str:
+    """Bir zemin için paletten okunabilir bir yazı rengi seçer.
+
+    TEK YER, cunku ayni secim hem boyarken hem olcerken gerekiyor.
+    """
+    from .compose import _contrast
+
+    def rgb(value: str):
+        h = shapes.parse_color(value)
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+    hedef = rgb(arka)
+    options = [palette.get("text", "#FFFFFF"),
+               palette.get("on_accent", "#10141B"),
+               palette.get("accent_text", palette.get("accent", "#FFC72C"))]
+    en_iyi = max(options, key=lambda c: _contrast(rgb(c), hedef))
+    # PALETIN SOZLUGUNDE OLMAYAN BIR ZEMIN ICIN SAF NOTRE DUS.
+    #
+    # Palet kursun tasarim sozlugu, ama her zemin o sozlukten gelmiyor:
+    # sonuc slaydinin Failure katmani `schemeClr accent2` (#C0504D),
+    # Success'i `accent3` (#9BBB59) -- gecti/kaldi ANLAMI tasidiklari icin
+    # bilerek boyanmiyorlar ve temayla da degismiyorlar.
+    #
+    # Olculdu 2026-09-06, alti tema x sonuc slaydi: kirmizi zeminde paletin
+    # en iyi uyesi orman 4.33, komur 4.21, murdum 4.20 -- ucu de AA esiginin
+    # (4.5) altinda. #C0504D zor bir orta ton: ulasilabilir en yuksek
+    # kontrast saf beyazla 4.67, saf siyahla 4.49. Yani caresi "daha iyi bir
+    # palet uyesi secmek" DEGIL, sozlugun disina cikmak.
+    #
+    # TEK YONLU: yalnizca esigin ALTINDA kalindiginda devreye girer. Palet
+    # zaten yetiyorsa kursun kendi rengi korunur -- aksi halde her yazi
+    # beyaza/siyaha kacar ve tema diye bir sey kalmazdi.
+    if _contrast(rgb(en_iyi), hedef) < 4.5:
+        en_iyi = max([en_iyi, "#FFFFFF", "#000000"],
+                     key=lambda c: _contrast(rgb(c), hedef))
+    return en_iyi
 
 
 def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
@@ -662,125 +797,25 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
     tohumun butonlarinin dolgusu yok, etiketleri zeminin uzerinde duruyor ve
     on_accent onlari kirik beyaz uzerinde beyaz birakiyordu (1.09).
 
-    Ve uygulama SAHIBINE gore yapilir: _iter_text_shapes IC sekli veriyor,
-    bir butonun etiketi durum govdelerinde yasiyor ve her govdenin kendi
-    guid'i var. Dis guid'le karsilastirmak butonlari atliyordu -- dort
-    yazidan ucu renkleniyordu.
+    "Arkasinda ne var" sorusunun cevabi `yazi_arkalari`da, rengin secimi
+    `yazi_rengi_sec`te -- ikisi de burada degil, cunku KAPI da ayni iki
+    cevaba ihtiyac duyuyor ve kendi kopyasini yazdiginda kusuru degil bu
+    fonksiyonun varsayimini olcuyordu.
     """
-    from . import preview, settings
-    from .compose import _contrast
+    from . import settings
 
-    # SEMA RENGI DE BIR DOLGUDUR. `preview._fill_of` yalnizca srgbClr okur ve
-    # `<schemeClr val="accent1"/>` icin None doner; o sekil "dolgusuz" sayilir
-    # ve yazi rengi ARKASINDAKI yerine SLAYT ZEMININE gore secilir.
-    #
-    # Bu, yukaridaki 1.09 hatasinin AYNASI: orada dolgusu OLMAYAN sekle dolgu
-    # varsayilmisti, burada dolgusu OLAN sekil dolgusuz sanilir. Ikisinin de
-    # caresi ayni -- arkadakini okumak, tahmin etmemek.
-    #
-    # DURUSTLUK NOTU: bu satirlar BUGUN bir kusuru yakalamiyor ve bu bilerek
-    # boyle birakildi. 2026-09-05'te surukle-birak grup kutulari sema dolgulu
-    # sanilmisti; olculdu ve yanlis cikti -- besteci onlari `_recolour_for_palette`
-    # kosmadan ONCE duz renge boyuyor, yani urun yolunda sema dolgulu yazili
-    # sekil kalmiyor. O gunun gercek kusuru fiksturdeydi (bkz.
-    # tools/blank_temizle.py), kodda degil.
-    #
-    # Yine de duruyor, cunku okuma kusuru gercek: tohumlarin sekilleri sema
-    # dolgusu TASIYOR (surukle-birak tohumunda dokuz tane) ve bestecinin onlari
-    # boyamadigi bir yol acildigi gun, yazi rengi sessizce yanlis zemine gore
-    # secilir. Karsiligi bir sozluk aramasi.
     try:
-        _yuvalar = settings.slot_colors(pkg)
+        yuvalar = settings.slot_colors(pkg)
     except Exception:
-        _yuvalar = {}
-
-    def _sema_el(shape: ET.Element):
-        for yol in ("bG/solidFill/clr/schemeClr", "bG/solidFill/schemeClr"):
-            el = shape.find(yol)
-            if el is not None and el.get("val"):
-                return el
-        return None
-
-    def _sema_dolgu(shape: ET.Element) -> str | None:
-        el = _sema_el(shape)
-        return _yuvalar.get(el.get("val")) if el is not None else None
-
-    def rgb(value: str) -> tuple[int, int, int]:
-        h = shapes.parse_color(value)
-        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-
-    def _zemin_coz(kap: ET.Element) -> str | None:
-        return kap_zemini(kap, _yuvalar)
-
+        yuvalar = {}
     root = pkg.parse(part)
-    ground_paint = _zemin_coz(root)
-    ground = rgb(ground_paint) if (ground_paint or "").startswith("#")         else rgb(palette.get("bg", "#0E1B3D"))
-    # KATMANLAR DA BOYANIR. Bir sure yalnizca slaydin kendi shapeLst'i
-    # geziliyordu; katman sekilleri `top` icinde bulunmadigi icin sahipleri
-    # cozulemiyor ve SESSIZCE atlaniyordu. Sonucu ekranda: slayt kursun
-    # temasini giyerken geri bildirim pop-up'i tohumun renklerinde kaliyordu
-    # (kullanici bildirdi 2026-09-05; olculdu: uretilen kurslarda katman
-    # sekillerinin hicbirinde ne dolgu ne acik yazi rengi vardi).
-    #
-    # Govde listesi model.bodies'ten gelir -- ayni kural animasyonda ve tohum
-    # temizliginde de unutulmustu, o yuzden arama tek yerde durur.
-    wanted: dict[str, str] = {}
-    top: dict[str, ET.Element] = {}
-    for _ad, govde in model.bodies(root):
-        # Katmanin KENDI zemini varsa o gecerli; yoksa slaydinki gorunur.
-        zemin = ground
-        if govde is not root:
-            kat = _zemin_coz(govde)
-            if (kat or "").startswith("#"):
-                zemin = rgb(kat)
-        for shape in list(govde.find("shapeLst") or []):
-            guid = shape.get("g") or ""
-            if not guid:
-                continue
-            own = preview._fill_of(shape, [])
-            if not (own or "").startswith("#"):
-                own = _sema_dolgu(shape)
-            behind = rgb(own) if (own or "").startswith("#") else zemin
-            options = [palette.get("text", "#FFFFFF"),
-                       palette.get("on_accent", "#10141B"),
-                       palette.get("accent_text", palette.get("accent", "#FFC72C"))]
-            en_iyi = max(options, key=lambda c: _contrast(rgb(c), behind))
-            # PALETIN SOZLUGUNDE OLMAYAN BIR ZEMIN ICIN SAF NOTRE DUS.
-            #
-            # Palet kursun tasarim sozlugu, ama her zemin o sozlukten
-            # gelmiyor: sonuc slaydinin Failure katmani `schemeClr accent2`
-            # (#C0504D), Success'i `accent3` (#9BBB59) -- gecti/kaldi ANLAMI
-            # tasidiklari icin bilerek boyanmiyorlar ve temayla degismiyorlar.
-            #
-            # Olculdu 2026-09-06, alti tema x sonuc slaydi: kirmizi zeminde
-            # paletin en iyi uyesi orman 4.33, komur 4.21, murdum 4.20 -- ucu
-            # de AA esiginin (4.5) altinda. #C0504D zor bir orta ton:
-            # ulasilabilir en yuksek kontrast saf beyazla 4.67, saf siyahla
-            # 4.49. Yani caresi "daha iyi bir palet uyesi secmek" DEGIL,
-            # sozlugun disina cikmak.
-            #
-            # TEK YONLU: yalnizca esigin ALTINDA kalindiginda devreye girer.
-            # Palet zaten yetiyorsa kursun kendi rengi korunur -- aksi halde
-            # her yazi beyaza/siyaha kacar ve tema diye bir sey kalmazdi.
-            if _contrast(rgb(en_iyi), behind) < 4.5:
-                en_iyi = max([en_iyi, "#FFFFFF", "#000000"],
-                             key=lambda c: _contrast(rgb(c), behind))
-            wanted[guid] = en_iyi
-            top[guid] = shape
-
-    parents = model._parent_map(root)
     touched = 0
-    for shp, text_el, _doc, _state in model._iter_text_shapes(root):
-        node, owner = shp, None
-        while node is not None:
-            if node.get("g") in top and top[node.get("g")] is node:
-                owner = node.get("g")
-                break
-            node = parents.get(node)
-        colour = wanted.get(owner)
-        if not colour:
-            continue
-        text_el.text = shapes.set_text_style(text_el.text or "", color=colour)
+    for _kap, _shp, text_el, arka in yazi_arkalari(
+            root, yuvalar, palette.get("bg", "#0E1B3D")):
+        if not arka:
+            continue                    # zemini bilinmeyene renk secilmez
+        text_el.text = shapes.set_text_style(
+            text_el.text or "", color=yazi_rengi_sec(palette, arka))
         touched += 1
     pkg.replace_xml(part, root)
     return touched

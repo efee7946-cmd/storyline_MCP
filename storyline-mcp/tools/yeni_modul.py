@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI UC SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI DORT SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -60,7 +60,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 import completeness
-from storyline_mcp import authoring, clone, compose, model
+from storyline_mcp import authoring, clone, compose, model, preview
 from storyline_mcp.package import StoryPackage
 
 BLANK = ROOT.parent / "test" / "bos.story"
@@ -433,8 +433,7 @@ def main() -> int:
     # boyamanin yolunu hic gezmiyor (K33). Panelin gercek yolu paleti
     # tasiyor; kapi da oradan gecmeli.
     #
-    # UC KUSUR SINIFI, ucu de olculdu 2026-09-06 ve ucu de AYNI kok sebepten
-    # -- "arkasinda ne var" sorusuna iki ayri yerde iki ayri cevap:
+    # UC KUSUR SINIFI, ucu de olculdu 2026-09-06:
     #
     # (a) Sonuc slaydinin zemini `gradOvrlyFill schemeClr accent1 tint 66%`
     #     (~#8BACD3) kaliyordu; boyayan onu okuyamayip `palette["bg"]`ye
@@ -449,17 +448,14 @@ def main() -> int:
     #     slayda gore seciliyordu: gece "Tebrikler" 2.18, kagit "Maalesef"
     #     3.60.
     #
-    # KAPI, KODUN COZUCUSUNU CAGIRIR (`authoring.kap_zemini`). Ilk surumu
-    # kendi cozucusunu yazmisti ve (c)'yi GOREMEDI -- kodun kor noktasini
-    # aynen devralmisti. Kapinin kendi kopyasi varsa, kapi kusuru degil
-    # kendi varsayimini olcer.
-    #
-    # IKI TEMA, biri koyu biri acik: kusurlarin cogu temadan bagimsiz, ama
-    # duzeltmenin yazi rengini iki yone de cevirebildigi ancak iki kutupla
-    # gorulur.
+    # KAPI KODUN KENDI COZUCULERINI CAGIRIR (`authoring.yazi_arkalari`).
+    # Iki onceki surumu kendi kopyasini yazmisti ve IKI KEZ yanildi: once
+    # `schemeClr` zeminleri cozemedigi icin (c)'yi goremedi, sonra
+    # `_iter_text_shapes`in IC sekli verdigini unuttugu icin buton
+    # etiketlerini yanlis zemine gore olctu ve olmayan kirk sorun bildirdi.
+    # Kapinin kendi kopyasi varsa, kapi kusuru degil kendi varsayimini olcer.
     from panel import ilerleme as _ilerleme
-    from storyline_mcp import preview as _preview, settings as _settings
-    from storyline_mcp import shapes as _shapes
+    from storyline_mcp import settings as _settings, shapes as _shapes
     from storyline_mcp.compose import _contrast as _kontrast
     import shutil as _sh4
 
@@ -468,6 +464,9 @@ def main() -> int:
         return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
     _bulgu = []
+    # IKI TEMA, biri koyu biri acik: kusurlarin cogu temadan bagimsiz (donor
+    # rengi de sema rengi de temayla degismiyor), ama duzeltmenin yazi
+    # rengini iki yone de cevirebildigi ancak iki kutupla gorulur.
     for _tema in ("gece", "kagit"):
         _palet = compose.theme_palette(_tema)
         _yol4 = Path(tempfile.gettempdir()) / ("yeni_modul_%s.story" % _tema)
@@ -492,40 +491,102 @@ def main() -> int:
                                   "Kutu iki": ["Kisa", "Kisa"]}, palette=_palet)
             authoring.add_text_question(_p4, "Bir adim yaz.", None,
                                         palette=_palet)
-            _rap4 = _ilerleme.kur(_p4, ["Bolum Bir"], palette=_palet)
+            _ilerleme.kur(_p4, ["Bolum Bir"], palette=_palet)
             _p4.save(_yol4, backup=False)
 
         _p4 = StoryPackage(_yol4)
         _yuva = _settings.slot_colors(_p4)
         for _part4, _ref4 in model.slide_index(_p4).items():
             _k4 = _p4.parse(_part4)
-            _temel = authoring.kap_zemini(_k4, _yuva)
+            # (a)+(b): DUZ HEX bir zemin paletin disindaysa donor artigi.
+            # schemeClr zeminler muaf -- temaya bagli ya da anlam tasiyor.
             for _ad4, _gv in model.bodies(_k4):
-                _z = (authoring.kap_zemini(_gv, _yuva)
-                      if _gv is not _k4 else _temel) or _temel
-                _nere = "%s/%s/%s" % (_tema, _ref4.basename, _ad4 or "temel")
-                # (a)+(b): DUZ HEX bir zemin paletin disindaysa donor artigi.
-                # schemeClr zeminler muaf -- temaya bagli ya da anlam tasiyor.
                 _bgel = _gv.find("bg")
-                _duz = (_bgel.find("solidFill/clr/srgbClr")
-                        if _bgel is not None else None)
-                if _duz is not None and _z and                         _z.upper() != _palet["bg"].upper():
-                    _bulgu.append("%s: zemin %s (palet %s)"
-                                  % (_nere, _z, _palet["bg"]))
-                # (c): zemin ne olursa olsun uzerindeki yazi okunmali.
-                for _sh5, _el, _d4, _st4 in model._iter_text_shapes(_gv):
-                    if not (_el.text or "").strip():
-                        continue
-                    _col, _sz, _b4, _a4 = _preview._text_style(_sh5)
-                    _arka = _preview._fill_of(_sh5, []) or _z
-                    if not (_col or "").startswith("#")                             or not (_arka or "").startswith("#"):
-                        continue
-                    _o = _kontrast(_rgb(_col), _rgb(_arka))
-                    if _o < 4.5:
-                        _bulgu.append("%s: %s uzerine %s = %.2f"
-                                      % (_nere, _arka, _col, _o))
+                if _bgel is None \
+                        or _bgel.find("solidFill/clr/srgbClr") is None:
+                    continue
+                _z = authoring.kap_zemini(_gv, _yuva)
+                if _z and _z.upper() != _palet["bg"].upper():
+                    _bulgu.append("%s/%s/%s: zemin %s (palet %s)"
+                                  % (_tema, _ref4.basename, _ad4 or "temel",
+                                     _z, _palet["bg"]))
+            # (a): SONUC SLAYDININ temel zemini paletten mi.
+            #
+            # Ayri bir kontrol, cunku yukaridaki dongu onu GOREMEZ: tohumun
+            # zemini `gradOvrlyFill` ve `solidFill/clr/srgbClr` aramasina
+            # takilmaz. `kap_zemini` de onu cozemez (gradyan) -- yani
+            # "cozulemedi" ile "dogru" ayni gorunur. Sonuc slaydinin zemini
+            # BOYANMIS olmali; cozulememesi tek basina bir bulgu.
+            if any(_e.tag == "rsltsIntr" for _e in _k4.iter()):
+                _zs = authoring.kap_zemini(_k4, _yuva)
+                if (_zs or "").upper() != _palet["bg"].upper():
+                    _bulgu.append("%s/%s: sonuc slaydinin zemini %s (palet %s)"
+                                  % (_tema, _ref4.basename, _zs, _palet["bg"]))
+
+            # (c): zemin ne olursa olsun uzerindeki yazi okunmali.
+            for _kap4, _shp4, _el4, _arka in authoring.yazi_arkalari(
+                    _k4, _yuva, _palet["bg"]):
+                if not (_el4.text or "").strip():
+                    continue
+                if not _arka:
+                    # Sahibi cozulemeyen yazi: boyayan onu ATLIYOR, yani
+                    # donorun renginde kaliyor. Olculemeyen bir yazi
+                    # "sorunsuz" degildir.
+                    _bulgu.append("%s/%s/%s: yazinin sahibi cozulemedi"
+                                  % (_tema, _ref4.basename, _kap4 or "temel"))
+                    continue
+                _col = preview._text_style(_shp4)[0]
+                if not (_col or "").startswith("#"):
+                    continue
+                _o = _kontrast(_rgb(_col), _rgb(_arka))
+                if _o < 4.5:
+                    _bulgu.append("%s/%s/%s: %s uzerine %s = %.2f"
+                                  % (_tema, _ref4.basename, _kap4 or "temel",
+                                     _arka, _col, _o))
     bak("zemin ve okunurluk", "#3/#5", not _bulgu,
         "%d sorun %s" % (len(_bulgu), _bulgu[:1]))
+
+    # 24 -- PAYLASILAN COZUCULERIN KENDISI
+    #
+    # Yukaridaki kapi kodun cozuculerini cagiriyor ve bu DOGRU -- kendi
+    # kopyasini yazdiginda iki kez yanildi. Ama paylasmanin bir bedeli var:
+    # cozucunun KENDISI bozulursa kapi da ayni koru olur ve sessizce yesil
+    # kalir. Olculdu 2026-09-06: `kap_zemini`nin sema dali devre disi
+    # birakildiginda boru hatti kapisi hicbir sey gormedi.
+    #
+    # O yuzden ikinci bir kat: cozuculer BIRIM olarak, boru hattindan
+    # bagimsiz sinaniyor. Uc dal da ayri ayri, cunku ucunun de bir kusur
+    # gecmisi var:
+    #   duz hex      -- donorun kendi rengi
+    #   schemeClr    -- yesil/kirmizi anlam katmanlari (cozulmuyordu)
+    #   cozulemez    -- gradyan; None DONMELI, uydurma bir renk degil
+    # ve `yazi_rengi_sec` zor bir zeminde (#C0504D) esigi gecmeli.
+    import xml.etree.ElementTree as _ET
+    _kanarya = []
+
+    def _kap(xml: str):
+        return _ET.fromstring(xml)
+
+    _duz = _kap('<sldLayer><bg><solidFill><clr><srgbClr val="5A5794"/>'
+                '</clr></solidFill></bg></sldLayer>')
+    if authoring.kap_zemini(_duz, {}) != "#5A5794":
+        _kanarya.append("duz hex zemin cozulmuyor: %r"
+                        % authoring.kap_zemini(_duz, {}))
+    _sema = _kap('<sldLayer><bg><solidFill><clr><schemeClr val="accent3"/>'
+                 '</clr></solidFill></bg></sldLayer>')
+    if authoring.kap_zemini(_sema, {"accent3": "#9BBB59"}) != "#9BBB59":
+        _kanarya.append("sema zemin cozulmuyor: %r"
+                        % authoring.kap_zemini(_sema, {"accent3": "#9BBB59"}))
+    _grad = _kap('<sldLayer><bg><gradOvrlyFill type="def"/></bg></sldLayer>')
+    if authoring.kap_zemini(_grad, {}) is not None:
+        _kanarya.append("cozulemeyen zemin None donmuyor")
+    for _zor in ("#C0504D", "#9BBB59"):
+        _sec = authoring.yazi_rengi_sec(compose.theme_palette("orman"), _zor)
+        _o = _kontrast(_rgb(_sec), _rgb(_zor))
+        if _o < 4.5:
+            _kanarya.append("%s icin secilen %s = %.2f" % (_zor, _sec, _o))
+    bak("cozucu kanaryasi", "#3/#5", not _kanarya,
+        "%d sorun %s" % (len(_kanarya), _kanarya[:1]))
 
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
@@ -537,7 +598,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi uc sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi dort sinifin hicbirini tasimiyor.")
     return 0
 
 
