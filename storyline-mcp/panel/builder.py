@@ -1093,6 +1093,31 @@ def _medya_plani(scenes: list[dict], options: dict, brief: str, model: str,
     if hedef <= 0:
         return ["medya istegi kapali (kunye)"]
 
+    # UYGUN SLAYT YOKSA SEBEBI SOYLENIR -- OLCULDU 2026-09-06.
+    #
+    # `_medya_yeri_var` yalnizca IKI duzeni kabul ediyor: kapak, ve madde
+    # isaretsiz duz content. Plan `bullets`/`steps`/`statement`/`reveal`
+    # ya da maddeli content kullaniyorsa uygun slot SIFIR olur ve bu
+    # fonksiyon sessizce bos doner.
+    #
+    # Kullanici "son 2-3 kursta hic gorsel istemedi" diye bildirdi ve
+    # sebebi geriye donuk cozulemedi cunku bu satir yoktu. Ustelik yon
+    # aleyhte: ogretim tarafi daha etkilesimli duzenlere (reveal) itiyor,
+    # yani kurs zenginlestikce gorsel ihtimali DUSUYOR. Bu ikisinin
+    # cakismasi kendiliginden gorunmez.
+    _uygun = sum(1 for _s in scenes
+                 for _sp in (_s.get("content") or [])
+                 if _sp.get("kind") != "question"
+                 and _medya_yeri_var(_sp.get("layout") or "content", _sp))
+    if _uygun == 0:
+        _duzenler = sorted({str(_sp.get("layout") or "content")
+                            for _s in scenes
+                            for _sp in (_s.get("content") or [])
+                            if _sp.get("kind") != "question"})
+        return ["gorsel/video icin uygun slayt YOK: yer yalnizca kapakta ve "
+                "madde isaretsiz duz metin slaydinda ayrilabiliyor. Bu "
+                "planin duzenleri: %s" % (", ".join(_duzenler) or "yok")]
+
     # Sahne basina TEK aday: ilk uygun slayt. Ikinci bir alan, ayni bolumu
     # doldurulmayi bekleyen iki bos panelle birakir.
     adaylar: list[tuple[int, int]] = []
