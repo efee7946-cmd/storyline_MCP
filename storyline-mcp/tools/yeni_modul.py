@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON SEKIZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN ON DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -35,6 +35,7 @@ SINANAN ON SEKIZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    16  degisken referanslari      %Quiz_Result...% cozulmuyor   (#3b)
    17  katman metni ayri          iki yanlis katman ayni metin    (#9)
    18  dugme ziplamiyor           katman degisince yer degistiriyor (#10)
+   19  quizsiz kaynak             quiz yoksa zincir kurulmuyordu  (#3c)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -336,6 +337,37 @@ def main() -> int:
     bak("dugme ziplamiyor", "#10", not _ziplayan,
         "%d slaytta ayni boyutta dugme farkli yerde" % len(_ziplayan))
 
+    # 19 -- QUIZ'I OLMAYAN kaynaktan da zincir kuruluyor mu
+    #
+    # Yukaridaki fikstuur `bos.story`den basliyor ve onun quiz'i VAR, yani
+    # "quiz yoksa kur" yolunu hic gezmiyor. Kullanicinin kendi baslangic
+    # dosyasinda quiz YOKTU ve dort sorunun dordu de kayitsiz kaldi (K33:
+    # kapi, fikstuurunun gezmedigi yoldaki kusuru goremez).
+    import shutil as _sh3
+    _yol2 = Path(tempfile.gettempdir()) / "yeni_modul_quizsiz.story"
+    _sh3.copy2(BLANK, _yol2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p2 = StoryPackage(_yol2)
+        _st = _p2.parse(model.STORY_PART)
+        for _eb in _st.iter():
+            for _c in list(_eb):
+                if _c.tag == "quiz":
+                    _eb.remove(_c)
+        _p2.replace_xml(model.STORY_PART, _st)
+        _p2.save(_yol2, backup=False)
+        _p2 = StoryPackage(_yol2)
+        authoring.add_question(_p2, None, "Soru?", ["A", "B", "C"], [0])
+        authoring.add_results_slide(_p2)
+        _p2.save(_yol2, backup=False)
+        _s3 = completeness.survey(StoryPackage(_yol2))
+    _iz3 = _s3["izleme"]
+    _tamam = (not _s3["kayitsiz"] and _iz3["quizzes"]
+              and _iz3["quizzes"][0]["sonuc_slaydi"] and not _iz3["lms_bos"])
+    bak("quizsiz kaynak", "#3c", bool(_tamam),
+        "kayitsiz=%d quiz=%s" % (len(_s3["kayitsiz"]),
+                                 [(q["name"], q["kayit"]) for q in _iz3["quizzes"]]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -346,7 +378,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on sekiz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen on dokuz sinifin hicbirini tasimiyor.")
     return 0
 
 

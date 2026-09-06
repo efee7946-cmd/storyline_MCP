@@ -2572,6 +2572,73 @@ def add_text_box(
 DECORATIVE_SHAPES = ("rect", "roundRect", "oval", "line", "textBox")
 
 
+def _quiz_kur(pkg: StoryPackage, sonuc_slayt_guid: str) -> dict:
+    """Quiz YOKSA kurar. Kimlikler tohumdan, cunku sonuc slaydi onlari BEKLIYOR.
+
+    OLCULDU 2026-09-06, kullanicinin urettigi etkiliyapayzeka.story:
+    `quizMgr/quizLst` BOS, dort puanli sorunun dordu de kayitsiz. Sebep
+    `register_question`in erken donusu -- "quizLst icinde quiz yok" -- ve o
+    dogru davraniyor: olmayan bir quiz'e kayit yapamaz.
+
+    KIMLIKLER NEDEN SABIT. Sonuc slaydi tohumu (`seeds/results.xml`) gercek
+    bir kurstan hasat edildi ve o kursun quiz'ine ISIMLE ve GUID'LE bagli:
+
+        rsltsIntr quizG   = a8f5b72b-...   quiz'in kendi g'si
+        Success/Failure   = 903b3800-...   Quiz_Result.ScorePoints
+                            d0d815e0-...   Quiz_Result.PassPoints
+        ekranda           = %Quiz_Result.ScorePoints%
+
+    Kullanicinin denetimi bunlarin hepsini "tanimli degil" diye bildirdi --
+    ve hakliydi: quiz olmayinca hepsi birden bosa dusuyor. Cozum
+    referanslari yeniden yazmak DEGIL (o, belirtiyi kovalamak olurdu),
+    beklenen quiz'i kurmaktir.
+
+    Ayni gerekce `install_slide`in belge dizesinde zaten yazili: tohumun
+    yaslandigi iskele PAYLASILIYOR (layoutG, feedback master), o yuzden
+    sabit GUID'ler hedefte de cozuluyor. Quiz de o iskelenin parcasi.
+
+    QUIZ VARSA DOKUNULMAZ: kaynak dosyanin kendi quiz'i (ornegin `bos.story`
+    "Results" adiyla) yerinde kalir ve `_quizi_sonuc_slaydina_bagla` onu
+    bu slayda baglar.
+    """
+    story = pkg.parse(model.STORY_PART)
+    yonetici = story.find("quizMgr")
+    if yonetici is None:
+        return {"kuruldu": False, "why": "quizMgr yok"}
+    if next(iter(story.iter("quiz")), None) is not None:
+        return {"kuruldu": False, "why": "quiz zaten var"}
+
+    tohum = clone.SEED_DIR / "quiz.xml"
+    if not tohum.is_file():
+        return {"kuruldu": False, "why": "quiz tohumu yok"}
+    kok = ET.fromstring(tohum.read_text(encoding="utf-8"))
+    quiz = kok.find("quiz")
+    if quiz is None:
+        return {"kuruldu": False, "why": "tohumda quiz elemani yok"}
+
+    quiz.set("resultSldG", sonuc_slayt_guid)
+    liste = story.find("quizLst")
+    if liste is None:
+        liste = ET.SubElement(yonetici, "quizLst")
+    liste.append(quiz)
+
+    # DEGISKENLER DE GELIR, cunku quiz onlara GUID'le bagli ve sonuc slaydi
+    # onlara ADLA. Zaten varsa eklenmez -- ayni adi iki kez tanimlamak
+    # Storyline'da belirsiz bir referans birakir.
+    var_listesi = story.find("varLst")
+    eklenen = 0
+    if var_listesi is not None:
+        mevcut = {v.get("name") for v in var_listesi}
+        for var in kok.findall("var"):
+            if var.get("name") not in mevcut:
+                var_listesi.append(var)
+                eklenen += 1
+
+    pkg.replace_xml(model.STORY_PART, story)
+    return {"kuruldu": True, "quiz": quiz.get("name"),
+            "gecme_puani": quiz.get("passScore"), "degisken": eklenen}
+
+
 def _quizi_sonuc_slaydina_bagla(pkg: StoryPackage, slayt_guid: str) -> dict:
     """Quiz'i YENI sonuc slaydina baglar ve olu soru kayitlarini atar.
 
@@ -2637,6 +2704,30 @@ def add_results_slide(
         pkg, seed.read_text(encoding="utf-8"), scene=scene, name=name
     )
     baglanan = _sonuc_degiskenlerini_bagla(pkg, result["part"])
+    quiz_kurulumu = _quiz_kur(pkg, result["slide_guid"])
+
+    # QUIZ SONRADAN KURULDUYSA, ONCEDEN EKLENEN SORULARI GERIYE DONUK KAYDET.
+    #
+    # Sira boyle: sorular once eklenir, sonuc slaydi en sonda. Quiz de sonuc
+    # slaydiyla birlikte kuruluyor, yani o ana kadar `register_question` her
+    # seferinde "quizLst icinde quiz yok" deyip erken donuyordu -- ve dogru
+    # davraniyordu, olmayan bir quiz'e kayit yapilamaz.
+    #
+    # Olculdu: quiz'i olmayan bir kaynaktan iki soru eklenip sonuc slaydi
+    # kondugunda quiz KURULUYOR ama kayitli=0 kaliyordu. Kurulum kaydin
+    # onunu aciyor; acmakla yetinmek, acilan kapidan kimseyi gecirmemek olur.
+    geri_kayit: list[str] = []
+    if quiz_kurulumu.get("kuruldu"):
+        for _part, _ref in model.slide_index(pkg).items():
+            if _ref.guid == result["slide_guid"]:
+                continue                    # sonuc slaydinin kendisi
+            _kok = pkg.parse(_part)
+            if not any(e.tag.endswith("Intr") and e.find("intrProps") is not None
+                       for e in _kok.iter()):
+                continue
+            _kayit = register_question(pkg, _ref.guid)
+            if _kayit.get("registered"):
+                geri_kayit.append(_ref.basename)
     quiz_bagi = _quizi_sonuc_slaydina_bagla(pkg, result["slide_guid"])
 
     # SONUC SLAYDI DA KURSUN OLCEGINDE OLSUN. Tohum kendi punto setini
@@ -2652,6 +2743,8 @@ def add_results_slide(
         **result,
         "score_vars_rebound": baglanan,
         "quiz_bagi": quiz_bagi,
+        "quiz_kurulumu": quiz_kurulumu,
+        "geriye_donuk_kayit": geri_kayit,
         "note": ("Slayt eklendi ve dosya acilir durumda. Puanlama, devraldigi quiz "
                  "baglantilarina bagli; yayinlamadan dogrulanamaz."),
     }
