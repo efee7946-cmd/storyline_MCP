@@ -1287,6 +1287,95 @@ def geri_bildirim_rolleri(root) -> dict:
     return roller
 
 
+def katman_yazisini_sigdir(root, uzay) -> int:
+    """Katman kutularina sigmayan yazilari BIR BASAMAK indirir.
+
+    NICIN. Katman kutulari tohumun geldigi kursun metnine gore
+    boyutlanmis; bizim yazdigimiz metin baska uzunlukta. Olculdu
+    2026-09-06, taze bir modulde uc tasma:
+
+        feedbackTextBox  17pt  gereken 91  kutu 38   "Dogru
+
+Bu secim..."
+        textBox          17pt  gereken 61  kutu 44   "CEVAPLAR"
+        textBox          17pt  gereken 30  kutu 27   "A"
+
+    KUCULTME MERDIVENIN ICINDE KALIR. `step_down` bu dosyanin kuralini
+    uyguluyor: "sigdirma 'bir eksilt' degil 'bir basamak in' olur; boylece
+    kucultme bile olcegin icinde kalir." Basamak basamak inilir ve
+    KALIBRASYON TABANININ altina inilmez -- bandin disinda metin yuksekligi
+    olculmemistir (`shapes.CALIBRATED_RANGE`), yani orada "sigdi" demek
+    olculmemis bir sayiya guvenmek olurdu.
+
+    KUTU BUYUTULMEZ, YAZI KUCULTULUR. Kutuyu buyutmek katmanin duzenini
+    bozar (altindaki maddeye biner) ve o duzen tohumdan geliyor, yani
+    olculmus degil. Punto indirmek yalnizca o kutuyu etkiler.
+    """
+    lo, _hi = shapes.CALIBRATED_RANGE
+    slack = FIT_TOLERANCE / 100 * shapes.slide_size(root)[1]
+    n = 0
+    for kap in list(root.find("sldLayerLst") or []):
+        sl = kap.find("shapeLst")
+        for sh in (list(sl) if sl is not None else []):
+            g = sh.get("g") or ""
+            metin = model.shape_text(kap, g).strip() if g else ""
+            rect = shapes.shape_rect(sh)
+            if not metin or not rect:
+                continue
+            _c, size, _b, _a = _preview._text_style(sh)
+            if not size:
+                continue
+            kutu = rect[3] - rect[1]
+            genislik = rect[2] - rect[0]
+            sarma = shapes.wraps(sh)
+
+            # ONCE BUYUT, SONRA KUCULT -- ve sira onemli. Punto kalibre
+            # bandin icinde; onu indirmek son care olmali. Olculdu
+            # 2026-09-06: dogru geri bildirim katmaninda kutu t=226..264
+            # (38 birim) ama ALTINDA dugmeye kadar 89 birim bos yer var ve
+            # metin 70 istiyor. Once kucultseydik 13pt'ye inip yine
+            # tasardik; buyutunce 17pt korunuyor ve sigiyor.
+            #
+            # SINIR: ASAGIDA KESISEN ILK SEKLIN USTU. Katmanin duzeni
+            # tohumdan geliyor ve olculmus degil; bir kutuyu komsusunun
+            # uzerine bindirmek, tasmayi cakismaya cevirmek olurdu.
+            gereken = shapes.measured_text_height(metin, size, genislik,
+                                                  uzay, wrap=sarma)
+            if gereken > kutu + slack:
+                tavan = shapes.slide_size(root)[1]
+                for _d2 in (list(sl) if sl is not None else []):
+                    if _d2 is sh:
+                        continue
+                    _r2 = shapes.shape_rect(_d2)
+                    if not _r2 or _r2[1] < rect[3]:
+                        continue           # ustte ya da ayni hizada
+                    if _r2[2] <= rect[0] or _r2[0] >= rect[2]:
+                        continue           # yatayda kesismiyor
+                    tavan = min(tavan, _r2[1])
+                _bosluk = 6.0
+                _yeni_alt = min(rect[1] + gereken, tavan - _bosluk)
+                if _yeni_alt > rect[3]:
+                    shapes.set_loc(sh, rect[0], rect[1], rect[2], _yeni_alt)
+                    rect = (rect[0], rect[1], rect[2], _yeni_alt)
+                    kutu = rect[3] - rect[1]
+                    n += 1
+
+            punto = size
+            while shapes.measured_text_height(
+                    metin, punto, genislik, uzay, wrap=sarma) > kutu + slack:
+                yeni_punto = step_down(punto, lo)
+                if yeni_punto >= punto:
+                    break                 # taban asildi
+                punto = yeni_punto
+            if punto != size:
+                for _s2, el, _d, _st in model._iter_text_shapes(kap):
+                    if _s2.get("g") == g and el.text:
+                        el.text = shapes.set_text_style(el.text, size=punto)
+                        n += 1
+                        break
+    return n
+
+
 def yabanci_katmanlari_doldur(root) -> int:
     """Rolu OLMAYAN katmanlara bu sorunun kendi cevaplarini yazar.
 
@@ -1845,11 +1934,13 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     baglanan = intrprops_baglan(root)
     acilan = cikissiz_katmani_ac(root)
     yabanci = yabanci_katmanlari_doldur(root)
+    sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
             "intrprops_baglanan": baglanan,
             "cikissiz_katman_acildi": acilan,
             "yabanci_katman_yazisi": yabanci,
+            "katman_yazisi_kucultuldu": sigan,
             "olcege_alinan": olceklenen}
 
 
