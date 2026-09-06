@@ -1107,3 +1107,49 @@ Kopya kaldirildi, `survey` otoriteye soruyor.
 `produced.py` tabani artik 0, ve bu bir temenni degil: yedi calisan kursta
 ULASILDIGI olculmus bir hedef. Onceki "sifir beklenmemeli, kaynak 12
 tasiyor" gerekcesi yanlisti -- kaynak 12 tasimiyordu, sayac oyle saniyordu.
+
+## 2026-09-06 (besinci tur) — #18 OLCULEMEDI, #22 duzeltildi
+
+### #18 surukle-birak geometrisi: SIKAYETIN YARISI TEKRARLANMIYOR
+
+Kullanici "surukLenen ogeler %84 genislikte, hedefler %41" demisti. Taze bir
+modulde olculdu ve TEKRARLANMIYOR: %84 olan sey SORU METNI kutusu; surukLenen
+ogeler ve hedefler ikisi de %41. Yakin tarihli bir duzeltme ("Surukle-birak
+kutusu yukune gore boyutlansin") bu tarafi kapatmis gorunuyor.
+
+Sikayetin ikinci yarisi -- `returnStart="false"`, yani hedef disina birakilan
+ogenin baslangica donmemesi -- DURUYOR ama OLCULEMEDI:
+
+    savunma.story     snapLoc=tile returnStart=false returnMode=any
+    yeni modul        AYNI
+    tohum             AYNI
+
+Ucu de birebir ayni, yani deger tohumdan geliyor. Dogrusunun ne oldugunu
+sooyleyecek KORPUS KANITI YOK: `donors/DragDrop_5_vFINAL1.story` adina
+ragmen hicbir drag elemani tasimiyor (olculdu: paketteki `*drag*` etiket
+sayisi sifir), referans kursta da yok.
+
+Storyline semantigini tahmin etmek bu projede uc kez yanlis cikti (copiedG,
+<trig>, verG) ve bir dorduncusu bu oturumda az kalsin oluyordu (actionG'yi
+"donor artigi" sanmak). O yuzden `returnStart` DEGISTIRILMEDI ve sebebi
+burada duruyor. Acmak icin gereken sey bir kanit kaynagi: ya drag tasiyan
+gercek bir donor kurs, ya da onizlemede olcum.
+
+### #22 erisilebilirlik: DUZELTILDI
+
+Tohumdan gelen her sekil `acc="true"` tasiyor. Metni olmayan bir sekil --
+arka plan, vurgu seridi, cizgi -- ekran okuyucuya BOS nesne olarak okunur.
+
+    savunma.story     50 metinsiz sekil ekran okuyucuya acik
+    taze modul        18
+    duzeltmeden sonra  0   (15 sekil gizlendi)
+
+KURAL METINE BAKAR, ADA DEGIL. "Arka Plan", "Vurgu", "Kart" adlarini
+listelemek kirilgan olurdu (ad Turkce, Ingilizce ya da bos olabilir);
+"metni yoksa okunacak sey yoktur" olcutu ada bagimli degil.
+
+DEGER UYDURULMADI: insan yapimi kurslarda `acc="false"` 38 kez geciyor.
+
+Disarida birakilanlar ve nedenleri: dugmeler ve etkilesim ogeleri (metinsiz
+olsa bile tiklanabilir), resimler (alternatif metin baska yerde durabilir --
+olculmedi, o yuzden dokunulmadi).

@@ -3008,6 +3008,38 @@ def compose_slide(
                                 height=height, space=page.space,
                                 bottom=FLOOR)
 
+    # DEKORATIF SEKILLER EKRAN OKUYUCUDAN CIKSIN -- OLCULDU 2026-09-06.
+    #
+    # Tohumdan gelen her sekil `acc="true"` tasiyor. Metni olmayan bir
+    # sekil -- arka plan, vurgu seridi, kart, cizgi, numara kutusu --
+    # ekran okuyucuya BOS bir nesne olarak okunur. Kullanicinin urettigi
+    # kursta 50, taze bir modulde 18 tane vardi (22 numarali bulgu).
+    #
+    # KURAL METINE BAKAR, ADA DEGIL. "Arka Plan", "Vurgu", "Kart" gibi
+    # adlari listelemek denenebilirdi ve kirilgan olurdu: ad Turkce,
+    # Ingilizce ya da bos olabilir. Metni olmayan bir sekil, ekran
+    # okuyucunun okuyacagi hicbir sey tasimiyor demektir -- olcut bu.
+    #
+    # DEGER UYDURULMADI: insan yapimi kurslarda `acc="false"` 38 kez
+    # geciyor, yani Storyline'in kendi kullandigi bicim.
+    #
+    # DISARIDA BIRAKILANLAR: dugmeler ve etkilesim ogeleri (metinsiz olsa
+    # bile tiklanabilirler, yani ekran okuyucudan gizlenmemeliler) ve
+    # resimler (alternatif metinleri baska yerde durabilir; olculmedi,
+    # o yuzden dokunulmuyor).
+    _gizlenen = 0
+    _sl = root.find("shapeLst")
+    for _sh in (list(_sl) if _sl is not None else []):
+        if _sh.tag.endswith("Intr") or _sh.tag in (
+                "btn", "rsltBtn", "feedBackBtn", "pic", "textEntry"):
+            continue
+        _g = _sh.get("g") or ""
+        if not _g or model.shape_text(root, _g).strip():
+            continue
+        if (_sh.get("acc") or "") == "true":
+            _sh.set("acc", "false")
+            _gizlenen += 1
+
     # OYNATICI ETIKETLERI TURKCE OLSUN.
     #
     # Kural slaydi KURAN yere degil, slaydi BESTELEYEN yere konuyor --
