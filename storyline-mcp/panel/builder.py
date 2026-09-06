@@ -573,6 +573,26 @@ def _sorular_kapali(options: dict) -> bool:
         return False
 
 
+def _icerik_sayilir_mi(spec: dict) -> bool:
+    """Bu spec kurulan İÇERİK sayılır mı?
+
+    Tek satirlik bir kural ama AYRI, cunku kapinin ulasabildigi tek bicim
+    bu. Sayac `build()` icinde bir dongude artiyor; oraya ulasmanin yolu
+    kursu bastan kurmak, o da `_dusen_soru` isaretini uretmek icin motorun
+    bir soruyu REDDETMESINI gerektiriyor -- pahali bir fikstuur.
+
+    KORUMANIN IKI YARISI VAR ve maliyetleri farkli:
+      (i)  `build()` dusen soruya isareti KOYUYOR mu -- gercek yolu gezmek
+           gerekir, acik kaldi.
+      (ii) sayac isaretli spec'i ATLIYOR mu -- burada, ve sinaniyor.
+
+    Kapsanmamis bir koruma, kapsandigi sanilan bir korumadan iyidir; ayrim
+    yazili dursun ki (i) icin fikstuur yazan kisi neyin zaten saglandigini
+    bilsin.
+    """
+    return not spec.get("_dusen_soru")
+
+
 def _hacim_bulgulari(konu_hacmi: list[dict]) -> list[str]:
     """Sahne hacminden çıkan ATIFLI bulgular. Saf: hiçbir şeyi değiştirmez.
 
@@ -618,15 +638,34 @@ def _hacim_bulgulari(konu_hacmi: list[dict]) -> list[str]:
     # KENDI sekli: outline 3 icerik planliyor, icerik asamasi 4 donduruyor.
     # Ama yonun izlenmemesi gercek bosluktu.)
     #
-    # ESIK ORANLI, cunku `slide_budget` bir SIPARIS: bir slaytlik sapma
-    # gurultu, ucte birlik sapma baska bir kurs.
+    # ESIK ORANLI: bir slaytlik sapma gurultu, ucte birlik sapma baska bir
+    # kurs.
+    #
+    # HANGI POPULASYON, aciklikla: `planlanan` OUTLINE'in icerik spec'leri,
+    # `kurulan` gercekten kurulan icerik SLAYTLARI (dusen soru haric, bkz.
+    # `_icerik_sayilir_mi`). Ikisi ayni kumeyi saymiyor ve saymak zorunda da
+    # degil -- `scene["content"] = filled.get("slides")` plani BUTUNUYLE
+    # degistiriyor, yani icerik asamasinin outline'dan farkli olmasi
+    # BEKLENEN. Bu yuzden bulgu "butce asildi" demiyor, ne olduysa ONU
+    # soyluyor: icerik asamasi outline'dan sapti.
+    #
+    # `slide_budget` ASIL SIPARIS ama bu hesapta DEGIL -- kanarya raporunda
+    # `None` gelidi ve olculmeden kullanmak, bu turda uc kez cikan kusurun
+    # (iki farkli populasyonu tek ad altinda saymak) dorduncusu olurdu.
+    #
+    # KANARYA BU SATIRI TASARIM GEREGI ATESLIYOR: `tools/produced.py`
+    # outline'da 3 icerik planlayip icerik asamasinda 4 donduruyor (12 -> 16,
+    # +%33), cunku her duzeni gezmesi gerekiyor. Olculdu 2026-09-07 ve
+    # BILEREK boyle birakildi: bu bir rapor satiri, kapi dusurmuyor, ve
+    # dogru. Ilk goren kisi kanaryayi yeniden sekillendirmesin -- o zaman
+    # `produced.py`nin satin aldigi duzen kapsami sessizce gider.
     _plan_top = sum(h["planlanan"] for h in konu_hacmi)
     _kur_top = sum(h["kurulan"] for h in konu_hacmi)
     _fark = _kur_top - _plan_top
     _asti = bool(_plan_top) and _fark >= 2 and _fark / _plan_top >= 0.25
     if _asti:
-        out.append("icerik butcesi asildi: %d planlandi, %d kuruldu "
-                   "(+%%%.0f) -- siparis edilen slayt sayisi tutmuyor"
+        out.append("icerik asamasi outline'dan sapti: outline %d icerik "
+                   "planladi, %d kuruldu (+%%%.0f)"
                    % (_plan_top, _kur_top, _fark / _plan_top * 100))
 
     sayilar = [h["kurulan"] for h in konu_hacmi]
@@ -1946,7 +1985,7 @@ def build(
             reveal_items = (spec.get("items") or []) if duzen == "reveal" else []
             butonlar = ([str(i.get("label") or "")[:40] for i in reveal_items]
                         if reveal_items else spec.get("buttons"))
-            if not spec.get("_dusen_soru"):
+            if _icerik_sayilir_mi(spec):
                 _kur_icerik += 1
             laid = compose.compose_slide(
                 pkg, new["new_slide"], duzen,

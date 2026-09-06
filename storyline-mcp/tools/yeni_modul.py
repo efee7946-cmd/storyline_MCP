@@ -638,6 +638,61 @@ def main() -> int:
         if compose.kucuk(_ham) != _bek:
             _kanarya.append("kucuk(%r) = %r, beklenen %r"
                             % (_ham, compose.kucuk(_ham), _bek))
+    # PUANLAMA COZUCUSU DE KANARYALI. 10, 19 ve 30. siniflar
+    # `storyline_mcp.puanlama`yi -- kodun kendi yetkili kaynagini --
+    # cagiriyor. O cozucu bozulursa UCU BIRDEN korlesir ve suite yesil kalir:
+    # tam olarak "kapi, denetledigi seyle ayni kaynaktan turuyor" bicimi.
+    #
+    # O yuzden zincir EKILMIS kusurlarla ayrica siniyor: saglam bir paket
+    # uc ayri yerinden bozuluyor ve her birinde zincirin KONUSMASI bekleniyor.
+    # Boru hattindan bagimsiz, cunku bozma elle yapiliyor.
+    from storyline_mcp import puanlama as _pz24
+    import shutil as _sh24, tempfile as _tf24
+    _yol24 = Path(_tf24.gettempdir()) / "zincir_kanarya.story"
+    _sh24.copy2(BLANK, _yol24)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p24 = StoryPackage(_yol24)
+        clone.create_scene(_p24, "B")
+        authoring.add_question(_p24, None, "Soru?",
+                               ["A secenegi", "B secenegi", "C secenegi"], [0])
+        authoring.add_results_slide(_p24)
+        _p24.save(_yol24, backup=False)
+    if _pz24.zincir(StoryPackage(_yol24)):
+        _kanarya.append("saglam paket icin zincir kirik diyor")
+
+    def _boz24(ad, degistir):
+        _y = Path(_tf24.gettempdir()) / ("zk_%s.story" % ad)
+        _sh24.copy2(_yol24, _y)
+        _pk = StoryPackage(_y)
+        _st = _pk.parse("story/story.xml")
+        degistir(_pk, _st)
+        _pk.replace_xml("story/story.xml", _st)
+        _pk.save(_y, backup=False)
+        if not _pz24.zincir(StoryPackage(_y)):
+            _kanarya.append("ekilen kusuru gormedi: %s" % ad)
+
+    def _quizi_sil(_pk, _st):
+        for _eb in _st.iter():
+            for _c in list(_eb):
+                if _c.tag == "quiz":
+                    _eb.remove(_c)
+
+    def _lms_bosalt(_pk, _st):
+        _m = _st.find("quizMgr")
+        if _m is not None:
+            _m.set("lmsResultSlideG", "00000000-0000-0000-0000-000000000000")
+
+    def _kaydi_sil(_pk, _st):
+        for _q in _st.iter("quiz"):
+            _idl = _q.find("questionIdLst")
+            for _o in list(_idl) if _idl is not None else []:
+                _idl.remove(_o)
+
+    _boz24("quiz silindi", _quizi_sil)
+    _boz24("lms hedefi bosaltildi", _lms_bosalt)
+    _boz24("soru kaydi silindi", _kaydi_sil)
+
     for _zor in ("#C0504D", "#9BBB59"):
         _sec = authoring.yazi_rengi_sec(compose.theme_palette("orman"), _zor)
         _o = _kontrast(_rgb(_sec), _rgb(_zor))
@@ -1283,6 +1338,18 @@ def main() -> int:
         if _cikan != _bekle34:
             _hacim_sapma.append("%s: %d bulgu (beklenen %d)"
                                 % (_ad34, _cikan, _bekle34))
+    # KORUMANIN BEDAVA YARISI. `_dusen_soru` korumasinin iki yarisi var:
+    #   (i)  `build()` isareti KOYUYOR mu -- motorun bir soruyu reddetmesini
+    #        gerektiriyor, pahali fikstuur, ACIK.
+    #   (ii) sayac isaretli spec'i ATLIYOR mu -- kural ayri bir fonksiyonda
+    #        (`_icerik_sayilir_mi`), yani bugun BEDAVA.
+    # "Tamami dogrulanmadi" boylece "yarisi dogrulandi, obur yarisi
+    # adlandirildi"ya donuyor.
+    if _b34._icerik_sayilir_mi({"kind": "content"}) is not True:
+        _hacim_sapma.append("duz icerik spec'i sayilmiyor")
+    if _b34._icerik_sayilir_mi({"kind": "content", "_dusen_soru": True})             is not False:
+        _hacim_sapma.append("dusen soru icerik sayiliyor")
+
     bak("sahne hacmi atfi", "#12", not _hacim_sapma,
         "%d sapma %s" % (len(_hacim_sapma), _hacim_sapma[:1]))
 
