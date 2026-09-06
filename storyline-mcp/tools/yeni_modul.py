@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -36,6 +36,7 @@ SINANAN ON DOKUZ SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    17  katman metni ayri          iki yanlis katman ayni metin    (#9)
    18  dugme ziplamiyor           katman degisince yer degistiriyor (#10)
    19  quizsiz kaynak             quiz yoksa zincir kurulmuyordu  (#3c)
+   20  gonderiden geciyor         soru hic submit edilmiyordu      (#4)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -368,6 +369,32 @@ def main() -> int:
         "kayitsiz=%d quiz=%s" % (len(_s3["kayitsiz"]),
                                  [(q["name"], q["kayit"]) for q in _iz3["quizzes"]]))
 
+    # 20 -- her yol GONDERIDEN geciyor mu
+    _gondersiz = []
+    for _part, _ref in model.slide_index(pkg).items():
+        _root = pkg.parse(_part)
+        _sik = compose.katman_sik_etiketleri(_root)
+        if len(_sik) < 2:
+            continue                      # dallanma sorusu degil
+        _roller = compose.geri_bildirim_rolleri(_root)
+        _dogru = next((_g for _g in _sik if _roller.get(_g) is True), None)
+        if _dogru is None:
+            continue
+        _kat = next((_k for _k in (_root.find("sldLayerLst") or [])
+                     if _k.get("g") == _dogru), None)
+        _sira = [_t.find("data").get("action")
+                 for _tl in (_kat.iter("trigLst") if _kat is not None else [])
+                 for _t in _tl if _t.find("data") is not None]
+        # gonder ILERLEMEDEN once gelmeli
+        if "submitInteraction" not in _sira:
+            _gondersiz.append((_ref.basename, "gonder yok"))
+        elif _sira.index("submitInteraction") > min(
+                [_sira.index(_a) for _a in ("jumpToSlide", "jumpToScene")
+                 if _a in _sira] or [99]):
+            _gondersiz.append((_ref.basename, "gonder ilerlemeden SONRA"))
+    bak("gonderiden geciyor", "#4", not _gondersiz,
+        "%d slaytta gonder yolu kirik %s" % (len(_gondersiz), _gondersiz[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -378,7 +405,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on dokuz sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi sinifin hicbirini tasimiyor.")
     return 0
 
 

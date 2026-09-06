@@ -31,7 +31,9 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from . import model, preview as _preview, shapes
+import copy as _copy
+
+from . import clone, model, preview as _preview, shapes
 from .authoring import (ChoiceLabelsTooLong, _apply_text,
                         _choice_shape_guids, _ovali_kapsullestir)
 from .edits import set_shape_text
@@ -1807,6 +1809,44 @@ def katman_dugmelerini_bagla(root, pkg) -> int:
             if hedef is not None:
                 hedef.set("showG", NULL_GUID)
             etiket = "Devam"
+
+            # ONCE GONDER, SONRA ILERLE -- OLCULDU 2026-09-06.
+            #
+            # Soru slaydinda `subm="plyr"` yaziyor (oynaticinin GONDER
+            # dugmesiyle gonderilecek) ama akis oraya HIC ugramiyordu:
+            # ogrenci bir sikka tiklar tiklamaz katman aciliyor, katmanin
+            # dugmesi de dogrudan sonraki slayda gidiyordu. `attempts="one"`
+            # ile birlikte sonuc su -- etkilesim kaydedilmiyor, secim
+            # degistirilemiyor, ve quiz kurulu olsa bile SKOR sifir kaliyor.
+            #
+            # Her yol bu katmanda bitiyor (yanlis katmanlar "Cevabi Gor" ile
+            # buraya geliyor), yani gondermenin dogru yeri burasi ve TEK
+            # yeri: iki kez gondermek `attempts="one"` ile catisirdi.
+            #
+            # TETIKLEYICI UYDURULMUYOR, SLAYTTAN KLONLANIYOR. Slaytta zaten
+            # gercek bir `submitInteraction` var (`ensure_submit_trigger`
+            # koyuyor) ve o, Storyline'in kendi eylem sabitini tasiyor --
+            # sifirdan kurulan bir tetikleyici o sabiti bilemezdi.
+            #
+            # SIRA ONEMLI: gonder ONCE gelmeli, cunku jump bu slaydi
+            # terk ediyor.
+            trig_listesi = next((tl for tl in katman.iter("trigLst")
+                                 if trig in list(tl)), None)
+            zaten = any((t.find("data") is not None
+                         and t.find("data").get("action") == "submitInteraction")
+                        for t in (list(trig_listesi) if trig_listesi is not None else []))
+            kaynak = next((t for tl in root.iter("trigLst") for t in tl
+                           if t.find("data") is not None
+                           and t.find("data").get("action") == "submitInteraction"),
+                          None)
+            if trig_listesi is not None and not zaten and kaynak is not None:
+                kopya = _copy.deepcopy(kaynak)
+                kopya.set("g", clone.new_guid())
+                kopya.set("verG", clone.new_guid())
+                kd = kopya.find("data")
+                if kd is not None:
+                    kd.set("event", "OnClick")
+                trig_listesi.insert(list(trig_listesi).index(trig), kopya)
         else:
             data.set("action", "showSubSlide")
             if hedef is None:
