@@ -1153,3 +1153,63 @@ DEGER UYDURULMADI: insan yapimi kurslarda `acc="false"` 38 kez geciyor.
 Disarida birakilanlar ve nedenleri: dugmeler ve etkilesim ogeleri (metinsiz
 olsa bile tiklanabilir), resimler (alternatif metin baska yerde durabilir --
 olculmedi, o yuzden dokunulmadi).
+
+## 2026-09-06 (altinci tur) — #17 duzeltildi, ve #11 ERKEN KAPANDI SANILMISTI
+
+### Onceki turdaki iddiam yanlisti
+
+"#11 (baska kursun icerigi) kapandi" demistim; `add_layer` tarafi
+supurulmustu ama SORU tohumunun kendi katmani acik kalmisti. TAZE bir
+modulde yeniden olculunce gorundu: `slidef.xml`in "Cevaplar" katmani hala
+"Yapiskan nottaki parola", "Varsayilan parolali modem", "Masada acikta
+duran belgeler" yaziyordu -- futbol modulunde siber guvenlik icerigi, ve
+yanlis cevap veren HERKESE gosteriliyor.
+
+Bunu bulan sey, tasma sayacinin yeni fikstuurde 7 vermesiydi. Yani kusuru
+kendi adiyla arayarak degil, BASKA bir olcunun anomalisinden buldum.
+
+### Duzeltme: bosaltmak degil, DOLDURMAK
+
+"Cevaplar" katmanini bos birakmak, acilan ve hicbir sey gostermeyen bir
+ekran demek. Sorunun DOGRU siklari zaten dosyada yazili, yani yazilacak sey
+tahmin gerektirmiyor.
+
+UC KEZ YANLIS YAZDIM, ucu de olcumle duzeldi:
+
+1. "Rolu olan katmani atla" dedim. `geri_bildirim_rolleri` HER katmana rol
+   veriyor (sonunda `index == 0` yedegi var), yani kosul hepsini atladi ve
+   fonksiyon hicbir sey yapmadi. Ayrim KUTU SAYISINA baglandi: geri
+   bildirim katmanlarinda iki metin kutusu, liste katmaninda alti.
+
+2. Sikkin etiketini `<text>`ten okudum. Olculdu: bes sikkin besinde de
+   `<text>` BOS; etiketler `shpG`nin gosterdigi OVAL sekillerin icinde
+   ("A", "B"). Bos liste uretti, fonksiyon sessizce hicbir sey yazmadi.
+
+3. Basligi "ilk kutu" saydim, sonra "en ustteki kutu". Ikisi de yanlisti:
+   `_iter_text_shapes` gorsel sirada donmuyor VE katmanin "Devam Et"
+   dugmesi dikeyde top=0'da, yani en ustte. Dugme baslik sanildi ve gercek
+   baslik ("CEVAPLAR") govde sayilip silindi. Dugmeler disarida birakildi.
+
+Sonuc: dugme ve baslik yerinde, maddeler bu sorunun kendi dogru
+cevaplariyla dolu, fazla kutular bos, donor metni SIFIR. Tasma 7 -> 3.
+
+### #17 punto merdiveni
+
+Merdiven (11/13/17/21/26/38/54/72) yalnizca bestelenen slaytlara ve geri
+bildirim katmanlarina uygulaniyordu. Tohumdan gelip bestelenmeyen SONUC
+slaydi kendi olcegini koruyordu: merdiven disi on uc yazinin ON BIRI
+oradaydi (8, 10, 12, 16, 30pt).
+
+`compose.merdivene_otur` eklendi; `add_results_slide` ve `add_layer`
+cagiriyor. Simdi merdiven disi metin SIFIR.
+
+DUGMELER BILEREK DISARIDA. `_iter_text_shapes` dugme etiketlerini zaten
+dondurmuyor ve sebebi dogru: dugme puntosu kendi bandina gore hesaplaniyor
+(`compose`ta `height = min(max(...), 20.0)`), merdiven ise METIN
+hiyerarsisi icin. Kalan 12/16pt `rsltBtn`ler kusur DEGIL.
+
+### Kalan tasma: 3
+
+Yeni fikstuur, `produced`in gormedigi bir kusur sinifini acti (K33:
+"kapi, fikstuurunun gezmedigi yoldaki kusuru goremez"). Yediden uce indi;
+kalan uc olculdu ama bu turda ele alinmadi.

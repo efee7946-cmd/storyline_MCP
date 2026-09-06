@@ -2596,6 +2596,16 @@ def add_results_slide(
     )
     baglanan = _sonuc_degiskenlerini_bagla(pkg, result["part"])
     quiz_bagi = _quizi_sonuc_slaydina_bagla(pkg, result["slide_guid"])
+
+    # SONUC SLAYDI DA KURSUN OLCEGINDE OLSUN. Tohum kendi punto setini
+    # tasiyor (8/10/12/16/30) ve kursun geri kalani merdivende
+    # (11/13/17/21/26/38) -- iki ayri sablon gibi gorunuyor. Merdiven bu
+    # projenin tek olcegi; bestelenmeyen slaytlar disinda kalmisti.
+    from . import compose as _compose
+    _kok = pkg.parse(result["part"])
+    _oturan = _compose.merdivene_otur(_kok)
+    if _oturan:
+        pkg.replace_xml(result["part"], _kok)
     return {
         **result,
         "score_vars_rebound": baglanan,
@@ -3048,6 +3058,17 @@ def add_layer(
         if opener is None:
             raise StoryError(f"{open_from!r} ile eslesen sekil bulunamadi.")
         wired = shapes.retarget_to_layer(opener, layer_guid)
+
+    # KATMANIN YAZISI DA KURSUN OLCEGINDE OLSUN. Katman tohumu kendi
+    # puntosunu tasiyor (olculdu: govde metni 16pt) ve kursun geri kalani
+    # merdivende. DUGMELER DISARIDA KALIR ve bu bilerek: `_iter_text_shapes`
+    # dugme etiketlerini zaten dondurmuyor, cunku dugme puntosu bandina
+    # gore hesaplaniyor -- merdiven metin hiyerarsisi icin.
+    try:
+        from . import compose as _compose
+        _compose.merdivene_otur(layer)
+    except Exception:
+        pass
 
     pkg.replace_xml(part, root)
 

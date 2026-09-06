@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN ON IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN ON DORT SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -29,6 +29,8 @@ SINANAN ON IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    10  puanlama zinciri           soru->quiz->sonuc->LMS      (#3/#24)
    11  dekoratif sekil gizli      metinsiz sekil acc=true        (#22)
    12  koordinat uzayi tek        720 ve 1920 karisik            (#16)
+   13  soru katmani yabanci       baska kursun cevap listesi    (#11b)
+   14  punto merdiveni            sonuc slaydi ayri olcekte      (#17)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -227,6 +229,40 @@ def main() -> int:
         "sahne=%dx%d slayt uzaylari=%s" % (_sahne[0], _sahne[1],
                                            sorted(_uzaylar)))
 
+    # 13 -- SORU katmanlarinda yabanci metin (11'in ikinci yolu)
+    from storyline_mcp import compose as _c
+    _yabanci_soru = []
+    for _part, _ref in model.slide_index(pkg).items():
+        _root = pkg.parse(_part)
+        if not any(e.tag.endswith("Intr") for e in _root.iter()):
+            continue
+        for _k in list(_root.find("sldLayerLst") or []):
+            for _sh, _e2, _d, _st in model._iter_text_shapes(_k):
+                _t = model._doc_text(_d).strip()
+                # Donor kursun izleri: bu modulun hicbir yerinde gecmeyen
+                # ve tohumdan gelen ozgun cumleler.
+                if _t in ("Yapışkan nottaki parola", "Varsayılan parolalı modem",
+                          "Masada açıkta duran belgeler", "Açık Telefon",
+                          "Açık kapı ve görüş alanı"):
+                    _yabanci_soru.append((_ref.basename, _t))
+    bak("soru katmani yabanci", "#11b", not _yabanci_soru,
+        "%d donor metni" % len(_yabanci_soru))
+
+    # 14 -- metin merdiveni (dugmeler haric)
+    _disari = []
+    for _part, _ref in model.slide_index(pkg).items():
+        _root = pkg.parse(_part)
+        for _kap in [_root] + list(_root.find("sldLayerLst") or []):
+            for _sh, _e2, _d, _st in model._iter_text_shapes(_kap):
+                if not model._doc_text(_d).strip():
+                    continue
+                _cc, _sz, _bb, _aa = __import__(
+                    "storyline_mcp.preview", fromlist=["x"])._text_style(_sh)
+                if _sz and round(_sz) not in _c.TYPE_LADDER:
+                    _disari.append((_ref.basename, round(_sz)))
+    bak("punto merdiveni", "#17", not _disari,
+        "%d merdiven disi yazi" % len(_disari))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -237,7 +273,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen on iki sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen on dort sinifin hicbirini tasimiyor.")
     return 0
 
 

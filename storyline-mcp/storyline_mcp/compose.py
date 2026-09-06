@@ -1287,6 +1287,143 @@ def geri_bildirim_rolleri(root) -> dict:
     return roller
 
 
+def yabanci_katmanlari_doldur(root) -> int:
+    """Rolu OLMAYAN katmanlara bu sorunun kendi cevaplarini yazar.
+
+    `compose_feedback_layers` yalnizca DOGRU ve YANLIS katmanlarini yeniden
+    yaziyor. Tohumda ucuncu bir katman daha var -- "Cevaplar" -- ve o hic
+    ellenmiyordu: hasat edildigi kursun metnini tasimaya devam ediyor.
+
+    Olculdu 2026-09-06, TAZE bir modulde (yani bu bir devralinan kir degil,
+    ureticinin her seferinde urettigi bir kusur): futbol modulunde acilan
+    katmanda "Yapiskan nottaki parola", "Varsayilan parolali modem",
+    "Masada acikta duran belgeler" yaziyordu. Siber guvenlik icerigi, ve
+    YANLIS CEVAP VEREN HERKESE gosteriliyor -- katmani acan dugme yanlis
+    cevap katmaninda ("Cevaplari gor").
+
+    Kullanicinin 11 numarali bulgusu buydu. Bir onceki turda `add_layer`
+    tarafi supuruldu ve bu yol ACIK KALMISTI; taze modulde yeniden olculunce
+    gorundu.
+
+    BOSALTMAK YETMEZ, DOLDURULUYOR. "Cevaplar" katmanini bos birakmak,
+    ogrenciye acilan ve hicbir sey gostermeyen bir ekran demek. Sorunun
+    DOGRU siklari zaten dosyada yazili (`scoringData correct="true"`), yani
+    yazilacak sey tahmin gerektirmiyor.
+
+    Fazla kutular BOSALTILIR: tohum bes maddelik, soru uc sikli olabilir.
+    Dugmelere dokunulmaz (`_iter_text_shapes` onlari zaten dondurmuyor).
+    """
+    katman_listesi = root.find("sldLayerLst")
+    katmanlar = list(katman_listesi) if katman_listesi is not None else []
+    if not katmanlar:
+        return 0
+    roller = geri_bildirim_rolleri(root)
+
+    intr = None
+    for etiket in _INTR_ETIKETLERI:
+        for x in root.iter(etiket):
+            intr = x
+            break
+        if intr is not None:
+            break
+    if intr is None:
+        return 0
+    # SIKIN ETIKETI `<text>`TE DEGIL, `shpG`NIN GOSTERDIGI SEKILDE.
+    # Olculdu: bes sikkin besinde de `<text>` BOS; etiketler temel
+    # katmandaki oval sekillerin icinde ("A", "B", ...). `<text>`i okuyan
+    # ilk yazim her seferinde bos liste uretti ve fonksiyon sessizce
+    # hicbir sey yazmadi.
+    dogrular = []
+    secenekler = intr.find("choices")
+    for secenek in (list(secenekler) if secenekler is not None else []):
+        puan = secenek.find("scoringData")
+        if puan is None or (puan.get("correct") or "").lower() != "true":
+            continue
+        etiket = model.shape_text(root, secenek.get("shpG") or "").strip()
+        if not etiket:
+            dugum = secenek.find("text")
+            etiket = (dugum.text or "").strip() if dugum is not None else ""
+        if etiket:
+            dogrular.append(etiket)
+
+    yazilan = 0
+    for katman in katmanlar:
+        kutu_sayisi = sum(1 for _ in model._iter_text_shapes(katman))
+        # AYRIM KUTU SAYISINDAN, ROLDEN DEGIL -- ve bu bir duzeltme.
+        #
+        # Ilk yazim "rolu olani atla" diyordu; `geri_bildirim_rolleri` HER
+        # katmana bir rol veriyor (sonunda `index == 0` yedegi var), yani
+        # kosul hepsini atliyordu ve fonksiyon hicbir sey yapmiyordu.
+        #
+        # Olculdu: `compose_feedback_layers`in yazdigi dogru/yanlis
+        # katmanlarinda IKI metin kutusu var (baslik + govde); liste
+        # katmaninda ALTI (baslik + bes madde). Esik ikisinin arasinda.
+        if kutu_sayisi <= 2:
+            continue                  # dogru/yanlis: compose_feedback_layers'in isi
+        # DUGMELER DISARIDA. Olculdu: bu katmanda "Devam Et" bir `btn` ve
+        # dikeyde EN USTTE (top=0) duruyor -- konuma gore siralayinca
+        # baslik sanildi ve gercek baslik ("CEVAPLAR") govde sayilip
+        # silindi. Dugme bir madde degil, bir cikis.
+        kutular = [(sh, doc) for sh, _e, doc, _st in model._iter_text_shapes(katman)
+                   if sh.tag not in ("btn", "rsltBtn", "feedBackBtn")]
+        if not kutular:
+            continue
+        # BASLIK KONUMDAN BELIRLENIR, SIRADAN DEGIL -- ve bu bir duzeltme.
+        # Ilk yazim `kutular[0]`i baslik saydi; `_iter_text_shapes` GORSEL
+        # sirada donmuyor ve olculdu ki "CEVAPLAR" baslik kutusu listenin
+        # SONUNDA geliyordu. Sonuc: baslik govde sanildi, uc yabanci metin
+        # yerinde kaldi.
+        #
+        # En USTTEKI kutu basliktir; kalanlar madde. Geometri, listeleme
+        # sirasindan bagimsiz.
+        kutular.sort(key=lambda kd: (shapes.shape_rect(kd[0]) or (0, 0, 0, 0))[1])
+        govde = kutular[1:] if len(kutular) > 1 else []
+        for i, (sh, doc) in enumerate(govde):
+            hedef = dogrular[i] if i < len(dogrular) else ""
+            mevcut = model._doc_text(doc).strip()
+            if mevcut == hedef:
+                continue
+            set_shape_text(katman, sh.get("g") or "", hedef)
+            yazilan += 1
+    return yazilan
+
+
+def merdivene_otur(root) -> int:
+    """Slayttaki BUTUN yazilari punto merdivenine oturtur. Kac tane, doner.
+
+    NICIN. `TYPE_LADDER` bu projenin tek olcegi ve gerekcesi merdivenin
+    kendi yorumunda yazili: "olcek yoksa hiyerarsi de yok; 20pt ile 21pt
+    bir okuyucu icin ayni ses, ama iki ayri karar."
+
+    Ama merdiven yalnizca BESTELENEN slaytlara ve geri bildirim
+    katmanlarina uygulaniyordu. Tohumdan gelip bestelenmeyen slaytlar --
+    ozellikle SONUC slaydi -- kendi olceklerini koruyordu.
+
+    Olculdu 2026-09-06, taze bir modulde: merdiven disi on uc yazinin ON
+    BIRI sonuc slaydinda (8, 10, 12, 16, 30pt). Kullanicinin 17 numarali
+    bulgusu tam buydu: "slidee farkli sablondan: 8/10/12/16/30 punto
+    kullaniyor, geri kalan kurs 11/13/17/21/26/38".
+
+    KATMANLAR DA TARANIR: sonuc slaydinin Success/Failure katmanlari
+    yazilarin cogunu tasiyor ve temel katmanla ayni olcege ait.
+    """
+    n = 0
+    kaplar = [root] + list(root.find("sldLayerLst") or [])
+    for kap in kaplar:
+        for _s, el, _d, _st in model._iter_text_shapes(kap):
+            if not el.text:
+                continue
+            _c, size, _b, _a = _preview._text_style(_s)
+            if not size:
+                continue
+            hedef = snap(size)
+            if abs(hedef - size) < 0.01:
+                continue
+            el.text = shapes.set_text_style(el.text, size=hedef)
+            n += 1
+    return n
+
+
 def intrprops_baglan(root) -> int:
     """intrProps'un corFbG/incFbG'sini BU slaydin katmanlarina baglar.
 
@@ -1707,10 +1844,12 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             rewritten += 1
     baglanan = intrprops_baglan(root)
     acilan = cikissiz_katmani_ac(root)
+    yabanci = yabanci_katmanlari_doldur(root)
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
             "intrprops_baglanan": baglanan,
             "cikissiz_katman_acildi": acilan,
+            "yabanci_katman_yazisi": yabanci,
             "olcege_alinan": olceklenen}
 
 
