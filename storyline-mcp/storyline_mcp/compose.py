@@ -1700,9 +1700,25 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
     written = 0
     for index, layer in enumerate(list(layers)):
         shape_list = layer.find("shapeLst")
+        # DUGMELER ADAY DEGIL -- OLCULDU 2026-09-06.
+        #
+        # Govde "en uzun metin" diye seciliyordu ve gerekcesi asagida
+        # yaziliydi: baslik ("Dogru") ve buton ("Devam") KISADIR. Bu
+        # varsayim buton etiketi uzadiginda cokuyor.
+        #
+        # Kullanicinin urettigi kursta tam oyle oldu: yanlis katmanda govde
+        # "Yanlis" (6 karakter), buton "Cevaplari Goster" (16) -- buton
+        # kazandi ve yazarin 110 karakterlik aciklamasi 333x64'luk bir
+        # dugmeye yazildi. Govdede yalnizca "Yanlis" kaldi, "Devam" etiketi
+        # de kayboldu.
+        #
+        # Olcut UZUNLUK degil ROL: dugme bir CAGRIDIR, icerik kutusu degil.
+        # Ayni ayrim bu dosyada baska uc yerde de yazili (merdiven,
+        # yabanci metin supurgesi, katman etiketi).
         texts = [(model.shape_text(layer, sh.get("g") or "").strip(),
                   sh.get("g") or "")
-                 for sh in (list(shape_list) if shape_list is not None else [])]
+                 for sh in (list(shape_list) if shape_list is not None else [])
+                 if sh.tag not in ("btn", "rsltBtn", "feedBackBtn")]
         texts = [(t, g) for t, g in texts if t and g]
         if not texts:
             continue
@@ -1719,6 +1735,10 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
     if written:
         intrprops_baglan(root)
         cikissiz_katmani_ac(root)
+        # SIGDIRMA BU YOLDA DA KOSAR. `compose_feedback_layers`ta vardi,
+        # burada yoktu -- oysa yazarin geri bildirimi bu katmanlara da
+        # yaziliyor ve tohumun kutusu baska uzunluga gore boyutlanmis.
+        katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
         pkg.replace_xml(part, root)
     return {"drag_feedback": written}
 
