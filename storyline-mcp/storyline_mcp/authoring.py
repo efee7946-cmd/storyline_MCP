@@ -613,6 +613,46 @@ def adapt_seeded_slide(pkg: StoryPackage, part: str, *,
             **laid, **layers}
 
 
+def kap_zemini(kap: ET.Element, yuvalar: dict) -> str | None:
+    """Bir kabin (slayt ya da katman) ZEMINI, sema rengi dahil.
+
+    `preview.slide_ground` yalnizca srgbClr okur ve `schemeClr` icin None
+    doner. Sekiller icin bu bosluk `_recolour_for_palette` ICINDE zaten
+    kapatilmisti (`_sema_dolgu`) -- ama ZEMINLER icin kapatilmamisti, yani
+    ayni soru ("bunun arkasinda ne var") iki yolda iki farkli cevap
+    veriyordu.
+
+    Olculdu 2026-09-06, sonuc slaydi: Success katmaninin zemini
+    `schemeClr accent3` (#9BBB59 yesil), Failure'inki `accent2` (#C0504D
+    kirmizi) -- alti temada da ayni, cunku sema renkleri temayla degismiyor.
+    Zemin cozulemeyince yazi TEMEL slayda gore seciliyordu:
+
+        gece    "Tebrikler..."  yesil uzerine #FFFFFF   = 2.18
+        kagit   "Maalesef..."   kirmizi uzerine #1F1D1A = 3.60
+
+    Yani kursun en cok bakilan iki cumlesi -- gectin / kaldin -- iki temada
+    okunmuyordu. O katmanlar BILEREK boyanmiyor (yesil ve kirmizi anlam
+    tasiyor); duzeltilmesi gereken uzerlerindeki YAZI.
+
+    MODUL DUZEYINDE, cunku kapi da (tools/yeni_modul.py) bunu cagiriyor.
+    Ilk surumunde kapi KENDI cozucusunu yazmisti ve ayni kor noktayi aynen
+    devralmisti: kusuru degil, kodun varsayimini olcuyordu.
+    """
+    bg = kap.find("bg")
+    if bg is None:
+        return None
+    try:
+        duz = preview.slide_ground(kap, [])
+    except Exception:
+        duz = None
+    if (duz or "").startswith("#"):
+        return duz
+    sema = bg.find("solidFill/clr/schemeClr")
+    if sema is not None and sema.get("val"):
+        return yuvalar.get(sema.get("val"))
+    return None
+
+
 def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
                           stem: str | None, choices: set,
                           eyebrow: str | None) -> int:
@@ -669,8 +709,11 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
         h = shapes.parse_color(value)
         return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
+    def _zemin_coz(kap: ET.Element) -> str | None:
+        return kap_zemini(kap, _yuvalar)
+
     root = pkg.parse(part)
-    ground_paint = preview.slide_ground(root, [])
+    ground_paint = _zemin_coz(root)
     ground = rgb(ground_paint) if (ground_paint or "").startswith("#")         else rgb(palette.get("bg", "#0E1B3D"))
     # KATMANLAR DA BOYANIR. Bir sure yalnizca slaydin kendi shapeLst'i
     # geziliyordu; katman sekilleri `top` icinde bulunmadigi icin sahipleri
@@ -687,10 +730,7 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
         # Katmanin KENDI zemini varsa o gecerli; yoksa slaydinki gorunur.
         zemin = ground
         if govde is not root:
-            try:
-                kat = preview.slide_ground(govde, [])
-            except Exception:
-                kat = None
+            kat = _zemin_coz(govde)
             if (kat or "").startswith("#"):
                 zemin = rgb(kat)
         for shape in list(govde.find("shapeLst") or []):
@@ -704,8 +744,28 @@ def _recolour_for_palette(pkg: StoryPackage, part: str, palette: dict, *,
             options = [palette.get("text", "#FFFFFF"),
                        palette.get("on_accent", "#10141B"),
                        palette.get("accent_text", palette.get("accent", "#FFC72C"))]
-            wanted[guid] = max(options,
-                               key=lambda c: _contrast(rgb(c), behind))
+            en_iyi = max(options, key=lambda c: _contrast(rgb(c), behind))
+            # PALETIN SOZLUGUNDE OLMAYAN BIR ZEMIN ICIN SAF NOTRE DUS.
+            #
+            # Palet kursun tasarim sozlugu, ama her zemin o sozlukten
+            # gelmiyor: sonuc slaydinin Failure katmani `schemeClr accent2`
+            # (#C0504D), Success'i `accent3` (#9BBB59) -- gecti/kaldi ANLAMI
+            # tasidiklari icin bilerek boyanmiyorlar ve temayla degismiyorlar.
+            #
+            # Olculdu 2026-09-06, alti tema x sonuc slaydi: kirmizi zeminde
+            # paletin en iyi uyesi orman 4.33, komur 4.21, murdum 4.20 -- ucu
+            # de AA esiginin (4.5) altinda. #C0504D zor bir orta ton:
+            # ulasilabilir en yuksek kontrast saf beyazla 4.67, saf siyahla
+            # 4.49. Yani caresi "daha iyi bir palet uyesi secmek" DEGIL,
+            # sozlugun disina cikmak.
+            #
+            # TEK YONLU: yalnizca esigin ALTINDA kalindiginda devreye girer.
+            # Palet zaten yetiyorsa kursun kendi rengi korunur -- aksi halde
+            # her yazi beyaza/siyaha kacar ve tema diye bir sey kalmazdi.
+            if _contrast(rgb(en_iyi), behind) < 4.5:
+                en_iyi = max([en_iyi, "#FFFFFF", "#000000"],
+                             key=lambda c: _contrast(rgb(c), behind))
+            wanted[guid] = en_iyi
             top[guid] = shape
 
     parents = model._parent_map(root)
@@ -768,17 +828,49 @@ def _protected(shape, keep: set, intr) -> bool:
 
 
 def _paint_slide_ground(root: ET.Element, colour: str) -> int:
-    """Slaydın <bg> öğesini kursun zeminine boyar. Şekil değil, slayt."""
-    bg = root.find("bg")
-    if bg is None:
-        bg = ET.SubElement(root, "bg")
-    for tag in ("solidFill", "gradFill", "gradOvrlyFill"):
-        for old in bg.findall(tag):
-            bg.remove(old)
-    fill = ET.SubElement(bg, "solidFill")
-    clr = ET.SubElement(fill, "clr")
-    ET.SubElement(clr, "srgbClr").set("val", shapes.parse_color(colour))
-    return 1
+    """Slaydın <bg> öğesini kursun zeminine boyar. Şekil değil, slayt.
+
+    KATMANLAR DA, ama hepsi degil -- yalnizca DUZ BIR HEX tasiyanlar.
+
+    Olculdu 2026-09-06, paletli tam kurs (gece): tek secimli soru slaydinin
+    zemini #0E1B3D'ye boyaniyor, paneli `surface`, dugmesi `accent` -- ama
+    uc geri bildirim katmaninin KENDI zemini #5A5794 kaliyor. Katman zemini
+    slaydin tamamini kapladigi icin ogrenci sikka tikladiginda lacivert
+    slaydin uzerine MOR bir yikama iniyor, tema giymis panel onun ustunde
+    yuzuyordu. Kaynak: `question_freePickOneIntr_3.xml` ve `_4` -- yani en
+    sik kullanilan iki soru bicimi.
+
+    UC AYRI DURUM VAR ve ucu de ayni kurala girmiyor:
+
+        srgbClr    donorun KENDI kursunun rengi; burada anlami yok  -> boyanir
+        schemeClr  temaya bagli; tema neyse onu giyer               -> dokunulmaz
+        dolgusuz   kasten seffaf, altindaki slayt gorunsun          -> dokunulmaz
+
+    Ikinci satir bir ayrinti degil: `results.xml`in Success/Failure
+    katmanlari `schemeClr accent3` (yesil) ve `accent2` (kirmizi) tasiyor --
+    gecti/kaldi ANLAMI tasiyan renkler. "Butun katman zeminlerini paletin
+    bg'sine boya" demek, o anlami silmek olurdu.
+    """
+    def _boya(kap: ET.Element) -> None:
+        bg = kap.find("bg")
+        if bg is None:
+            bg = ET.SubElement(kap, "bg")
+        for tag in ("solidFill", "gradFill", "gradOvrlyFill"):
+            for old in bg.findall(tag):
+                bg.remove(old)
+        fill = ET.SubElement(bg, "solidFill")
+        clr = ET.SubElement(fill, "clr")
+        ET.SubElement(clr, "srgbClr").set("val", shapes.parse_color(colour))
+
+    _boya(root)
+    n = 1
+    for katman in (root.find("sldLayerLst") or []):
+        bg = katman.find("bg")
+        if bg is None or bg.find("solidFill/clr/srgbClr") is None:
+            continue
+        _boya(katman)
+        n += 1
+    return n
 
 
 def _installed_assets(pkg: StoryPackage) -> set[str]:

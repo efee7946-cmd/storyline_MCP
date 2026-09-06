@@ -427,27 +427,39 @@ def main() -> int:
         "%s next=%s olu_tetikleyici=%d" % (_sref.basename,
         _nav.get("next") if _nav is not None else "?", len(_olu)))
 
-    # 23 -- SONUC SLAYDININ ZEMINI kursun paletinden mi
+    # 23 -- ZEMINLER kursun paletinden mi, ve UZERLERINDEKI YAZI okunuyor mu
     #
-    # Yukaridaki fikstuur `add_results_slide(pkg)` cagiriyor -- PALETSIZ, yani
-    # boyamanin yolunu hic gezmiyor (K33). Panelin gercek yolu `ilerleme.kur`
-    # ve o paleti tasiyor; kapi da oradan gecmeli.
+    # Yukaridaki fikstuur soru/sonuc cagrilarini PALETSIZ yapiyor, yani
+    # boyamanin yolunu hic gezmiyor (K33). Panelin gercek yolu paleti
+    # tasiyor; kapi da oradan gecmeli.
     #
-    # NEYI TUTUYOR. Tohumun `bg`si `gradOvrlyFill` + `schemeClr accent1` +
-    # `tint 66%`, yani zemin TEMANIN accent1'inin acik yikamasi -- olculdu
-    # 2026-09-06: alti temanin ALTISINDA da #4F81BD, ~#8BACD3'e yikanmis.
-    # `_recolour_for_palette` bu zemini okuyamiyor (`slide_ground` gradyan
-    # icin None doner) ve `palette["bg"]`ye dusuyor; koyu temalarda beyaz yazi
-    # seciyor ve o beyaz, acik yikamanin uzerine dusuyordu:
+    # UC KUSUR SINIFI, ucu de olculdu 2026-09-06 ve ucu de AYNI kok sebepten
+    # -- "arkasinda ne var" sorusuna iki ayri yerde iki ayri cevap:
     #
-    #     gece 2.35   komur 2.10   murdum 2.11   orman 2.18   (esik 4.5)
+    # (a) Sonuc slaydinin zemini `gradOvrlyFill schemeClr accent1 tint 66%`
+    #     (~#8BACD3) kaliyordu; boyayan onu okuyamayip `palette["bg"]`ye
+    #     dusuyor ve yaziyi KOYU zemine gore seciyordu. Alti temanin
+    #     dordunde 2.10-2.35.
+    # (b) Tek secimli soru slaydinin geri bildirim katmanlari donorun
+    #     #5A5794 morunu tasiyordu; katman zemini slaydin TAMAMINI kapladigi
+    #     icin lacivert kursun uzerine mor bir yikama iniyordu.
+    # (c) Sonuc slaydinin Success/Failure katmanlari `schemeClr accent3/2`
+    #     (yesil/kirmizi) -- BILEREK boyanmiyor, gecti/kaldi anlami tasiyor.
+    #     Ama zemin schemeClr oldugu icin cozulemiyor, yazi yine temel
+    #     slayda gore seciliyordu: gece "Tebrikler" 2.18, kagit "Maalesef"
+    #     3.60.
     #
-    # Yani alti temanin dordunde sonuc slaydinin yazisi GORUNMUYORDU, ve
-    # hicbir kapi bagirmiyordu. IKI TEMA sinaniyor, biri koyu biri acik:
-    # kusur her temada ayni (zemin temadan bagimsiz), ama duzeltmenin yazi
-    # rengini iki yone de cevirebildigi ancak iki kutupla gorulur.
+    # KAPI, KODUN COZUCUSUNU CAGIRIR (`authoring.kap_zemini`). Ilk surumu
+    # kendi cozucusunu yazmisti ve (c)'yi GOREMEDI -- kodun kor noktasini
+    # aynen devralmisti. Kapinin kendi kopyasi varsa, kapi kusuru degil
+    # kendi varsayimini olcer.
+    #
+    # IKI TEMA, biri koyu biri acik: kusurlarin cogu temadan bagimsiz, ama
+    # duzeltmenin yazi rengini iki yone de cevirebildigi ancak iki kutupla
+    # gorulur.
     from panel import ilerleme as _ilerleme
-    from storyline_mcp import preview as _preview, shapes as _shapes
+    from storyline_mcp import preview as _preview, settings as _settings
+    from storyline_mcp import shapes as _shapes
     from storyline_mcp.compose import _contrast as _kontrast
     import shutil as _sh4
 
@@ -469,30 +481,50 @@ def main() -> int:
             compose.compose_slide(_p4, _r4["new_slide"], "content",
                                   title="Baslik", eyebrow="Baslik",
                                   body="Govde metni.", palette=_palet)
+            authoring.add_question(_p4, None, "Hangisi dogru?",
+                                   ["A secenegi", "B secenegi", "C secenegi"],
+                                   [0], palette=_palet, eyebrow="Bolum Bir")
+            authoring.add_question(_p4, None, "Hangileri dogru?",
+                                   ["A", "B", "C", "D", "E"], [0, 1],
+                                   palette=_palet, eyebrow="Bolum Bir")
+            authoring.add_drag_question(
+                _p4, "Surukle.", {"Kutu bir": ["Kisa", "Kisa"],
+                                  "Kutu iki": ["Kisa", "Kisa"]}, palette=_palet)
+            authoring.add_text_question(_p4, "Bir adim yaz.", None,
+                                        palette=_palet)
             _rap4 = _ilerleme.kur(_p4, ["Bolum Bir"], palette=_palet)
             _p4.save(_yol4, backup=False)
+
         _p4 = StoryPackage(_yol4)
-        _sk = _p4.parse(_p4.slide_part_for(_rap4["sonuc_slaydi"]))
-        _zemin = _preview.slide_ground(_sk, [])
-        if (_zemin or "").upper() != _palet["bg"].upper():
-            _bulgu.append("%s: zemin %s (beklenen %s)"
-                          % (_tema, _zemin, _palet["bg"]))
-            continue
-        # Zemin dogruysa yazilar da onun uzerinde okunmali. Katmanlar dahil:
-        # "Tebrikler" ve "Maalesef" metinleri orada yasiyor.
-        for _ad4, _gv in model.bodies(_sk):
-            for _sh5, _el, _d4, _st4 in model._iter_text_shapes(_gv):
-                if not (_el.text or "").strip():
-                    continue
-                _col, _sz, _b4, _a4 = _preview._text_style(_sh5)
-                _arka = _preview._fill_of(_sh5, []) or _zemin
-                if not (_col or "").startswith("#") or not _arka.startswith("#"):
-                    continue
-                _o = _kontrast(_rgb(_col), _rgb(_arka))
-                if _o < 4.5:
-                    _bulgu.append("%s/%s: %s uzerine %s = %.2f"
-                                  % (_tema, _ad4 or "temel", _arka, _col, _o))
-    bak("sonuc slaydi zemini", "#3", not _bulgu,
+        _yuva = _settings.slot_colors(_p4)
+        for _part4, _ref4 in model.slide_index(_p4).items():
+            _k4 = _p4.parse(_part4)
+            _temel = authoring.kap_zemini(_k4, _yuva)
+            for _ad4, _gv in model.bodies(_k4):
+                _z = (authoring.kap_zemini(_gv, _yuva)
+                      if _gv is not _k4 else _temel) or _temel
+                _nere = "%s/%s/%s" % (_tema, _ref4.basename, _ad4 or "temel")
+                # (a)+(b): DUZ HEX bir zemin paletin disindaysa donor artigi.
+                # schemeClr zeminler muaf -- temaya bagli ya da anlam tasiyor.
+                _bgel = _gv.find("bg")
+                _duz = (_bgel.find("solidFill/clr/srgbClr")
+                        if _bgel is not None else None)
+                if _duz is not None and _z and                         _z.upper() != _palet["bg"].upper():
+                    _bulgu.append("%s: zemin %s (palet %s)"
+                                  % (_nere, _z, _palet["bg"]))
+                # (c): zemin ne olursa olsun uzerindeki yazi okunmali.
+                for _sh5, _el, _d4, _st4 in model._iter_text_shapes(_gv):
+                    if not (_el.text or "").strip():
+                        continue
+                    _col, _sz, _b4, _a4 = _preview._text_style(_sh5)
+                    _arka = _preview._fill_of(_sh5, []) or _z
+                    if not (_col or "").startswith("#")                             or not (_arka or "").startswith("#"):
+                        continue
+                    _o = _kontrast(_rgb(_col), _rgb(_arka))
+                    if _o < 4.5:
+                        _bulgu.append("%s: %s uzerine %s = %.2f"
+                                      % (_nere, _arka, _col, _o))
+    bak("zemin ve okunurluk", "#3/#5", not _bulgu,
         "%d sorun %s" % (len(_bulgu), _bulgu[:1]))
 
     # 8 -- Turkce buyuk harf
