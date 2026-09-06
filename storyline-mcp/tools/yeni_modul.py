@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN YIRMI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN YIRMI BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -37,6 +37,7 @@ SINANAN YIRMI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    18  dugme ziplamiyor           katman degisince yer degistiriyor (#10)
    19  quizsiz kaynak             quiz yoksa zincir kurulmuyordu  (#3c)
    20  gonderiden geciyor         soru hic submit edilmiyordu      (#4)
+   21  sahne adi okunur           menude '01_YZ_Nedir' goruluyordu  (#8)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -395,6 +396,18 @@ def main() -> int:
     bak("gonderiden geciyor", "#4", not _gondersiz,
         "%d slaytta gonder yolu kirik %s" % (len(_gondersiz), _gondersiz[:1]))
 
+    # 21 -- menude gorunen sahne adlari teknik mi
+    import re as _re4
+    _teknik = []
+    for _part, _ref in model.slide_index(pkg).items():
+        _ad = _ref.scene_name or ""
+        # "01_YZ_Nedir" kalibi: basta numara ve/veya alt cizgi
+        if _re4.match(r"^\d+[_-]", _ad) or "_" in _ad:
+            if _ad not in _teknik:
+                _teknik.append(_ad)
+    bak("sahne adi okunur", "#8", not _teknik,
+        "%d teknik ad %s" % (len(_teknik), _teknik[:2]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -405,7 +418,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen yirmi sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen yirmi bir sinifin hicbirini tasimiyor.")
     return 0
 
 

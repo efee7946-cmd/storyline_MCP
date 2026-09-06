@@ -52,7 +52,11 @@ TR_HARF = {"ç": "c", "ğ": "g", "ı": "i", "ö": "o",
            "ş": "s", "ü": "u", "Ç": "C", "Ğ": "G",
            "İ": "I", "Ö": "O", "Ş": "S", "Ü": "U"}
 
-SONUC_SAHNESI = "99_Sonuc"
+# Sahne adi MENUDE gorunur, o yuzden teknik degil INSAN OKUNUR.
+# "99_Sonuc" bir siralama hilesiydi ve ogrencinin sol tarafta
+# gordugu satir oluyordu (kullanicinin 8 numarali bulgusuyla ayni
+# sinif). Sahne zaten SON eklendigi icin siraya numara gerekmiyor.
+SONUC_SAHNESI = "Sonuçlar"
 KILIT_KATMANI = "Eksik"
 
 

@@ -1539,8 +1539,25 @@ def build(
     # bekler ve panelin "Gorsel & Video" sekmesinde kullaniciya gorunur.
     medya_istekleri: list[dict] = []
 
+    _kullanilan_sahne_adlari: set = set()
     for scene in scenes:
-        scene_name = scene.get("name") or "Bolum"
+        # SAHNENIN ADI OGRENCIYE GORUNUR -- OLCULDU 2026-09-06.
+        #
+        # Ad eskiden planin TEKNIK adiydi (`name`) ve menu acik oldugu icin
+        # ogrenci sol tarafta "01_YZ_Nedir", "02_Nasil_Calisir" goruyordu:
+        # alt cizgili, Turkce karaktersiz, dosya adi gibi. Kullanicinin 8
+        # numarali bulgusu.
+        #
+        # Insan okunur baslik ZATEN planda var (`title`) ve eyebrow'a da o
+        # gidiyor; menu ile eyebrow'un ayni seyi soylemesi dogru olan.
+        #
+        # TEKNIK AD YEDEK KALIYOR: baslik yoksa ya da AYNI baslik ikinci kez
+        # geldiyse ona dusuluyor -- iki sahnenin ayni adi tasimasi, ad
+        # uzerinden yapilan her aramayi belirsiz kilardi.
+        _teknik = scene.get("name") or "Bolum"
+        _baslik = str(scene.get("title") or "").strip()
+        scene_name = _baslik if (_baslik and _baslik not in _kullanilan_sahne_adlari) else _teknik
+        _kullanilan_sahne_adlari.add(scene_name)
         sahne_medyasi = 0
         try:
             compose.create_scene  # noqa: B018 - presence check only
