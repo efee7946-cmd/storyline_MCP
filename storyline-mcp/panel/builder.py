@@ -1119,6 +1119,56 @@ def _medya_plani(scenes: list[dict], options: dict, brief: str, model: str,
     if hedef <= 0:
         return ["medya istegi kapali (kunye)"]
 
+    # TAKAS: uygun slayt kalmayan sahnede BIR `bullets` slaydi `content`
+    # olarak etiketlenir. TEK YONLU VE YALNIZCA BULLETS.
+    #
+    # NICIN GEREKLI. `_medya_yeri_var` yalnizca `cover` ve `content` kabul
+    # ediyor, cunku olculdu: `bullets`/`reveal`/`steps`/`statement`
+    # duzenlerinin HICBIRINDE medya bolgesi yok -- `compose_slide` onlarda
+    # `image_area=None` donuyor. Ayni zamanda ogretim tarafi cesitlilige
+    # itiyor ("KURSTA EN AZ BIR REVEAL OLSUN", "EN AZ UC FARKLI DUZEN"), yani
+    # kurs pedagojik olarak zenginlestikce gorsel ihtimali DUSUYOR. Iki dogru
+    # karar birbirini kesiyor ve kesisme kendiliginden gorunmuyor.
+    #
+    # NICIN PROMPT DEGIL. "En az bir duz content birak" diye bir kural
+    # yazmak, bu fonksiyonun kendi belge dizesinin reddettigi seye geri
+    # donmek olurdu: "Secimi modele birakmak olculdu ve tutmadi
+    # (2026-08-29) ... ayni brief bir kosuda ister, otekinde istemez." Yuva
+    # secimini modelden alip kurucuya vermenin sebebi buydu; prompt tabani
+    # yukseltir, MEKANIZMA olamaz.
+    #
+    # NICIN YALNIZCA BULLETS. `reveal` ogrencinin ELINI isin icine sokan tek
+    # icerik duzeni; onu content'e cevirmek etkilesimi gorsele takas etmek
+    # olurdu. `statement` tek cumle + display punto, yanina sutun koymak
+    # duzenin varlik sebebiyle celisir. `bullets` ise HER IKI etikette de
+    # pasif bir slayt: etkilesim bedeli SIFIR.
+    #
+    # NICIN YUK DEGISMEDEN. `content` duzeni maddeleri zaten tasiyor ve
+    # `yan-gorsel` varyanti metin+kart ile gorseli ayri sutunlara koyuyor.
+    # Olculdu 2026-09-07, ayni dort madde uc bicimde: kart izgarasi BIREBIR
+    # ayni (x=11/54, w=36, h=12); tek fark dikey baslangic, o da ustteki
+    # govde paragrafindan.
+    takaslanan: list[str] = []
+    for _i, _sahne in enumerate(scenes):
+        _icerik = _sahne.get("content") or []
+        if any(_sp.get("kind") != "question"
+               and _medya_yeri_var(_sp.get("layout") or "content", _sp)
+               for _sp in _icerik):
+            continue                     # bu sahnede zaten uygun slayt var
+        _aday = next((_sp for _sp in _icerik
+                      if _sp.get("kind") != "question"
+                      and (_sp.get("layout") or "") == "bullets"), None)
+        if _aday is None:
+            continue                     # takas edilecek bullets yok
+        _aday["layout"] = "content"
+        takaslanan.append(_sahne.get("name") or str(_i))
+    if takaslanan:
+        notlar_takas = ("%d sahnede maddeli slayt gorsel alabilmek icin "
+                        "content olarak etiketlendi (%s); yuk degismedi"
+                        % (len(takaslanan), ", ".join(takaslanan[:3])))
+    else:
+        notlar_takas = None
+
     # UYGUN SLAYT YOKSA SEBEBI SOYLENIR -- OLCULDU 2026-09-06.
     #
     # `_medya_yeri_var` yalnizca IKI duzeni kabul ediyor: kapak, ve madde
@@ -1208,6 +1258,8 @@ def _medya_plani(scenes: list[dict], options: dict, brief: str, model: str,
         spec["medya"] = aday
     notlar.insert(0, f"{len(secilen)} slayta gorsel/video istegi kondu "
                      f"(hedef {hedef}, uygun slayt {len(adaylar)})")
+    if notlar_takas:
+        notlar.insert(0, notlar_takas)
     return notlar
 
 

@@ -15,7 +15,7 @@ fonksiyonlariyla kuruluyor: `add_slide` + `compose_slide` + `add_question` +
 (kapilar model cagirmaz), ama bu fonksiyonlar HER IKI yolun da ortak
 govdesi -- panel brief yolu da, komut yolu da buradan geciyor.
 
-SINANAN OTUZ BIR SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
+SINANAN OTUZ IKI SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
 
     1  kopuk tetikleyici          hedefi cozulmeyen atlama       (#1)
     2  olu puan degiskeni         tanimsiz degiskene yazan trig  (#4)
@@ -1056,6 +1056,55 @@ def main() -> int:
     bak("ayrilan alan bos", "#14", not _ustune,
         "%d yazi %s" % (len(_ustune), _ustune[:1]))
 
+    # 32 -- MEDYA TAKASI: YALNIZCA BULLETS, TEK YONLU
+    #
+    # `_medya_yeri_var` yalnizca `cover` ve `content` kabul ediyor cunku
+    # olculdu: `bullets`/`reveal`/`steps`/`statement` duzenlerinin
+    # HICBIRINDE medya bolgesi yok. Ayni zamanda ogretim tarafi cesitlilige
+    # itiyor, yani kurs zenginlestikce gorsel ihtimali DUSUYOR.
+    #
+    # Cozum takas, ama DAR: `bullets` her iki etikette de PASIF bir slayt,
+    # yani etkilesim bedeli sifir. `reveal` ogrencinin elini isin icine
+    # sokan tek icerik duzeni; `statement` tek cumle + display punto. Ikisi
+    # de asla takas edilmez -- takas onlari kapsarsa etkilesim gorsele
+    # takas edilmis olur.
+    #
+    # BIRIM OLARAK, elle yazilmis beklentilerle: bu bir PLAN kurali.
+    # `_run_json` sabitleniyor ki kapi model cagirmasin (produced.py'nin
+    # kullandigi teknik).
+    from panel import builder as _b32
+    _eski_json = _b32._run_json
+    _b32._run_json = lambda *a, **k: {}
+
+    def _sahne32(ad, duzenler):
+        return {"name": ad,
+                "content": [{"kind": "content", "layout": _d, "title": _d,
+                             "bullets": ["a", "b"]} for _d in duzenler]}
+
+    _takas_sapma = []
+    try:
+        for _ad32, _duz32, _bek32 in (
+                ("bullets var", ["section", "bullets", "reveal"],
+                 ["section", "content", "reveal"]),
+                ("yalniz reveal", ["section", "reveal"],
+                 ["section", "reveal"]),
+                ("yalniz statement", ["section", "statement"],
+                 ["section", "statement"]),
+                ("content zaten var", ["content", "bullets"],
+                 ["content", "bullets"]),
+        ):
+            _sc32 = [_sahne32("S", _duz32)]
+            _b32._medya_plani(_sc32, {"medya": "normal", "minutes": "20"},
+                              "brief", "model", lambda m: None)
+            _cikan = [_sp["layout"] for _sp in _sc32[0]["content"]]
+            if _cikan != _bek32:
+                _takas_sapma.append("%s: %s (beklenen %s)"
+                                    % (_ad32, _cikan, _bek32))
+    finally:
+        _b32._run_json = _eski_json
+    bak("medya takasi dar", "#14", not _takas_sapma,
+        "%d sapma %s" % (len(_takas_sapma), _takas_sapma[:1]))
+
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
@@ -1066,7 +1115,7 @@ def main() -> int:
         print("KIRMIZI: " + ", ".join(kirmizi))
         print("Bu siniflar 2026-09-06'da duzeltilmisti; biri geri gelmis.")
         return 1
-    print("Yeni bir modul, duzeltilen otuz bir sinifin hicbirini tasimiyor.")
+    print("Yeni bir modul, duzeltilen otuz iki sinifin hicbirini tasimiyor.")
     return 0
 
 
