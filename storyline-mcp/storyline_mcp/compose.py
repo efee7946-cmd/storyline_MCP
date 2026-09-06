@@ -1728,6 +1728,77 @@ FEEDBACK_DEFAULT = {
 }
 
 
+def katman_dugmelerini_hizala(root) -> int:
+    """Katmanlarin devam dugmelerini TEK konuma hizalar. Kac tane, doner.
+
+    NICIN. Her geri bildirim katmani kendi dugmesini tasiyor ve tohumda
+    ucu de baska yerde duruyor. Ogrenci katman degistirince dugme
+    ZIPLIYOR -- kullanicinin 10 numarali bulgusu.
+
+    Olculdu 2026-09-06, taze modulde (`slidee.xml`):
+
+        Cevap1   l=357 t=380     gen=168 yuk=42
+        Cevap2   l=360 t=451     gen=168 yuk=42
+        Cevap3   l=424 t=460     gen=168 yuk=42
+
+    BOYUTLAR AYNI, yalnizca konum farkli -- yani hizalamak bir seyi
+    daraltmiyor, sadece yerine koyuyor. Boyutu FARKLI olan dugmeler
+    disarida birakiliyor: genisligi etikete gore belirlenmis bir dugmeyi
+    baskasinin yerine tasimak, tasarim kararini bozmak olurdu.
+
+    MEDYAN, ORTALAMA DEGIL. Uc degerden biri aykiri olabilir (burada 380,
+    otekiler 451 ve 460); ortalama onu da icine cekip UCUNU birden tohumun
+    hic kullanmadigi bir yere koyardi. Medyan, tohumun ZATEN kullandigi bir
+    konumu secer.
+    """
+    katmanlar = list(root.find("sldLayerLst") or [])
+    if len(katmanlar) < 2:
+        return 0
+    # TEK DUGMELI KATMANLAR, ve bu sinir ZORUNLU. Bir katmanda YAN YANA
+    # iki dugme olabiliyor -- olculdu: sonuc slaydinin "Failure" katmaninda
+    # l=210 ve l=368'de iki dugme var ("Yeniden Dene" ve "Gozden Gecir").
+    # Onlari "ayni boyuttalar" diye tek konuma tasimak UST USTE YIGARDI.
+    # Bu turda yalnizca bir yuvarlama farki (141'e 142) yuzunden kacti;
+    # kurala guvenmek gerekiyor, sansa degil.
+    #
+    # Ziplama sikayeti zaten katmanlar ARASI: ogrenci katman degistirince
+    # dugme yer degistiriyor. Bir katmanin kendi ic duzeni ayri bir sey.
+    kayit = []
+    for katman in katmanlar:
+        sl = katman.find("shapeLst")
+        dugmeler = [sh for sh in (list(sl) if sl is not None else [])
+                    if sh.tag in ("btn", "rsltBtn", "feedBackBtn")]
+        if len(dugmeler) != 1:
+            continue
+        rect = shapes.shape_rect(dugmeler[0])
+        if rect:
+            kayit.append((dugmeler[0], rect))
+    if len(kayit) < 2:
+        return 0
+
+    # Ayni BOYUTTAKILER bir kume; her kume kendi icinde hizalanir.
+    kumeler: dict = {}
+    for sh, rect in kayit:
+        anahtar = (round(rect[2] - rect[0]), round(rect[3] - rect[1]))
+        kumeler.setdefault(anahtar, []).append((sh, rect))
+
+    tasinan = 0
+    for (gen, yuk), uyeler in kumeler.items():
+        if len(uyeler) < 2:
+            continue
+        soller = sorted(r[0] for _s, r in uyeler)
+        ustler = sorted(r[1] for _s, r in uyeler)
+        orta = len(uyeler) // 2
+        hedef_l = soller[orta]
+        hedef_t = ustler[orta]
+        for sh, rect in uyeler:
+            if abs(rect[0] - hedef_l) < 0.5 and abs(rect[1] - hedef_t) < 0.5:
+                continue
+            shapes.set_loc(sh, hedef_l, hedef_t, hedef_l + gen, hedef_t + yuk)
+            tasinan += 1
+    return tasinan
+
+
 def katman_sik_etiketleri(root) -> dict:
     """katman GUID -> o katmani ACAN sikkin etiketi.
 
@@ -1995,12 +2066,14 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     baglanan = intrprops_baglan(root)
     acilan = cikissiz_katmani_ac(root)
     yabanci = yabanci_katmanlari_doldur(root)
+    hizalanan = katman_dugmelerini_hizala(root)
     sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
             "intrprops_baglanan": baglanan,
             "cikissiz_katman_acildi": acilan,
             "yabanci_katman_yazisi": yabanci,
+            "dugme_hizalandi": hizalanan,
             "katman_yazisi_kucultuldu": sigan,
             "olcege_alinan": olceklenen}
 
