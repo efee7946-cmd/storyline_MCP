@@ -1199,7 +1199,16 @@ def _medya_yeri_var(layout: str, spec: dict) -> bool:
     """
     if layout == "cover":
         return True
-    return layout == "content" and not spec.get("bullets")
+    # MADDELI CONTENT DE UYGUN (2026-09-06). Eskiden degildi ve gerekcesi
+    # dogruydu: maddeli slaytta tek ikincil alani KARTLAR sahipleniyordu.
+    # `compose.VARIANTS["content"]["yan-gorsel"]` o alani yeniden bolusturdu
+    # -- metin ve kartlar sol yariya, gorsel sag sutuna -- ve olculdu:
+    # tasma 0, cakisma 0, taban asimi 0.
+    #
+    # Varyant SECILMEZ, ISTENIR: istegi tasiyan slayt `variant="yan-gorsel"`
+    # ile kuruluyor (asagida). Kura birakilsa gorselin cikip cikmayacagi
+    # yine sansa kalirdi.
+    return layout == "content"
 
 
 def _medya_stili(layout: str) -> str:
@@ -1752,6 +1761,13 @@ def build(
                 buttons=butonlar, palette=palette,
                 index=spec.get("index"), style=look["name"], clear=True,
                 identity=seed, avoid_variant=history,
+                # MADDELI SLAYTTA GORSEL ISTENIYORSA VARYANT SABIT: yalnizca
+                # `yan-gorsel` metne, kartlara ve gorsele ayri yer veriyor.
+                # Otekilerde alan ayrilmaz ve istek sessizce duserdi.
+                variant=("yan-gorsel"
+                         if (istenen and duzen == "content"
+                             and spec.get("bullets"))
+                         else None),
                 image_area=bool(istenen), image_style=stil,
             )
             if reveal_items:

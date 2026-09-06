@@ -436,6 +436,23 @@ VARIANTS: dict[str, dict[str, dict]] = {
                        "band": "top",    "cta": "right", "head": "band"},
         "alt-baslik": {"text": (8.0, 60.0),  "panel": None,
                        "band": "centre", "cta": "left",  "order": "reverse"},
+        # GORSEL SUTUNLU VARYANT (2026-09-06). Eklenme sebebi olculdu:
+        # maddeli bir content slaydinda gorsele yer YOKTU, cunku tek ikincil
+        # alani (panel) kartlar sahipleniyor. Kullanici bunu urunde gordu --
+        # "son 2-3 kursta hic gorsel istemedi" -- ve zincir soyleydi: plan
+        # maddeli slayt uretiyor, `_medya_yeri_var` onu eliyor, hic istek
+        # cikmiyor.
+        #
+        # Bu varyantta ucuncu bir alan YOK; alanlar YENIDEN BOLUSTURULDU:
+        # metin ve kartlar sol yariya, gorsel sag sutuna. Kartlar "panel"e
+        # degil metnin altina iniyor, yani gorselin ustune gelmiyorlar.
+        #
+        # OLCULER TASARIM DILININ ICINDE: x=8 metin, x=54 gorsel -- ikisi de
+        # dosyada zaten kullanilan yogunlasmalar (`bleed` slabi da 54'ten
+        # basliyor). Yeni bir olcu uydurulmadi.
+        "yan-gorsel": {"text": (8.0, 44.0),  "panel": None,
+                       "gorsel": (54.0, 46.0),
+                       "band": "centre", "cta": "left"},
     },
 }
 
@@ -3011,7 +3028,17 @@ def compose_slide(
         bleed = image_area and not bullets and image_style in ("bleed", "hero")
         text_x, text_w = shape_var["text"]
         panel = shape_var["panel"]
-        if bleed:
+        # GORSEL SUTUNU: kartlar oraya GIRMEZ. `bleed` ve `panel`
+        # dallarinda `reserved` ayni zamanda kart bandi olarak kullaniliyor;
+        # burada ikisi AYRI, cunku varyant metne ve gorsele ayri sutun
+        # veriyor.
+        gorsel_sutunu = bool(image_area and shape_var.get("gorsel"))
+        if gorsel_sutunu:
+            gx, gw = shape_var["gorsel"]
+            page.scrim(gx, 0, gw, 100, colors["surface"], alpha=1.0,
+                       name="Gorsel Alani")
+            reserved = {"x": gx, "y": 0, "w": gw, "h": 100}
+        elif bleed:
             # Full-height slab off the right edge. Bullets still get the card
             # panel, because cards need a margin to read as cards.
             page.scrim(54, 0, 46, 100, colors["surface"], alpha=1.0,
@@ -3055,7 +3082,7 @@ def compose_slide(
             + ([("title", title, text_w)] if title else []) \
             + ([("body", body, text_w)] if body else [])
         room = bottom - ceiling
-        if bullets and not reserved:
+        if bullets and (not reserved or gorsel_sutunu):
             # Sayi _card_band'den: iki yerde hesaplanan bir sayi ayrisir.
             _rows, _band = _card_band(page, bullets, text_w)
             room -= min(_band, room * 0.62)
@@ -3065,8 +3092,9 @@ def compose_slide(
         for role, content, width in spec:
             h = page.text_height(content, role, width)
             blocks.append(h); parts.append((role, content, h))
-        text_bottom, text_top, cards_area = bottom, ceiling, reserved
-        if bullets and not reserved:
+        text_bottom, text_top, cards_area = (
+            bottom, ceiling, None if gorsel_sutunu else reserved)
+        if bullets and (not reserved or gorsel_sutunu):
             # No panel in this variant: the points sit under the text. Their
             # band is taken out of the frame *before* the text is distributed,
             # not left over afterwards -- text spread across the whole band and
