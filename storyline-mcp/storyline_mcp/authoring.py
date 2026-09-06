@@ -2287,6 +2287,47 @@ def add_text_question(
 
     adapted = _adapt_text_slide(pkg, part, eyebrow=eyebrow, palette=palette,
                                 feedback=feedback, graded=graded, style=style)
+    # TAAHHUT SLAYDINA GORUNUR BIR CIKIS -- OLCULDU 2026-09-06.
+    #
+    # `navData`da ileri/geri acilmisti (bir onceki duzeltme) ama yetmedi:
+    # tohum bir SORU slaydi (`layoutType="Quiz Questions"`) ve Storyline o
+    # slaytlarda ilerlemeyi gonderme islemine devrediyor. Etkilesim
+    # cikarilinca ortada ne gonderilecek bir sey kaliyor ne de ilerletecek
+    # bir tetikleyici: kullanicinin urettigi kursta o slaytta SIFIR
+    # tetikleyici vardi ve ogrenci yazisini yazip orada kaliyordu -- sonuc
+    # slaydina hic ulasamiyordu.
+    #
+    # Cozum oynatici dugmesine guvenmek degil, SLAYDA kendi cikisini
+    # koymak: ogrencinin gordugu bir "Devam" dugmesi.
+    #
+    # `closes_layer=True` ile kuruluyor cunku `add_button` tetikleyiciyi
+    # ancak boyle uretiyor (hedefsiz "sonraki slayt" bicimi arayuzde yok);
+    # uretilen gercek tetikleyici sonra korpusta kanitlanmis bicime
+    # ceviriliyor: action="jumpToSlide" actSubType="next", hedef GUID
+    # istemez.
+    ileri_dugmesi = None
+    if not graded:
+        try:
+            _btn = add_button(pkg, part, "Devam", closes_layer=True)
+            _kok = pkg.parse(part)
+            for _tl in _kok.iter("trigLst"):
+                for _t in _tl:
+                    _d = _t.find("data")
+                    if _d is None or _d.get("action") != "hideSubSlide":
+                        continue
+                    _d.set("action", "jumpToSlide")
+                    _d.set("actSubType", "next")
+                    ileri_dugmesi = _btn.get("shape")
+                    break
+                if ileri_dugmesi:
+                    break
+            if ileri_dugmesi:
+                pkg.replace_xml(part, _kok)
+        except Exception:
+            # Dugme kurulamazsa slayt YINE calisir: yazma kutusu duruyor,
+            # yalnizca cikis oynatici dugmesine kaliyor.
+            ileri_dugmesi = None
+
     registration = None
     if graded:
         registration = register_question(pkg, pkg.parse(part).get("g", ""))
@@ -2294,6 +2335,7 @@ def add_text_question(
             "question_type": "freeTextEntryIntr" if graded else "taahhut",
             "prompt": prompt, "accept": list(accept or []), "graded": graded,
             "adapted": adapted, "registration": registration,
+            "ileri_dugmesi": ileri_dugmesi,
             "framed": bool(adapted.get("framed")), **bound}
 
 

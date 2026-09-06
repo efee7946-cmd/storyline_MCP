@@ -258,6 +258,15 @@ def main() -> int:
         _root = pkg.parse(_part)
         for _kap in [_root] + list(_root.find("sldLayerLst") or []):
             for _sh, _e2, _d, _st in model._iter_text_shapes(_kap):
+                # DUGMELER DISARIDA, ve bu ACIKCA yazilmali: dugme puntosu
+                # kendi bandindan hesaplaniyor (`compose`ta band yuksekligine
+                # oranli), merdiven ise METIN hiyerarsisi icin. Bu satir
+                # yokken kapi yalnizca merdiven disi dugme OLMADIGI icin
+                # geciyordu -- 2026-09-06'da taahhut slaydina 15pt'lik bir
+                # "Devam" dugmesi eklenince kirmiziya dondu ve kusur
+                # dugmede degil, kapinin kapsam varsayimindaydi.
+                if _sh.tag in ("btn", "rsltBtn", "feedBackBtn"):
+                    continue
                 if not model._doc_text(_d).strip():
                     continue
                 _cc, _sz, _bb, _aa = __import__(

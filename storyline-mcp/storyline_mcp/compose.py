@@ -1745,6 +1745,79 @@ FEEDBACK_DEFAULT = {
 }
 
 
+def katman_dugmelerini_bagla(root) -> int:
+    """Dallanma katmanlarinin dugmelerini ROLE gore yeniden baglar.
+
+    NICIN. Tohumda dogru katman "Cevap2"ydi ve dugmeler ona gore
+    kablolanmis: Cevap1'in dugmesi Cevap2'yi aciyor, Cevap2'ninki ileri
+    gidiyor. Bizim icerigimizde dogru sik BASKA bir katman olabiliyor ve
+    kablo guncellenmiyordu.
+
+    Olculdu 2026-09-06, kullanicinin urettigi etkiliyapayzeka.story
+    (slideb ve slided, ikisinde de ayni):
+
+        Cevap1  rol=DOGRU    dugme "Dogru Cevabi Gor" -> Cevap2 (YANLIS)
+        Cevap2  rol=yanlis   dugme "Devam"            -> sonraki slayt
+        Cevap3  rol=yanlis   dugme "Dogru Cevabi Gor" -> Cevap2 (YANLIS)
+
+    Yani DOGRU cevap veren ogrenci "Tekrar dusunelim" ekranina gonderiliyor,
+    ve ileri giden tek yol YANLIS cevap katmani. Kullanicinin 1 numarali
+    bulgusu buydu.
+
+    KURAL DOSYADAN CIKIYOR, tahminden degil: `geri_bildirim_rolleri` hangi
+    katmanin dogru oldugunu zaten soyluyor (sik sekli kendi katmanini
+    showSubSlide ile aciyor, sikkin dogrulugu scoringData'da yazili).
+
+        dogru katman   -> "Devam", sonraki slayda git
+        yanlis katman  -> "Dogru Cevabi Gor", DOGRU katmani ac
+
+    KAPSAM: yalnizca bir SIKKA bagli katmanlar. Dallanma disi katmanlar
+    ("Cevaplar" listesi gibi) ve submit ile acilan cift katmanli sorular
+    disarida -- oralarda dugme baska bir isi yapiyor ve rol eslemesi bu
+    anlama gelmiyor.
+    """
+    sik_katmanlari = set(katman_sik_etiketleri(root))
+    if len(sik_katmanlari) < 2:
+        return 0
+    roller = geri_bildirim_rolleri(root)
+    dogru = next((g for g in sik_katmanlari if roller.get(g) is True), None)
+    if dogru is None:
+        return 0
+
+    katmanlar = {k.get("g"): k for k in (root.find("sldLayerLst") or [])}
+    degisen = 0
+    for guid in sik_katmanlari:
+        katman = katmanlar.get(guid)
+        if katman is None:
+            continue
+        sl = katman.find("shapeLst")
+        dugmeler = [x for x in (list(sl) if sl is not None else [])
+                    if x.tag in ("btn", "rsltBtn", "feedBackBtn")]
+        if len(dugmeler) != 1:
+            continue
+        dugme = dugmeler[0]
+        trig = next((t for tl in katman.iter("trigLst") for t in tl), None)
+        data = trig.find("data") if trig is not None else None
+        if data is None:
+            continue
+        hedef = data.find("sldLayer")
+        if guid == dogru:
+            data.set("action", "jumpToSlide")
+            data.set("actSubType", "next")
+            if hedef is not None:
+                hedef.set("showG", NULL_GUID)
+            etiket = "Devam"
+        else:
+            data.set("action", "showSubSlide")
+            if hedef is None:
+                hedef = ET.SubElement(data, "sldLayer")
+            hedef.set("showG", dogru)
+            etiket = "Doğru Cevabı Gör"
+        set_shape_text(katman, dugme.get("g") or "", etiket)
+        degisen += 1
+    return degisen
+
+
 def katman_dugmelerini_hizala(root) -> int:
     """Katmanlarin devam dugmelerini TEK konuma hizalar. Kac tane, doner.
 
@@ -2083,6 +2156,7 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     baglanan = intrprops_baglan(root)
     acilan = cikissiz_katmani_ac(root)
     yabanci = yabanci_katmanlari_doldur(root)
+    baglanan_dugme = katman_dugmelerini_bagla(root)
     hizalanan = katman_dugmelerini_hizala(root)
     sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
     pkg.replace_xml(part, root)
@@ -2091,6 +2165,7 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
             "cikissiz_katman_acildi": acilan,
             "yabanci_katman_yazisi": yabanci,
             "dugme_hizalandi": hizalanan,
+            "dugme_baglandi": baglanan_dugme,
             "katman_yazisi_kucultuldu": sigan,
             "olcege_alinan": olceklenen}
 
