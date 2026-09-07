@@ -263,50 +263,11 @@ def guarded(fn):
     return wrapper
 
 
-def _kurucu_yoldan_mi(pkg: StoryPackage) -> bool:
-    """Bu kurs panelin "Kurs kur" formundan mi cikti?
-
-    NICIN SORULUYOR. Panelde kurs kurmanin IKI yolu var ve ikisi ayni sey
-    degil:
-
-        "Kurs kur" formu    ->  builder.build()  ->  medya plani, ilerleme
-                                katmani, sonuc kilidi, dallanma, .medya.json
-        Sohbet (CLI + MCP)  ->  ajan MCP araclarini DOGRUDAN cagirir
-
-    Ikincisinde bu adimlarin HICBIRI kosmuyor: `builder.build` tek yerden
-    cagriliyor (bu dosya) ve MCP'nin `build_course`u onunla ilgisiz bir
-    islem listesi (create_scene, add_slide, add_question...). Yani sohbetle
-    kurulan bir kursta gorsel/video HIC istenmiyor -- istek dusmuyor, HIC
-    DOGMUYOR -- ve ilerleme takibi ile sonuc kilidi kurulmuyor.
-
-    OLCULDU 2026-09-06, kullanicinin uc kursunda (tuzla, savunma,
-    etkiliyapayzeka -- 43 slayt):
-
-        kullanici degiskeni      1 (yalnizca metin girisi "Yanit")
-        Ilerleme degiskeni       yok
-        <Bolum>_Tamam bayragi    yok
-        ayrilmis gorsel alani    43 slaydin HICBIRINDE
-        .medya.json              yok (en yenisi 31 Agustos)
-
-    IMZA `Ilerleme`, VE YALNIZCA O. `ilerleme.kur` onu KOSULSUZ yaratiyor ve
-    `bos.story`de o degisken YOK -- yani kullanicinin kaynak dosyasindan
-    devralinamaz. Yoklugu tek anlama geliyor.
-
-    DIGER IKI ADAY ELENDI, cunku yoklukları baska turlu de olusabiliyor:
-
-        <Bolum>_Hata   `dallanma.kur` yalnizca baglanacak bir yanlis-cevap
-                       katmani bulursa ekler; bulamazsa atlar ve raporlar.
-        .medya.json    sifir istekte `medya.temizle` onu SILIYOR.
-
-    Yani ikisi de kurucu yol KOSSA BILE eksik olabilir; onlari imza saymak
-    yanlis alarm uretirdi. Bir kez tam da boyle bir hata yapildi: ayni
-    teshis slayt ADLARINA dayandirilmis (a280ea2), ad kaynak dosyadan
-    devralindigi olculunce gecersiz cikmis ve teshis geri alinmisti
-    (3942e71). Teshis dogruydu, dayanagi yanlisti.
-
-    RAPOR EDER, DUZELTMEZ: ozet fonksiyonu dosyayi OKUYOR, yazmiyor.
-    """
-    return "Ilerleme" in {v["name"] for v in model.variables(pkg)}
+# YOL TESHISI `panel/ilerleme.py`DE. Imzayi (`Ilerleme` degiskeni) KURAN
+# modul orasi, yani sorunun yetkili sahibi; ustelik `agent.py` de ayni
+# cevaba ihtiyac duyuyor ve buradan import EDEMEZ (bu dosya zaten agent'i
+# import ediyor, ters yon dongu olurdu). Ikinci bir kopya zamanla ayrisirdi.
+from ilerleme import kurucu_yoldan_mi as _kurucu_yoldan_mi  # noqa: E402
 
 
 class Api:

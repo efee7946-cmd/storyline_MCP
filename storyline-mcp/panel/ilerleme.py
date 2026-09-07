@@ -241,3 +241,113 @@ def _bildir(rapor: dict, on_progress) -> None:
         + (f", kilit esigi {rapor['esik']} bolum" if rapor["kilit"] else ""))
     for a in rapor["atlanan"]:
         on_progress(f"ilerleme -- atlandi: {a}")
+
+
+# --------------------------------------------------------------- yol teshisi
+#
+# BURADA, `app.py`DE DEGIL. Teshis "Ilerleme degiskeni var mi" sorusudur ve o
+# degiskeni KURAN modul burasi -- yani imzanin sahibi. `app.py`de dururken
+# yalnizca panelin dosya bilgisi yukunden gorunuyordu; `agent.py` ondan
+# import edemez (app zaten agent'i import ediyor, ters yon dongu olurdu) ve
+# ikinci bir kopya zamanla ayrisirdi.
+
+
+def kurucu_yoldan_mi(pkg: StoryPackage) -> bool:
+    """Bu kurs panelin "Kurs kur" formundan mi cikti?
+
+    NICIN SORULUYOR. Panelde kurs kurmanin IKI yolu var ve ikisi ayni sey
+    degil:
+
+        "Kurs kur" formu    ->  builder.build()  ->  medya plani, ilerleme
+                                katmani, sonuc kilidi, dallanma, .medya.json
+        Sohbet (CLI + MCP)  ->  ajan MCP araclarini DOGRUDAN cagirir
+
+    Ikincisinde bu adimlarin HICBIRI kosmuyor: `builder.build` tek yerden
+    cagriliyor (`panel/app.py`) ve MCP'nin `build_course`u onunla ilgisiz bir
+    islem listesi (create_scene, add_slide, add_question...). Yani sohbetle
+    kurulan bir kursta gorsel/video HIC istenmiyor -- istek dusmuyor, HIC
+    DOGMUYOR -- ve ilerleme takibi ile sonuc kilidi kurulmuyor.
+
+    IMZA `Ilerleme`, VE YALNIZCA O. `kur` onu KOSULSUZ yaratiyor ve
+    `bos.story`de o degisken YOK -- yani kullanicinin kaynak dosyasindan
+    devralinamaz. Yoklugu tek anlama geliyor.
+
+    DIGER IKI ADAY ELENDI, cunku yoklukları baska turlu de olusabiliyor:
+
+        <Bolum>_Hata   `dallanma.kur` yalnizca baglanacak bir yanlis-cevap
+                       katmani bulursa ekler; bulamazsa atlar ve raporlar.
+        .medya.json    sifir istekte `medya.temizle` onu SILIYOR.
+
+    Yani ikisi de kurucu yol KOSSA BILE eksik olabilir; onlari imza saymak
+    yanlis alarm uretirdi. Bir kez tam da boyle bir hata yapildi: ayni
+    teshis slayt ADLARINA dayandirilmis (a280ea2), ad kaynak dosyadan
+    devralindigi olculunce gecersiz cikmis ve teshis geri alinmisti
+    (3942e71). Teshis dogruydu, dayanagi yanlisti.
+
+    RAPOR EDER, DUZELTMEZ: dosyayi OKUYOR, yazmiyor.
+    """
+    return "Ilerleme" in {v["name"] for v in model.variables(pkg)}
+
+
+def medya_yeri_olan_slaytlar(pkg: StoryPackage) -> list[str]:
+    """Kaydedilmis slaytlarda gorsel icin GERCEKTEN yer var mi?
+
+    ESIK UYDURULMADI, URUNDEN OKUNUYOR. `compose.VARIANTS["content"]
+    ["yan-gorsel"]["gorsel"]` gorsele ayirdigi sutunun genisligini soyluyor;
+    bir slayt o kadar bos sag sutun tasimiyorsa, urunun gorseli koydugu
+    bicimde koyacak yer YOK demektir. Sabiti buraya yazmak, `compose`
+    sutunu daralttiginda bu olcunun sessizce yalan soylemesi olurdu.
+
+    NICIN GEREKLI. Kurucu yolu yeri COMPOSE ANINDA ayirir; sohbet yolunda
+    slaytlar zaten kurulmus olarak gelir. Yani "sonradan alan ayir" bedava
+    degil ve bu fonksiyon onun ne kadar pahali oldugunu SAYIYLA soyler.
+
+    OLCULDU 2026-09-07, kullanicinin yks kursu (sohbet yolundan, 16 slayt):
+    urun %46 sutun istiyor, en comert slaytta %26 bos vardi -- yani uygun
+    slayt SIFIR. Istegi yine de yazmak, gorseli metnin ustune dusururdu
+    (`builder._medya_yeri_var` ayni tuzagi kendi belge dizesinde anlatiyor).
+    """
+    from storyline_mcp import compose as _compose, shapes as _shapes
+    try:
+        gerekli = float(_compose.VARIANTS["content"]["yan-gorsel"]["gorsel"][1])
+    except Exception:
+        return []
+    uygun: list[str] = []
+    for part, ref in model.slide_index(pkg).items():
+        kok = pkg.parse(part)
+        w, h = _shapes.slide_size(kok)
+        sekiller = kok.find("shapeLst")
+        en_sag = 0.0
+        for sekil in list(sekiller) if sekiller is not None else []:
+            kutu = _shapes.shape_rect(sekil)
+            if kutu is None:
+                continue
+            l, t, r, b = kutu
+            if (r - l) >= w * 0.95 and (b - t) >= h * 0.95:
+                continue                  # tam sayfa zemin, yer kaplamiyor
+            en_sag = max(en_sag, r / w * 100.0)
+        if 100.0 - en_sag >= gerekli:
+            uygun.append(ref.basename)
+    return uygun
+
+
+def sohbet_yolu_notu(pkg: StoryPackage) -> str:
+    """Sohbetle kurulan kursun SONUNDA soylenecek cumle; kurucu yolda "".
+
+    NICIN BITISTE. Bilgi zaten hesaplaniyordu ama yalnizca panelin dosya
+    bilgisi yukunde gorunuyordu -- yani kullanici dosyayi SECTIGINDE. Kurucu
+    yolun kendi "sifir medya" uyarisi da `app._run_builder`in bitis notunda,
+    yani yalnizca o yolda. Sonuc: sohbetle kurs kuran kisi -- uyariya en cok
+    ihtiyaci olan kisi -- kurulum bittiginde hicbir sey gormuyordu.
+    """
+    if kurucu_yoldan_mi(pkg):
+        return ""
+    uygun = medya_yeri_olan_slaytlar(pkg)
+    toplam = len(model.slide_index(pkg))
+    return (" Bu kurs sohbet yolundan kuruldu: gorsel/video PLANLANMADI, "
+            "ilerleme takibi ve sonuc kilidi kurulmadi. "
+            + ("Gorsel icin yer acilabilecek slayt: %d/%d."
+               % (len(uygun), toplam) if uygun else
+               "Ustelik %d slaydin hicbirinde gorsel icin bos sutun yok -- "
+               "sonradan istek yazmak gorseli metnin ustune dusururdu."
+               % toplam))

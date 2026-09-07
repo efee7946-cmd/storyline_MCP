@@ -558,10 +558,40 @@ class AgentRun:
         elif kind == "result":
             self._final_gorundu = True
             written = Path(self.output_path)
+            # YOL TESHISI BITISTE SOYLENIR -- OLCULDU 2026-09-07.
+            #
+            # Bu bilgi zaten hesaplaniyordu, ama yalnizca `app.py`nin dosya
+            # bilgisi yukunde: yani kullanici dosyayi SECTIGINDE gorunuyordu.
+            # Kurucu yolun kendi "sifir medya" uyarisi da `_run_builder`in
+            # bitis notunda, yani YALNIZCA o yolda. Sohbetle kurs kuran kisi
+            # -- uyariya en cok ihtiyaci olan kisi -- kurulum bittiginde
+            # hicbir sey gormuyordu. Bu turda dorduncu kez ayni bicim:
+            # kapi, denetledigi durumun OLMADIGI yolda duruyor.
+            #
+            # OKUNAMADIYSA SESSIZ KALMAZ. Dosya Storyline'da acik olabilir;
+            # o zaman teshis alinamaz ve bunu YAZAR. "Teshis yok" ile
+            # "sorun yok" ayni gorunmemeli.
+            yol_notu = ""
+            if written.exists():
+                try:
+                    from storyline_mcp.package import StoryPackage as _SP
+                    # IKI IMPORT BICIMI DE DENENIR. `app.py` panel/'i
+                    # sys.path'e koyuyor (kardes import calisir), ama modul
+                    # `panel.agent` olarak da import edilebiliyor ve orada
+                    # ciplak ad COZULMEZ -- not sessizce "okunamadi"ya
+                    # duserdi, yani teshis kendi tasidigi kusurun aynisina.
+                    try:
+                        import ilerleme as _ilerleme
+                    except ImportError:
+                        from panel import ilerleme as _ilerleme
+                    yol_notu = _ilerleme.sohbet_yolu_notu(_SP(str(written)))
+                except Exception as _hata:  # noqa: BLE001
+                    yol_notu = (" (yol teshisi okunamadi: %s)"
+                                % " ".join(str(_hata).split())[:90])
             self.on_event({
                 "kind": "final",
                 "error": bool(event.get("is_error")),
-                "text": event.get("result", ""),
+                "text": (event.get("result", "") or "") + yol_notu,
                 "duration_ms": event.get("duration_ms"),
                 "turns": event.get("num_turns"),
                 "output_path": str(written) if written.exists() else None,

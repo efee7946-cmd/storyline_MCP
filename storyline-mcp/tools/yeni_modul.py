@@ -39,6 +39,7 @@ SINANAN OTUZ DORT SINIF, her biri kullanicinin denetimindeki bir maddeye bagli:
    20  gonderiden geciyor         soru hic submit edilmiyordu      (#4)
    21  sahne adi okunur           menude '01_YZ_Nedir' goruluyordu  (#8)
    22  son slayt ILERI            gidecek yer yokken dugme duruyordu (#10)
+   23  sohbet yolu bitiste        uyari yalnizca kurucu yolda vardi (#23)
 
 Bir sinif kirmizi olursa mesaj HANGI maddeye dondugunu soyler, cunku
 "kopuk tetikleyici 3" tek basina ne yapilmasi gerektigini anlatmiyor.
@@ -1415,6 +1416,58 @@ def main() -> int:
 
     # 8 -- Turkce buyuk harf
     buyuk = compose.buyuk("Pozisyon Alma ve Kayma")
+    # 35 -- SOHBET YOLU BITISTE KONUSUYOR MU
+    #
+    # Bu sinif otekilerden farkli bir yeri koruyor: uretilen DOSYAYI degil,
+    # panelin o dosya hakkinda NE ZAMAN konustugunu. Teshis (`Ilerleme`
+    # imzasi) dogruydu ve yaziliydi -- ama yalnizca `app.py`nin dosya
+    # bilgisi yukunde yuzeye cikiyordu, yani kullanici dosyayi SECTIGINDE.
+    # Kurucu yolun "sifir medya" uyarisi da `_run_builder`in bitis notunda,
+    # yani YALNIZCA kurucu yolda. Sonuc: sohbetle kurs kuran kisi -- uyariya
+    # en cok ihtiyaci olan kisi -- kurulum bittiginde hicbir sey gormuyordu.
+    #
+    # IKI YONDE SINANIR. Yalnizca "not cikti" gormek yetmez: kurucu yoldan
+    # cikan kursta SUSMASI da gerekir, yoksa her kursa yanlis alarm. Ayni
+    # dosya iki fikstur veriyor -- ilerleme katmani kurulmadan, ve kurulmus
+    # halde -- yani fark tek degiskene indirgeniyor.
+    from panel import ilerleme as _il35
+    from panel.agent import AgentRun as _AR35
+    _yol35 = Path(tempfile.gettempdir()) / "sohbet_yolu_kanarya.story"
+    shutil.copy2(BLANK, _yol35)
+
+    def _son_metin35(_dosya):
+        _yakalanan = []
+        _kosu = _AR35(str(_dosya), "komut", _yakalanan.append,
+                      output_path=str(_dosya))
+        _kosu._dispatch({"type": "result", "result": "Kurs kuruldu.",
+                         "is_error": False})
+        _son = [_e for _e in _yakalanan if _e["kind"] == "final"]
+        return _son[0]["text"] if _son else ""
+
+    _sohbet35 = _son_metin35(_yol35)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p35 = StoryPackage(_yol35)
+        _sahne35 = clone.create_scene(_p35, "Konu")["scene"]
+        _sab35 = list(model.slide_index(_p35).values())[0].basename
+        _r35 = authoring.add_slide(_p35, _sab35, scene=_sahne35)
+        compose.compose_slide(_p35, _r35["new_slide"], "content",
+                              title="Konu", body="Govde metni.")
+        _il35.kur(_p35, [_sahne35])
+        _p35.save(_yol35, backup=False)
+    _kurucu35 = _son_metin35(_yol35)
+    _sorun35 = []
+    if "sohbet yolundan" not in _sohbet35:
+        _sorun35.append("sohbet yolunda not CIKMADI: %r" % _sohbet35[:80])
+    if "sohbet yolundan" in _kurucu35:
+        _sorun35.append("kurucu yolda yanlis alarm: %r" % _kurucu35[:80])
+    if "okunamadi" in _sohbet35:
+        # Teshis alinamadigini SOYLEMESI dogru, ama kanaryada bu
+        # "not calisiyor" diye okunmamali.
+        _sorun35.append("teshis okunamadi: %r" % _sohbet35[:80])
+    bak("sohbet yolu bitiste", "#23", not _sorun35,
+        "%d sorun %s" % (len(_sorun35), _sorun35[:1]))
+
     bak("Turkce buyuk harf", "#13", buyuk.startswith("POZİ"),
         repr(buyuk[:12]))
 
