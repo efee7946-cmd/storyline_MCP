@@ -1511,6 +1511,44 @@ def main() -> int:
         # Teshis alinamadigini SOYLEMESI dogru, ama kanaryada bu
         # "not calisiyor" diye okunmamali.
         _sorun35.append("teshis okunamadi: %r" % _sohbet35[:80])
+    # SIPARIS GERCEKTEN YAZILIYOR MU -- ucu uca, `_dispatch` uzerinden.
+    #
+    # Notun "yazildi" demesi yetmez: defter DISKTE olusmali, cunku panelin
+    # GORSEL & VIDEO sekmesi onu okuyor. Ve ikinci kosu NO-OP olmali --
+    # yoksa her komut deftere bir kayit daha ekler.
+    from storyline_mcp import medya as _medya37
+    _yol37 = Path(tempfile.gettempdir()) / "siparis_kanarya.story"
+    shutil.copy2(BLANK, _yol37)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p37 = StoryPackage(_yol37)
+        _sab37 = list(model.slide_index(_p37).values())[0].basename
+        _s37 = clone.create_scene(_p37, "Medya")["scene"]
+        _r37 = authoring.add_slide(_p37, _sab37, scene=_s37)
+        compose.compose_slide(_p37, _r37["new_slide"], "content",
+                              title="Alanli", body="Govde metni.",
+                              image_area=True, image_style="bleed")
+        _p37.save(_yol37, backup=False)
+    _defter37 = _medya37.dosya(_yol37)
+    if _defter37.exists():
+        _defter37.unlink()
+    _son_metin35(_yol37)
+    _bir37 = len(_medya37.oku(_yol37))
+    _son_metin35(_yol37)
+    _iki37 = len(_medya37.oku(_yol37))
+    if _bir37 != 1:
+        _sorun35.append("siparis yazilmadi: defterde %d kayit" % _bir37)
+    if _iki37 != _bir37:
+        _sorun35.append("ikinci kosu NO-OP degil: %d -> %d" % (_bir37, _iki37))
+    # Kurucu yolda gecis HIC kosmamali: orada `_medya_plani` zaten kosmus
+    # olur ve ustune yazmak, modelin yazdigi tarifi mekanikle cogaltirdi.
+    _defter35 = _medya37.dosya(_yol35)
+    if _defter35.exists():
+        _defter35.unlink()
+    _son_metin35(_yol35)                     # _yol35 artik kurucu yolda
+    if _medya37.dosya(_yol35).exists():
+        _sorun35.append("kurucu yolda gecis kostu: defter yazildi")
+
     bak("sohbet yolu bitiste", "#23", not _sorun35,
         "%d sorun %s" % (len(_sorun35), _sorun35[:1]))
 

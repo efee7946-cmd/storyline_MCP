@@ -584,7 +584,29 @@ class AgentRun:
                         import ilerleme as _ilerleme
                     except ImportError:
                         from panel import ilerleme as _ilerleme
-                    yol_notu = _ilerleme.sohbet_yolu_notu(_SP(str(written)))
+                    _pkg = _SP(str(written))
+                    # SIPARIS BURADA YAZILIR, DOSYAYA BAGLI OLARAK.
+                    #
+                    # `builder._medya_plani` plan nesnesini (scenes/spec)
+                    # istiyor ve ajanin boyle bir nesnesi yok -- o yuzden
+                    # sohbet yolunda medya karari HIC dogmuyordu: istek
+                    # dusmuyor, HIC DOGMUYOR. Gecis kaydedilmis dosyayi
+                    # geziyor ve yer tutucusu olan slaytlara siparisi
+                    # kendi metinlerinden yazar. Plan nesnesi gerekmiyor.
+                    #
+                    # KURSU DEGISTIRMEZ, yalnizca `<kurs>.medya.json`
+                    # defterine yazar; ikinci kosuda no-op. Kurucu yolda
+                    # HIC kosmaz -- orada `_medya_plani` zaten kosmustur ve
+                    # ustune yazmak modelin tarifini mekanikle cogaltirdi.
+                    if not _ilerleme.kurucu_yoldan_mi(_pkg):
+                        _yazim = _ilerleme.bekleyen_siparisleri_yaz(
+                            _pkg, str(written))
+                        if _yazim["yazilan"]:
+                            yol_notu += (
+                                " %d slayt icin gorsel siparisi YAZILDI (%s)."
+                                % (len(_yazim["yazilan"]),
+                                   ", ".join(_yazim["yazilan"][:3])))
+                    yol_notu += _ilerleme.sohbet_yolu_notu(_pkg)
                 except Exception as _hata:  # noqa: BLE001
                     yol_notu = (" (yol teshisi okunamadi: %s)"
                                 % " ".join(str(_hata).split())[:90])

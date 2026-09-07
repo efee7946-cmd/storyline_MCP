@@ -351,7 +351,12 @@ def sohbet_yolu_notu(pkg: StoryPackage) -> str:
         istek = 0
     not_ = (" Bu kurs sohbet yolundan kuruldu: ilerleme takibi ve sonuc "
             "kilidi kurulmadi.")
-    if bekleyen and not istek:
+    if bekleyen and istek:
+        # GECIS KOSTU. Defterde kayit var, yani panelin sekmesi dolu.
+        not_ += (" %d slaytta gorsel icin alan ayrilmis ve siparis "
+                 "defterde (%s): panelin GORSEL & VIDEO sekmesinden "
+                 "dosyayi verin." % (len(bekleyen), ", ".join(bekleyen[:3])))
+    elif bekleyen and not istek:
         # EN ISE YARAR HAL, ve en sessiz olani: yer ayrilmis, siparis
         # yazilmamis. Panelin GORSEL & VIDEO sekmesi defteri okuyor; defter
         # yoksa kullanici doldurulacak BOS bir alan oldugunu hic ogrenmiyor
@@ -362,3 +367,84 @@ def sohbet_yolu_notu(pkg: StoryPackage) -> str:
     elif not bekleyen:
         not_ += " Gorsel/video icin hicbir slaytta alan ayrilmamis."
     return not_
+
+
+def _slayt_metni(kok, adlar: tuple[str, ...]) -> str:
+    """Slaydin kendi yazisi, sekil ADINA gore -- compose'un dagarcigindan."""
+    from storyline_mcp import model as _model
+    sekiller = kok.find("shapeLst")
+    for ad in adlar:
+        for sh in (list(sekiller) if sekiller is not None else []):
+            if (sh.get("name") or "") == ad:
+                metin = " ".join(_model.shape_text(kok, sh.get("g") or "").split())
+                if metin:
+                    return metin
+    return ""
+
+
+def bekleyen_siparisleri_yaz(pkg: StoryPackage, yol: str) -> dict:
+    """Ayrilmis ama SIPARISSIZ medya alanlarina defter kaydi yazar.
+
+    NICIN DOSYAYA BAGLI, YOLA DEGIL. `builder._medya_plani` plan nesnesini
+    (scenes/spec) istiyor ve ajanin boyle bir nesnesi yok -- o yuzden sohbet
+    yolunda medya karari HIC dogmuyordu. Buradaki gecis kaydedilmis dosyayi
+    geziyor: yer tutucuyu bulur, siparisi slaydin KENDI metninden yazar.
+    Plan nesnesi gerekmiyor, ve yol bagimsizligi tam olarak tekrar tekrar
+    kaybedilen ozellik.
+
+    KURSU DEGISTIRMEZ. Yalnizca `<kurs>.medya.json` defterine yazar --
+    `request_media`nin yaptigi sey. Yeniden compose YOK: bu gecis SADECE
+    alani ZATEN ayrilmis slaytlara dokunuyor, yani geometriye elini
+    surmuyor ve dosya kilitliyken bile calisir.
+
+    SIPARIS MEKANIK, ve bu bilerek. Modelin yazdigindan kotu -- slaydin
+    cumlesini tekrar eder; `builder._mekanik_aciklama` kendi belge dizesinde
+    bunu zaten soyluyor. Ama bos birakmaktan iyidir: kullanici en azindan
+    doldurulacak bir alan oldugunu ogrenir. Kurucu yolda model tarifi
+    yazmaya devam eder.
+
+    IKINCI KOSUDA NO-OP: defterde o slayt icin kayit varsa atlanir.
+    """
+    from storyline_mcp import medya as _medya, shapes as _shapes
+    # Ertelenmis import: `builder` bu modulu import ediyor, tersi modul
+    # duzeyinde dongu olurdu.
+    from builder import _mekanik_aciklama, _kapak_istegi
+
+    istekler = _medya.oku(yol)
+    yazili = {k.get("slayt") for k in istekler}
+    rapor = {"yazilan": [], "atlanan": [], "defter": None}
+    for part, ref in model.slide_index(pkg).items():
+        if ref.basename not in set(ayrilmis_medya_alanlari(pkg)):
+            continue
+        if ref.basename in yazili:
+            rapor["atlanan"].append("%s: defterde zaten kayit var" % ref.basename)
+            continue
+        kok = pkg.parse(part)
+        w, h = _shapes.slide_size(kok)
+        sekiller = kok.find("shapeLst")
+        yer = next((sh for sh in (list(sekiller) if sekiller is not None else [])
+                    if (sh.get("name") or "") == GORSEL_ALANI), None)
+        baslik = _slayt_metni(kok, ("Title", "Display", "Subtitle", "Lead"))
+        govde = _slayt_metni(kok, ("Body", "Lead", "Subtitle"))
+        if yer is not None:
+            kutu = _shapes.shape_rect(yer)
+            alan = {"x": round(kutu[0] / w * 100, 1), "y": round(kutu[1] / h * 100, 1),
+                    "w": round((kutu[2] - kutu[0]) / w * 100, 1),
+                    "h": round((kutu[3] - kutu[1]) / h * 100, 1)}
+            stil = "bleed"
+            aciklama = _mekanik_aciklama({"title": ref.name or "", "name": ref.scene_name or ""},
+                                         {"title": baslik, "body": govde})
+        else:
+            # hero: gorsel slaydin ZEMINI olur, yer tutucu yok
+            alan = {"x": 0, "y": 0, "w": 100, "h": 100, "behind": True}
+            stil = "hero"
+            aciklama = _kapak_istegi({"title": baslik or ref.name or ""}, govde)["aciklama"]
+        kayit = _medya.istek(
+            ref.basename, ref.scene_name or "", ref.name or ref.basename,
+            "gorsel", aciklama, alan=alan, stil=stil,
+            sira=len(istekler) + 1, sahne_px=(int(w), int(h)))
+        istekler.append(kayit)
+        rapor["yazilan"].append("%s (%s)" % (ref.basename, stil))
+    if rapor["yazilan"]:
+        rapor["defter"] = str(_medya.yaz(yol, istekler))
+    return rapor
