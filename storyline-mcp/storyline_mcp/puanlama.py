@@ -29,13 +29,26 @@ def izleme(pkg: StoryPackage, index: dict) -> dict:
     story = pkg.parse("story/story.xml")
     by_guid = {ref.guid: ref.basename for ref in index.values()}
     manager = story.find("quizMgr")
+
+    # STORYLINE'IN OKUDUGU LISTE. `quizMgr` birden fazla `quizLst` tasiyorsa
+    # Storyline ILKINI okur, kalanini dosyadan atar (olculdu 2026-09-07:
+    # yks.story acilip kaydedildi, ikinci listedeki `Quiz_Result` silinmis,
+    # yerine bos bir `Quiz1` konmustu). Asagidaki dongu `story.iter("quiz")`
+    # kullaniyor ve iter HER listenin icine iniyor -- yani var olmayan bir
+    # quiz'i "var" gorur. Ayrimi tutan tek sey bu iki satir.
+    listeler = manager.findall("quizLst") if manager is not None else []
+    okunan = {q.get("g") for q in (listeler[0] if listeler else [])}
+
     registered: dict[str, str] = {}       # slayt -> quiz adi
     quizzes: list[dict] = []
+    gorunmeyen: list[str] = []
     for quiz in story.iter("quiz"):
         id_list = quiz.find("questionIdLst")
         items = [(el.text or "").strip()
                  for el in (list(id_list) if id_list is not None else [])]
         name = quiz.get("name") or "(isimsiz)"
+        if quiz.get("g") not in okunan:
+            gorunmeyen.append(name)
         for guid in items:
             if guid in by_guid:
                 registered[by_guid[guid]] = name
@@ -50,6 +63,8 @@ def izleme(pkg: StoryPackage, index: dict) -> dict:
     lms = (manager.get("lmsResultSlideG") or "") if manager is not None else ""
     return {
         "quizzes": quizzes,
+        "quizlst_sayisi": len(listeler),
+        "gorunmeyen_quiz": gorunmeyen,
         "registered": registered,
         "lms_hedefi": by_guid.get(lms),
         "lms_bos": not lms or lms.startswith("00000000"),
@@ -77,8 +92,9 @@ def zincir(pkg: StoryPackage) -> list[str]:
     slaydin TANIMLADIGI guid'leri yeniliyor; `quizG` bir REFERANS, oldugu
     gibi geciyor. Hedefte o quiz yoksa sonuc slaydi bir HAYALETI gosteriyor.
 
-    DORT KOSUL, cunku ucu birden tutmadan puan LMS'e gitmiyor:
+    BES KOSUL, cunku hepsi birden tutmadan puan LMS'e gitmiyor:
 
+        0  quiz, Storyline'in OKUDUGU quizLst'te duracak
         1  sonuc slaydi varsa quizLst'te en az bir quiz olacak
         2  sonuc slaydinin `quizG`si var olan bir quiz'i gosterecek
         3  questionIdLst puanli etkilesim tasiyan HER slaydi kapsayacak
@@ -87,6 +103,14 @@ def zincir(pkg: StoryPackage) -> list[str]:
     NEDEN "verified_ok" YETMEDI. O olcu XML butunlugune bakiyor -- parca
     sayisi, BOM, ayristirma. Bir dosya kusursuz bicimli olup LMS'e hicbir sey
     raporlamayabilir; savunma.story tam olarak oyle.
+
+    SIFIRINCI KOSUL SONRADAN EKLENDI (2026-09-07) ve digerlerinden farkli
+    bir sinifta: 1-4 dosyada NE VAR diye soruyor, 0 ise Storyline'in ONU
+    OKUYUP OKUMADIGINI. `_quiz_kur` `quizLst`i kokte ariyordu (o ise
+    `quizMgr`in cocugu), her seferinde ikinci bir liste uretiyordu ve
+    Storyline ilkini okuyup otekini atiyordu. Dort kosulun dordu de yesildi
+    -- cunku dordu de `story.iter("quiz")` kullaniyor ve iter atilan
+    listenin icine de iniyor.
 
     KAYDEDILMIS DOSYA UZERINDE cagrilmali, bellekteki pkg uzerinde degil:
     ogrencinin aldigi sey dosya.
@@ -106,6 +130,23 @@ def zincir(pkg: StoryPackage) -> list[str]:
 
     kirik: list[str] = []
     ad, sonuc_guid = sonuc_slaytlari[0]
+
+    # 0 -- quiz Storyline'in OKUDUGU listede mi
+    #
+    # DOSYADA OLMAK YETMIYOR. `quizMgr` iki `quizLst` tasiyorsa Storyline
+    # ilkini okur ve ikincisini -- icindeki quiz'le birlikte -- atar. Kurs
+    # bizim gozumuzde tam, ogrencinin dosyasinda puansiz.
+    #
+    # Bu kosul digerlerinden ONCE geliyor cunku onlarin hepsi
+    # `story.iter("quiz")`e dayaniyor ve iter atilacak listeyi de sayiyor:
+    # 1-4 arasi kosullarin dordu birden YESIL kalirken quiz yok olabilir.
+    # Kapinin denetledigi seyle ayni cozucuyu kullanmasi tam olarak bu.
+    if _iz["gorunmeyen_quiz"]:
+        kirik.append("quizMgr %d adet quizLst tasiyor; %s ikincisinde ve "
+                     "Storyline onu ATIYOR -- sorular puanlanmaz"
+                     % (_iz["quizlst_sayisi"],
+                        ", ".join(_iz["gorunmeyen_quiz"])))
+        return kirik                 # kalan kosullar bu quiz'e dayaniyor
 
     # 1 -- quiz var mi
     if not _iz["quizzes"]:

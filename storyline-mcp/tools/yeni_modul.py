@@ -689,9 +689,30 @@ def main() -> int:
             for _o in list(_idl) if _idl is not None else []:
                 _idl.remove(_o)
 
+    def _ikinci_listeye_tasi(_pk, _st):
+        """Quiz'i, quizMgr'in IKINCI quizLst'ine tasir.
+
+        DORDUNCU KUSUR SONRADAN EKLENDI (2026-09-07) ve digerlerinden farkli
+        bir yerden vuruyor: uc kusur da quiz'in ICERIGINI bozuyor, bu ise
+        yerini. Ayrimi tutan sey `story.iter("quiz")`in ikinci listenin de
+        icine inmesi -- yani ekilmeden once zincir bu kusura KOR idi ve
+        uretim tam olarak onu yapiyordu (`_quiz_kur` quizLst'i kokte
+        ariyordu, hep bulamiyordu, hep ikinci bir liste aciyordu).
+
+        Storyline ilk listeyi okur, otekini icindeki quiz'le birlikte atar;
+        olculdu yks.story'de -- kaydettikten sonra `Quiz_Result` yoktu.
+        """
+        _m = _st.find("quizMgr")
+        _l = _m.find("quizLst")
+        _ikinci = _ET.SubElement(_m, "quizLst")
+        for _q in list(_l):
+            _l.remove(_q)
+            _ikinci.append(_q)
+
     _boz24("quiz silindi", _quizi_sil)
     _boz24("lms hedefi bosaltildi", _lms_bosalt)
     _boz24("soru kaydi silindi", _kaydi_sil)
+    _boz24("quiz ikinci quizLst'te", _ikinci_listeye_tasi)
 
     # GEOMETRI OKUYUCULARI DA KANARYALI.
     #

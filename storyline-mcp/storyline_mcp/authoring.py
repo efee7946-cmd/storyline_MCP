@@ -2843,7 +2843,26 @@ def _quiz_kur(pkg: StoryPackage, sonuc_slayt_guid: str) -> dict:
         return {"kuruldu": False, "why": "tohumda quiz elemani yok"}
 
     quiz.set("resultSldG", sonuc_slayt_guid)
-    liste = story.find("quizLst")
+    # LISTE `quizMgr`IN ICINDE ARANIR, KOKTE DEGIL -- OLCULDU 2026-09-07.
+    #
+    # `story.find("quizLst")` yalnizca `<story>`nin DOGRUDAN cocuklarina
+    # bakar; `quizLst` ise `<quizMgr>`in cocugu. Yani find HER ZAMAN None
+    # donuyordu ve bu dal her seferinde IKINCI bir `quizLst` uretiyordu:
+    #
+    #     <quizMgr><bankLst /><quizLst /><quizLst><quiz .../></quizLst>
+    #
+    # Storyline ILKINI okuyor. Olcum, kullanicinin yks.story'sini Storyline
+    # acip kaydettikten sonra alindi: kurdugumuz `Quiz_Result` -- ucu birden
+    # cozulen uc soru kaydiyla birlikte -- DOSYADAN SILINMISTI, yerine bos
+    # bir `Quiz1` gelmisti ve sonuc slaydinin `quizG`si ona cevrilmisti.
+    # Yani ogrencinin cevaplari hicbir puana girmiyor ve sonuc slaydindaki
+    # %Quiz_Result.ScorePoints% oksuz bir degiskeni gosteriyor.
+    #
+    # Kusur SESSIZDI cunku dogrulama `story.iter("quiz")` ile ariyor ve
+    # iter ikinci listenin icine de iniyor: quiz "var" gorunuyordu.
+    # `puanlama.zincir`in 0 numarali kosulu artik ONUN GOREMEDIGI seyi,
+    # quiz'in HANGI listede durdugunu soruyor.
+    liste = yonetici.find("quizLst")
     if liste is None:
         liste = ET.SubElement(yonetici, "quizLst")
     liste.append(quiz)
