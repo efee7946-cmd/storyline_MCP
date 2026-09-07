@@ -693,6 +693,45 @@ def main() -> int:
     _boz24("lms hedefi bosaltildi", _lms_bosalt)
     _boz24("soru kaydi silindi", _kaydi_sil)
 
+    # GEOMETRI OKUYUCULARI DA KANARYALI.
+    #
+    # 25, 29, 31 ve 33. siniflar `shapes.shape_rect` ve `model.bodies`
+    # uzerine kurulu -- ve kurucu da AYNI yardimcilari kullaniyor. Biri bir
+    # yapiyi sessizce yanlis okursa kapi ile kurucu AYNI seyi gorur ve suite
+    # yesil kalir; kullanicinin adlandirdigi "ortak soy" biciminin ta
+    # kendisi.
+    #
+    # `invariants`in on ekilmis kanaryasi `shapes` OLCUM yardimcilarini
+    # kapsiyor (tasma, bant, etiket, sira, gonder) ama geometri
+    # OKUYUCULARINI kapsamiyor. `test/_canary/canary_bozuk.story` de bu
+    # katmanin degil, ACILMA dogrulayicisinin kanaryasi.
+    #
+    # Bilinen koordinatli bir sekil ve bilinen bir katman kuruluyor; okuyucu
+    # onlari geri vermezse kapi konusur.
+    # FIKSTUR GERCEK YAPIDAN, UYDURMADAN. Ilk yazim `<sp><off/><ext/></sp>`
+    # kurmustu ve kanarya kirmiziya dondu -- ama kusur okuyucuda degil
+    # FIKSTURDEYDI: `shape_rect` `<loc l t r b>` okuyor. Uydurulmus bir
+    # fikstuurle kurulan kanarya, korudugunu sandigi seyi korumaz.
+    import xml.etree.ElementTree as _ET24
+    _sek = _ET24.fromstring(
+        '<rect g="11111111-1111-1111-1111-111111111111">'
+        '<loc l="72" t="54" r="288" b="162"/></rect>')
+    _rc24 = shapes.shape_rect(_sek)
+    if not _rc24 or [round(_v) for _v in _rc24] != [72, 54, 288, 162]:
+        _kanarya.append("shape_rect bilinen kutuyu yanlis okuyor: %r" % (_rc24,))
+    # IKI ETIKET DE: `sldLayer` ve `feedBackLayer` (model.LAYER_TAGS).
+    # Birini kaciran bir okuyucu, geri bildirim katmanlarini gormeden
+    # gezerdi -- bu depoda uc kez cikan "yalnizca temeli gez" kusurunun
+    # okuyucu tarafindaki hali.
+    _kok24 = _ET24.fromstring(
+        '<slide><shapeLst/><sldLayerLst>'
+        '<sldLayer name="Katman1"><shapeLst/></sldLayer>'
+        '<feedBackLayer name="Katman2"><shapeLst/></feedBackLayer>'
+        '</sldLayerLst></slide>')
+    _govdeler = [_a for _a, _g in model.bodies(_kok24)]
+    if len(_govdeler) != 3 or _govdeler[1:] != ["Katman1", "Katman2"]:
+        _kanarya.append("bodies temel+katmanlari vermiyor: %r" % (_govdeler,))
+
     for _zor in ("#C0504D", "#9BBB59"):
         _sec = authoring.yazi_rengi_sec(compose.theme_palette("orman"), _zor)
         _o = _kontrast(_rgb(_sec), _rgb(_zor))
