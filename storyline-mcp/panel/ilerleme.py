@@ -289,46 +289,47 @@ def kurucu_yoldan_mi(pkg: StoryPackage) -> bool:
     return "Ilerleme" in {v["name"] for v in model.variables(pkg)}
 
 
-def medya_yeri_olan_slaytlar(pkg: StoryPackage) -> list[str]:
-    """Kaydedilmis slaytlarda gorsel icin GERCEKTEN yer var mi?
+# `compose`UN AYRILMIS ALAN ISARETLERI. Adlar burada TEKRARLANIYOR
+# (compose.py:3483/3485/3491/3588/3594 string literal yaziyor, disari
+# vermiyor) -- ve tekrarlanan her sabit gibi sessizce ayrisabilir. Baglayan
+# sey asagidaki degil, `tools/yeni_modul.py`deki kanarya: compose'u
+# image_area=True ile kosturup bu dedektorun ATESLEDIGINI dogruluyor.
+GORSEL_ALANI = "Gorsel Alani"          # bleed / yan sutun yer tutucusu
+HERO_ORTU = ("Ton", "Ortu")            # kapakta hero: gorsel ZEMIN olur
 
-    ESIK UYDURULMADI, URUNDEN OKUNUYOR. `compose.VARIANTS["content"]
-    ["yan-gorsel"]["gorsel"]` gorsele ayirdigi sutunun genisligini soyluyor;
-    bir slayt o kadar bos sag sutun tasimiyorsa, urunun gorseli koydugu
-    bicimde koyacak yer YOK demektir. Sabiti buraya yazmak, `compose`
-    sutunu daralttiginda bu olcunun sessizce yalan soylemesi olurdu.
 
-    NICIN GEREKLI. Kurucu yolu yeri COMPOSE ANINDA ayirir; sohbet yolunda
-    slaytlar zaten kurulmus olarak gelir. Yani "sonradan alan ayir" bedava
-    degil ve bu fonksiyon onun ne kadar pahali oldugunu SAYIYLA soyler.
+def ayrilmis_medya_alanlari(pkg: StoryPackage) -> list[str]:
+    """Slaytta gorsel icin AYRILMIS alan var mi -- yer tutucuya bakarak.
 
-    OLCULDU 2026-09-07, kullanicinin yks kursu (sohbet yolundan, 16 slayt):
-    urun %46 sutun istiyor, en comert slaytta %26 bos vardi -- yani uygun
-    slayt SIFIR. Istegi yine de yazmak, gorseli metnin ustune dusururdu
-    (`builder._medya_yeri_var` ayni tuzagi kendi belge dizesinde anlatiyor).
+    ONCEKI SURUM YANLIS OLCUYORDU ve sayiyi "16/16 yer yok" diye veriyordu.
+    Bos sag sutunu GEOMETRIK ariyordu, ama ayrilmis alan bir YER TUTUCU
+    DIKDORTGEN olarak duruyor -- yani olcum onu DOLU sayiyordu. Aradigi
+    seyin varligi, aramasini engelliyordu.
+
+    Olculdu 2026-09-07, kullanicinin yks kursu:
+        slide6  `Gorsel Alani`  x=%54 w=%46   -- `yan-gorsel` sutununun aynisi
+        slide   `Ton`+`Ortu`, `pic` YOK       -- hero gorseli icin kurulmus kapak
+        .medya.json                            YOK, istek SIFIR
+
+    Yani ajan alani AYIRMIS, siparisi YAZMAMIS. Bu, "medya hic planlanmadi"dan
+    baska bir kusur ve caresi de baska: yeniden compose etmeye gerek yok,
+    yalnizca defterin yazilmasi gerekiyor.
+
+    `Ton`/`Ortu` TEK BASINA yeterli isaret DEGIL: `compose.ensure_scrim` de
+    onlari koyuyor -- gorsel gercekten yerlestiginde, yaziyi okunur tutmak
+    icin. O yuzden hero ancak `pic` YOKKEN "bekliyor" sayilir.
     """
-    from storyline_mcp import compose as _compose, shapes as _shapes
-    try:
-        gerekli = float(_compose.VARIANTS["content"]["yan-gorsel"]["gorsel"][1])
-    except Exception:
-        return []
-    uygun: list[str] = []
+    bekleyen: list[str] = []
     for part, ref in model.slide_index(pkg).items():
         kok = pkg.parse(part)
-        w, h = _shapes.slide_size(kok)
         sekiller = kok.find("shapeLst")
-        en_sag = 0.0
-        for sekil in list(sekiller) if sekiller is not None else []:
-            kutu = _shapes.shape_rect(sekil)
-            if kutu is None:
-                continue
-            l, t, r, b = kutu
-            if (r - l) >= w * 0.95 and (b - t) >= h * 0.95:
-                continue                  # tam sayfa zemin, yer kaplamiyor
-            en_sag = max(en_sag, r / w * 100.0)
-        if 100.0 - en_sag >= gerekli:
-            uygun.append(ref.basename)
-    return uygun
+        adlar = [sh.get("name") or ""
+                 for sh in (list(sekiller) if sekiller is not None else [])]
+        if GORSEL_ALANI in adlar:
+            bekleyen.append(ref.basename)
+        elif all(ad in adlar for ad in HERO_ORTU) and not list(kok.iter("pic")):
+            bekleyen.append(ref.basename)
+    return bekleyen
 
 
 def sohbet_yolu_notu(pkg: StoryPackage) -> str:
@@ -342,12 +343,22 @@ def sohbet_yolu_notu(pkg: StoryPackage) -> str:
     """
     if kurucu_yoldan_mi(pkg):
         return ""
-    uygun = medya_yeri_olan_slaytlar(pkg)
-    toplam = len(model.slide_index(pkg))
-    return (" Bu kurs sohbet yolundan kuruldu: gorsel/video PLANLANMADI, "
-            "ilerleme takibi ve sonuc kilidi kurulmadi. "
-            + ("Gorsel icin yer acilabilecek slayt: %d/%d."
-               % (len(uygun), toplam) if uygun else
-               "Ustelik %d slaydin hicbirinde gorsel icin bos sutun yok -- "
-               "sonradan istek yazmak gorseli metnin ustune dusururdu."
-               % toplam))
+    from storyline_mcp import medya as _medya
+    bekleyen = ayrilmis_medya_alanlari(pkg)
+    try:
+        istek = len(_medya.oku(pkg.path))
+    except Exception:
+        istek = 0
+    not_ = (" Bu kurs sohbet yolundan kuruldu: ilerleme takibi ve sonuc "
+            "kilidi kurulmadi.")
+    if bekleyen and not istek:
+        # EN ISE YARAR HAL, ve en sessiz olani: yer ayrilmis, siparis
+        # yazilmamis. Panelin GORSEL & VIDEO sekmesi defteri okuyor; defter
+        # yoksa kullanici doldurulacak BOS bir alan oldugunu hic ogrenmiyor
+        # -- kursu acip gorene kadar.
+        not_ += (" %d slaytta gorsel icin alan AYRILMIS ama siparis "
+                 "yazilmamis (%s): panelin GORSEL & VIDEO sekmesi bos "
+                 "kalir." % (len(bekleyen), ", ".join(bekleyen[:3])))
+    elif not bekleyen:
+        not_ += " Gorsel/video icin hicbir slaytta alan ayrilmamis."
+    return not_

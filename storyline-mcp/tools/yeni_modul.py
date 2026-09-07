@@ -1456,7 +1456,53 @@ def main() -> int:
         _il35.kur(_p35, [_sahne35])
         _p35.save(_yol35, backup=False)
     _kurucu35 = _son_metin35(_yol35)
+    # DEDEKTOR COMPOSE'A BAGLANIR. `ilerleme.GORSEL_ALANI` compose'un
+    # string literal'ini TEKRARLIYOR (compose disari vermiyor) ve tekrarlanan
+    # sabit sessizce ayrisir: compose sekli yeniden adlandirdiginda dedektor
+    # "alan yok" der, not YANLIS ama makul gorunur. Bu turda ayni bicim iki
+    # kez isirdi -- ilk surum ayrilmis alani GEOMETRIK ariyordu ve yer tutucu
+    # dikdortgeni DOLU sayip "16/16 yer yok" diyordu.
+    #
+    # NEGATIF KONTROL YAKIN-ISKALA SECILDI, duz slayt degil: `image_area=True`
+    # bir ISTEK, compose onu REDDEDEBILIYOR. Olculdu -- varyantin `gorsel`
+    # bolgesi yoksa donen `image_area` None ve hicbir yer tutucu konmuyor:
+    #
+    #     content, image_area=True                 -> None,   yer tutucu YOK
+    #     content, image_area=True, style=bleed    -> w=%46,  `Gorsel Alani`
+    #     cover,   image_area=True, style=hero     -> tam boy, `Ton`+`Ortu`
+    #
+    # Ilk satir kanaryanin ilk surumunu KIRMIZI yapti ve hakliydi: "istedim"
+    # ile "ayrildi" ayni sey degil. Iddia artik compose'un KENDI donusuyle
+    # capraz kontrol ediliyor -- dedektor ile compose ayni vakada anlassin.
+    _yol36 = Path(tempfile.gettempdir()) / "medya_alani_kanarya.story"
+    shutil.copy2(BLANK, _yol36)
+    _vakalar36 = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        _p36 = StoryPackage(_yol36)
+        _sab36 = list(model.slide_index(_p36).values())[0].basename
+        _s36 = clone.create_scene(_p36, "Medya")["scene"]
+        for _ad36, _duzen36, _kw36 in (
+                ("reddedildi", "content", {"image_area": True}),
+                ("sutun", "content", {"image_area": True, "image_style": "bleed"}),
+                ("hero", "cover", {"image_area": True, "image_style": "hero"})):
+            _r36 = authoring.add_slide(_p36, _sab36, scene=_s36)
+            _sonuc36 = compose.compose_slide(_p36, _r36["new_slide"], _duzen36,
+                                             title="B", body="Govde.", **_kw36)
+            _vakalar36.append((_ad36, _r36["new_slide"],
+                               _sonuc36.get("image_area") is not None))
+        _p36.save(_yol36, backup=False)
+    _p36b = StoryPackage(_yol36)
+    _bulunan36 = set(_il35.ayrilmis_medya_alanlari(_p36b))
+
     _sorun35 = []
+    for _ad36, _slayt36, _compose_ayirdi in _vakalar36:
+        _dosya36 = _p36b.slide_part_for(_slayt36).rsplit("/", 1)[1]
+        _dedektor_gordu = _dosya36 in _bulunan36
+        if _dedektor_gordu != _compose_ayirdi:
+            _sorun35.append(
+                "%s: compose ayirdi=%s ama dedektor gordu=%s (%s)"
+                % (_ad36, _compose_ayirdi, _dedektor_gordu, _dosya36))
     if "sohbet yolundan" not in _sohbet35:
         _sorun35.append("sohbet yolunda not CIKMADI: %r" % _sohbet35[:80])
     if "sohbet yolundan" in _kurucu35:
