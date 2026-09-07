@@ -18,7 +18,12 @@ ve tetikleyicileri kod kurar. Dokuzuncu slaytta çıkan bir hata ilk sekizi
 bozamaz.
 
 **Komut yolu** — kısa bir istek yazarsınız ("3. slaydın başlığını değiştir").
-Ajan MCP araçlarıyla dosyayı düzenler.
+Ajan MCP araçlarıyla dosyayı düzenler. İş bitince panel **dosyayı gezer**:
+görsel için yer ayrılmış ama siparişi yazılmamış slaytlara siparişi slaydın
+kendi metninden yazar (defter `<kurs>.medya.json`, GÖRSEL & VİDEO sekmesinde
+görünür), ve bu yolda kurulmayanları — ilerleme takibi, sonuç kilidi — sonuç
+notunda açıkça söyler. Geçiş kursa dokunmaz, yalnızca defteri yazar; ikinci
+komutta tekrarlamaz.
 
 Ayrıca panelde: kurs künyesi (süre, hedef kitle, ton, bölüm başına soru),
 altı hazır tema ya da özel renk, puanlanan sorular ve geri bildirim katmanları,
@@ -128,6 +133,15 @@ Klonlanmış bir depoda tam bir kurs kurulduğu ölçüldü: 4 bölüm, 12 slayt
   çıkarıldı. Havuzda görülmeyen bir efekt tahmin edilerek yazılmaz.
 - **Buton çeşitliliği donör havuzuna bağlı.** Havuz yokken her kurs aynı gömülü
   butonu giyer — gerekçesi ve ölçümü "Depoda olmayanlar" bölümünde.
+- **Sohbet yolu görsel için yer AÇMAZ.** Kurulum sonrası geçiş yalnızca
+  *ayrılmış* alanı bulup siparişi yazar; slaydı yeniden kurup yer açmaz.
+  Ölçüldü (16 slaytlık bir kurs): iki slaytta alan ayrılmıştı — biri kapakta
+  hero, biri `%54–100` sütunu — ve ikisine de sipariş yazıldı; yer ayrılmamış
+  slayda hâlâ görsel istenmez. Brief yolunda bu sınır yok, orada yeri
+  `compose` slayt kurulurken ayırır.
+- **Sohbet yolunda ilerleme takibi ve sonuç kilidi kurulmaz.** Bunlar
+  `builder.build`'in içinde; ajan MCP araçlarını doğrudan çağırdığında o kod
+  hiç koşmaz. Panel bunu kurulum sonunda söyler ama kendiliğinden kurmaz.
 
 Eskiden burada yazan iki sınır artık geçerli değil: sürükle-bırak, sıcak nokta
 ve metin girişi için tohum **var** ve kuruluyor; timeline animasyonu da
