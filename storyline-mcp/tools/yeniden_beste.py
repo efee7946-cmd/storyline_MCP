@@ -74,12 +74,31 @@ def _butonsu(root, el) -> bool:
     return bool(metin) and metin == (el.get("name") or "").strip()
 
 
-def sozluk() -> tuple[set[str], set[str]]:
-    """(şekil adları, standart tetikleyici adları) -- ÖLÇÜLEREK.
+def sozluk() -> tuple[set[str], set[str], set[str]]:
+    """(şekil adları, standart tetikleyiciler, REZERVASYON şekilleri) -- ÖLÇÜLEREK.
 
     Her duzen x varyant, icerigin hepsi dolu. Uslup de gezilir cunku
     `mark` uslupla ad degistiriyor (Vurgu / Kose / Serit) ve `cards`
     tedavisi `Kenar` yerine `Cizgi` cizebiliyor.
+
+    GORSEL DURUMLARI DA GEZILIR, VE BU BIR KUSURDAN OGRENILDI. Ilk surum
+    yalnizca `image_area=False` ile besteliyordu; uc rezervasyon sekli o
+    kumede HIC gecmedi ve sozluk onlari YABANCI saydi. Sonuc: kursun en
+    medya-uygun slaydi -- hero kapak -- "yeniden bestelenemez" diye
+    eleniyordu, hem de alani zaten ayrilmis oldugu icin. Olculdu (yks):
+        slide.xml    yabanci sekil ['Ortu', 'Ton']
+    Kapsam yazilmadigi icin iddia sessizce "compose bunlari uretmez"e
+    genislemisti -- ayni sekil, ucuncu kez.
+
+    REZERVASYON SINIFI DA BURADAN TURETILIR, yazilmaz:
+        rezervasyon = (gorselli adlar) - (gorselsiz adlar)
+    Bugun {Gorsel Alani, Ton, Ortu} veriyor; compose yarin dorduncusunu
+    eklerse sozluk kendiliginden ogrenir.
+
+    NEYE KOR: `panel` gorsel yerlesimi AYIRT EDICI bir sekil cizmiyor
+    (olculdu -- gorselsiz kume ile ayni adlari veriyor), yani panel ile
+    ayrilmis bir alan "ayrilmis" diye taninamaz. Yalnizca `bleed` ve
+    `hero` taninir.
     """
     adlar: set[str] = set()
     # TETIKLEYICILER BIRLESIM DEGIL KESISIM. Ilk surum birlesim aliyordu ve
@@ -122,11 +141,36 @@ def sozluk() -> tuple[set[str], set[str]]:
                 tetik_kumeleri.append({(tr.get("name") or "")
                                        for tr in list(root.find("trigLst") or [])})
     tetikler = set.intersection(*tetik_kumeleri) if tetik_kumeleri else set()
-    return adlar, tetikler
+
+    # IKINCI GECIS: gorselli. Varyant gezilmez -- rezervasyon sekilleri
+    # varyanta degil `image_style`a bagli (olculdu), ve varyant gezmek
+    # kosuyu dort katina cikarirdi.
+    gorselli: set[str] = set()
+    for style in sorted(compose.STYLES):
+        for stil in compose.IMAGE_STYLES:
+            shutil.copy2(BLANK, WORK)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                pkg = StoryPackage(WORK)
+                slaytlar = [r.basename for r in
+                            model.slide_index(pkg).values()][:len(compose.LAYOUTS)]
+                for slayt, layout in zip(slaytlar, compose.LAYOUTS):
+                    compose.compose_slide(pkg, slayt, layout, style=style,
+                                          identity="sozluk", image_area=True,
+                                          image_style=stil, **dict(dolu))
+                pkg.save(WORK, backup=False)
+            done = StoryPackage(WORK)
+            for slayt in slaytlar:
+                root = done.parse(done.slide_part_for(slayt))
+                for el in list(root.find("shapeLst") or []):
+                    if not _butonsu(root, el):
+                        gorselli.add(el.get("name") or "")
+    rezervasyon = gorselli - adlar
+    return adlar | gorselli, tetikler, rezervasyon
 
 
 def emniyet(pkg: StoryPackage, slayt: str, adlar: set[str],
-            tetikler: set[str]) -> dict:
+            tetikler: set[str], rezervasyon: set[str]) -> dict:
     """Bu slayt yeniden bestelenmeyi kaldırır mı, ve kaldırmıyorsa neden."""
     root = pkg.parse(pkg.slide_part_for(slayt))
     yabanci = sorted({
@@ -137,15 +181,18 @@ def emniyet(pkg: StoryPackage, slayt: str, adlar: set[str],
         if (tr.get("name") or "") not in tetikler})
     katman = root.find("sldLayerLst")
     katman_n = len(katman) if katman is not None else 0
-    # Alan ZATEN ayrilmis mi: gecis bugun yalnizca bunlari bulabiliyor.
-    ayrilmis = any((el.get("name") or "") in ("Gorsel Alani", "Yan Pano")
+    # Alan ZATEN ayrilmis mi. Sinif TURETILIYOR (bkz. sozluk); elle
+    # yazilan bir liste `Ton`/`Ortu`yu kacirmisti ve hero kapak yanlis
+    # sinifa dusmustu.
+    ayrilmis = any((el.get("name") or "") in rezervasyon
                    for el in list(root.find("shapeLst") or []))
     return {"slayt": slayt, "yabanci": yabanci, "fazla_tetik": fazla,
             "katman": katman_n, "ayrilmis": ayrilmis,
             "gecer": not yabanci and not fazla and not katman_n}
 
 
-def kanarya(adlar: set[str], tetikler: set[str]) -> list[str]:
+def kanarya(adlar: set[str], tetikler: set[str],
+            rezervasyon: set[str]) -> list[str]:
     """Emniyet ölçüsü koşuyor ve GÖRÜYOR mu. DORT AYAK.
 
     Ilk ayak en onemlisi: bozuk bir sozluk her slaydi "yabanci" gosterir
@@ -168,7 +215,7 @@ def kanarya(adlar: set[str], tetikler: set[str]) -> list[str]:
 
     # 1. TEMIZ SLAYT GECMELI.
     p1 = StoryPackage(yol)
-    r = emniyet(p1, temiz, adlar, tetikler)
+    r = emniyet(p1, temiz, adlar, tetikler, rezervasyon)
     print(f"kanarya temiz: taze bestelenmis slayt "
           f"{'GECTI' if r['gecer'] else 'KALDI ' + str(r)}")
     if not r["gecer"]:
@@ -195,15 +242,40 @@ def kanarya(adlar: set[str], tetikler: set[str]) -> list[str]:
         yeni.set("g", "00000000-0000-0000-0000-0000000000ff")
         pk.replace_xml(part, root)
         pk.save(bozuk, backup=False)
-        r2 = emniyet(StoryPackage(bozuk), temiz, adlar, tetikler)
+        r2 = emniyet(StoryPackage(bozuk), temiz, adlar, tetikler, rezervasyon)
         print(f"kanarya ekili ({ad}): {'YAKALANDI' if r2[beklenen] else 'KACTI'}")
         if r2["gecer"] or not r2[beklenen]:
             kusur.append(f"olcu KOR: {ad} eklendi ama emniyet hala geciyor")
 
+    # 4b. HERO KAPAK: hem GECMELI hem AYRILMIS sayilmali. Kacirdigim
+    # kusurun tam karsiligi -- `Ton`/`Ortu` sozlukte olmadigi icin bu
+    # slayt "yabanci sekil" diye eleniyordu, hem de alani zaten ayrilmis
+    # oldugu halde.
+    yol2 = ROOT.parent / "test" / "_canary" / "yeniden_beste_hero.story"
+    shutil.copy2(BLANK, yol2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pk2 = StoryPackage(yol2)
+        hero = [r.basename for r in model.slide_index(pk2).values()][0]
+        compose.compose_slide(pk2, hero, "cover", title="Kapak",
+                              body="Alt metin.", identity="kan",
+                              image_area=True, image_style="hero")
+        pk2.save(yol2, backup=False)
+    rh = emniyet(StoryPackage(yol2), hero, adlar, tetikler, rezervasyon)
+    print(f"kanarya hero: kapak {'GECTI' if rh['gecer'] else 'KALDI'}, "
+          f"{'AYRILMIS' if rh['ayrilmis'] else 'ayrilmamis'} sayildi"
+          f"{'' if rh['gecer'] else ' -- ' + str(rh['yabanci'])}")
+    if not rh["gecer"]:
+        kusur.append(f"olcu KOR: hero kapak yabanci sekil sayiliyor "
+                     f"({rh['yabanci']}) — sozluk gorsel durumlarini gezmemis")
+    if not rh["ayrilmis"]:
+        kusur.append("olcu KOR: hero kapagin alani ayrilmis sayilmiyor — "
+                     "rezervasyon sinifi eksik")
+
     # 4. KATMANLI SLAYT KALMALI. bos.story'nin slideb'i iki katman tasiyor.
     katmanli = [a for a in adaylar if a.startswith("slideb")]
     if katmanli:
-        r3 = emniyet(p1, katmanli[0], adlar, tetikler)
+        r3 = emniyet(p1, katmanli[0], adlar, tetikler, rezervasyon)
         print(f"kanarya katman: katmanli slayt "
               f"{'KALDI' if not r3['gecer'] else 'GECTI'} "
               f"({r3['katman']} katman)")
@@ -220,16 +292,17 @@ def main() -> int:
                         help="slayt slayt yaz")
     args = parser.parse_args()
 
-    adlar, tetikler = sozluk()
+    adlar, tetikler, rezervasyon = sozluk()
     print(f"sozluk OLCULDU: {len(adlar)} sekil adi, "
-          f"{len(tetikler)} standart tetikleyici {sorted(tetikler)}")
+          f"{len(tetikler)} standart tetikleyici {sorted(tetikler)}, "
+          f"rezervasyon {sorted(rezervasyon)}")
     # KOSTUGUNU KANITLA: bos bir sozluk her slaydi "yabanci" gosterir ve
     # sonuc "hicbiri gecmiyor" olur -- kor bir olcunun sifiriyla gercek
     # sifir ayni goruntudur.
     if len(adlar) < 8 or not tetikler:
         print("SOZLUK BOS CALISTI: olcu kurulamadi, sayilar okunmamali.")
         return 1
-    kusur = kanarya(adlar, tetikler)
+    kusur = kanarya(adlar, tetikler, rezervasyon)
     if kusur:
         print("\nKANARYA KALDI. Asagidaki sayilar okunmamali:")
         for k in kusur:
@@ -247,7 +320,8 @@ def main() -> int:
             continue
         pkg = StoryPackage(p)
         slaytlar = [r.basename for r in model.slide_index(pkg).values()]
-        sonuc = [emniyet(pkg, s, adlar, tetikler) for s in slaytlar]
+        sonuc = [emniyet(pkg, s, adlar, tetikler, rezervasyon)
+                 for s in slaytlar]
         gecen = [r for r in sonuc if r["gecer"]]
         ayrilmis = [r for r in sonuc if r["ayrilmis"]]
         # ASIL SAYI: emniyetten gecen VE alani henuz ayrilmamis olanlar.
