@@ -53,11 +53,22 @@ COLS, ROWS = 16, 9
 SAME_IDEA = 0.15
 
 
-def grid(pkg: StoryPackage, name: str) -> list[float]:
+def grid(pkg: StoryPackage, name: str, *,
+         en_fazla_genislik: float | None = None) -> list[float]:
     """Slaydın doluluk ızgarası: her hücrede ne kadar mürekkep var.
 
     Tam sayfa arka planlar atlanır -- her slaytta olduğu için hiçbir şeyi
     ayırt etmez ve her ölçümü birbirine yaklaştırır.
+
+    `en_fazla_genislik` verilirse bundan GENIS sekiller de atlanir (slayt
+    genisliginin orani olarak). Varsayilan None, yani bu fonksiyonun eski
+    davranisi -- silhouette'in kendi esikleri ve kalibrasyonu degismez.
+
+    Parametre `deadband` icin var ve gerekcesi onun kendi yorumunda yazili:
+    "slaydin her yerine degen bir serit, bos bir bandi teknik olarak
+    doldurur ama gozun gordugu boslugu doldurmaz". Ayni gerekce iki
+    boyutta da gecerli. IKINCI BIR IZGARA YAZILMADI, cunku iki izgara
+    ayrisir ve fark yuvarlama degil KESIT olur.
     """
     part = pkg.slide_part_for(name)
     root = pkg.parse(part)
@@ -71,6 +82,8 @@ def grid(pkg: StoryPackage, name: str) -> list[float]:
             continue
         l, t, r, b = rect
         if (r - l) * (b - t) > 0.92 * W * H:
+            continue
+        if en_fazla_genislik is not None and (r - l) / W > en_fazla_genislik:
             continue
         has_text = bool(model.shape_text(root, shape.get("g", "")).strip())
         weight = 1.0 if has_text else 0.55

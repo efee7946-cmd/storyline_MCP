@@ -124,6 +124,88 @@ def dead_band(pkg: StoryPackage, part: str) -> tuple[int, int, int]:
     return best, round(total / (BAND[1] - BAND[0]) * 100), counted
 
 
+# Bos hucre esigi. silhouette.grid kismi ortusmeyi de sayiyor: bir seklin
+# kenarina degen hucre kucuk bir deger tasir. 0.02, "bu hucrede murekkep
+# yok" ile "koseden azicik degmis" arasindaki sinir; hucre alaninin %2'si.
+BOS_ESIK = 0.02
+
+
+def en_buyuk_delik(pkg: StoryPackage, slayt: str) -> tuple[int, int]:
+    """(en büyük boş DİKDÖRTGEN %, boş hücre toplamı %).
+
+    NEDEN BANDIN YANINA IKINCI BIR OLCU. `dead_band` TEK BOYUTLU: sekilleri
+    y eksenine izdusurur ve "hicbir seklin degmedigi satir" sayar. O olcu
+    iki farkli seyi ayni sayiya indiriyor:
+
+        dagilmis bosluk     blok aralari, satir araligi, kartlar arasi nefes
+        havuzlanmis bosluk  tek parca delik -- doldurulmamis bir sutun
+
+    Ayrim bu dosyada zaten yaziliydi ("%25lik bosluk tek bir cukurda degil,
+    alti kucuk aralikta dagilmis -- ritim") ama yalnizca YATAY eksende.
+    Uslup tedavileri gelince fark dikey eksende ortaya cikti ve toplam olcu
+    bir kapiyi dusurdu: kart yuzeyini hic cizmeyen `serit` toplamda %38
+    veriyordu, `sutun` %25.
+
+    ILK DENENEN OLCU BAGLANTILI BOLGEYDI VE OLCULEREK ELENDI. Izgarada bos
+    hucrelerin en buyuk BITISIK kumesi hesaplandi; sonuc neredeyse her
+    slaytta TOPLAMIN AYNISI cikti (content: %45 / %45, section: %67 / %67).
+    Sebebi geometrik: bir slaytta bosluk icerigin ETRAFINI dolanir, yani
+    zaten tek parcadir. Olcu, yerine gecmesi gereken olcuye coktu.
+    Kanit ekilmis kusurla da alindi -- sag %45'i bosaltilmis bir slaytta:
+
+        olcu               normal (band/bullets)   ekilmis delik
+        toplam bos                  %38                 %40
+        baglantili bolge            %38                 %34   <- delik DAHA KUCUK
+        BOS DIKDORTGEN              %11                 %29   <- 2.6 kat
+
+    Yani ilk iki olcu ekilmis deligi GORMUYOR; ikincisi ters yone bile
+    gidiyor. Ucuncusu goruyor, ve ayrica uslup degisiminden ETKILENMIYOR --
+    `content` duzeninde dort uslubun dordu de %31 veriyor. Aranan ozellik
+    tam olarak buydu: ayrim eksenini cezalandirmayan, deligi goren olcu.
+
+    Izgara silhouette'inki -- ayni fonksiyon, ikinci bir uygulama degil.
+    Tam genislikteki seritler ATLANIR (`FULL_WIDTH`), bu dosyanin bandla
+    ayni gerekcesiyle: slaydin her yerine degen bir serit bos bir bolgeyi
+    teknik olarak boler ama gozun gordugu boslugu bolmez.
+    """
+    import silhouette
+    # `slayt` SLAYT ADI (basename), parca yolu degil -- silhouette.grid de
+    # oyle aliyor.
+    hucreler = silhouette.grid(pkg, slayt, en_fazla_genislik=FULL_WIDTH)
+    return _delik_izgarada(hucreler, silhouette.COLS, silhouette.ROWS)
+
+
+def _en_genis_dikdortgen(yukseklikler: list[int]) -> int:
+    """Histogramdaki en büyük dikdörtgenin alanı (hücre)."""
+    yigin: list[tuple[int, int]] = []
+    en = 0
+    for i, h in enumerate(yukseklikler + [0]):
+        bas = i
+        while yigin and yigin[-1][1] >= h:
+            bas, hh = yigin.pop()
+            en = max(en, hh * (i - bas))
+        yigin.append((bas, h))
+    return en
+
+
+def _delik_izgarada(hucreler: list[float], cols: int, rows: int) -> tuple[int, int]:
+    """Izgarada en büyük boş dikdörtgen ve toplam boş oran (%).
+
+    Ayri yazildi cunku KANARYA bunu DOGRUDAN cagirabilmeli: elle kurulmus
+    bir izgarayla sinanan bir olcu, kurs kurmadan sinanabilir. "Olcu kostu
+    mu" sorusu o zaman dosya okumaya bagli kalmaz.
+    """
+    bos = [v < BOS_ESIK for v in hucreler]
+    yuk = [0] * cols
+    en_buyuk = 0
+    for y in range(rows):
+        for x in range(cols):
+            yuk[x] = yuk[x] + 1 if bos[y * cols + x] else 0
+        en_buyuk = max(en_buyuk, _en_genis_dikdortgen(yuk))
+    n = len(bos)
+    return round(en_buyuk / n * 100), round(sum(bos) / n * 100)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--story",
