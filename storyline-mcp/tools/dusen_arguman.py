@@ -7,8 +7,8 @@ ULASILAMAZ durumda -- ama erisilebilirligi tek bir prompt duzenlemesiyle
 degisir. "Bugun ulasilamiyor" bu depoda bir koruma sayilmadi.
 
 IKI SEY VAR VE IKISI AYRI:
-  BEYAN   compose.LAYOUT_DROPS -- hangi duzen hangi argumani cizmiyor.
-          Bir IDDIA, kod degil; elle tutulan her kopya koddan kayar.
+  BEYAN   compose.dusecek(layout, verilen) -- bu duzene BU alanlar
+          verilirse hangileri cizilmez. Bir IDDIA, kod degil.
   GERCEK  bu kapinin olctugu sey: sentinel metinler verilir, uretilen
           slaydin butun yazilari taranir, hangisi ortaya cikmamis diye
           bakilir.
@@ -19,10 +19,25 @@ KARSILASTIRMA IKI YONLU, ve tek yonlu olsaydi ikisi de kacardi:
                             butun uyarilari degersizlestirir.
   cizim yok, beyan yok   -> SESSIZ KAYIP. Aranan kusur tam olarak bu.
 
-USLUP EKSENI ACIK. Dort uslup ayri ayri olculur: bir tedavi bir argumani
-cizmeyi birakirsa (ornegin kart yuzeyi olmayan bir uslup madde metnini
-dusurse) tek uslup kosan bir kapi bunu goremezdi. Bu turda ayni kusur
-uc kapida ayri ayri bulundu.
+KUMELER GEZILIR, TEK KUME OLCULMEZ -- VE BU DERS PAHALIYA OGRENILDI.
+Ilk surum her duzeni TEK bir arguman kumesiyle (hepsi dolu) olcuyordu ve
+su matrisi uretti:
+
+    section    bullets, buttons, eyebrow          <- YANLIS
+    statement  bullets, buttons, eyebrow, index   <- YANLIS
+
+Ikisi de o kumede dogru, davranisin tamami olarak yanlisti:
+    section    eyebrow'u YALNIZCA `index` de verilmisse duser (ikisi ayni
+               yuvaya giriyor; index verilince kutu `Numeral` oluyor)
+    statement  title'i YALNIZCA `body` ve `eyebrow` birlikte verilmisse
+               duser (iki metin yuvasi var, uc metin sigmiyor)
+
+Tek kumeyle olcen bir prob, kosullu bir davranisi SABIT gorur -- cunku
+kosul her cagride saglaniyordu. Bu, kosmayan dalin kosup hicbir sey
+yapmayan daldan ayirt edilememesinin ikizi: sonuc ikisinde de ayni.
+Care sonucu degil DALIN GEZILDIGINI iddia etmek, yani kumeyi gezdirmek.
+
+USLUP EKSENI de acik: en genis kume dort uslupte ayri ayri olculur.
 
 TURKCE BUYUK HARF TUZAGI, ve bu olcunun ILK kosusunda yakalandi: `eyebrow`
 `buyuk()`ten geciyor, 'i' -> 'İ' oluyor, ve Python'un `.lower()`i onu
@@ -31,27 +46,33 @@ TASIMIYOR ve karsilastirma ayrica NFKD ile ASCII'ye katlaniyor. Ilk
 kosuda sekiz duzenin SEKIZI de "eyebrow dusuruyor" dedi; hicbiri
 dogru degildi.
 
-UC EKILMIS KUSURUN UCU DE KIRMIZIYA DONDURDU (olculdu 2026-09-08); bir
-kapinin dusebildigi gosterilmeden yesili bir sey ifade etmez:
-    beyan DAR   (section'dan `buttons` cikarildi)  -> "SESSIZCE dusuyor"
-    beyan GENIS (section'a `title` eklendi)        -> "yanlis uyari gider"
-    donus bosaltildi (cizilmeyen=[])               -> "cagirana SOYLEMIYOR"
-Ucuncusu ayri bir ayak ve gerekli: tablo dogru olup donus degeri bos
-kalsaydi ilk iki ayak yesil kalir, kullanici yine habersiz olurdu.
+DORT AYAK, ve her biri otekiler yesilken kirmiziya donebilir:
+  1 beyan <-> cizim, HER KUMEDE, iki yonlu
+  2 en genis kume dort uslupte ayni mi
+  3 beyan cagirana ULASIYOR mu (compose_slide donusundeki `cizilmeyen`)
+  4 sema PLANLAYICIYA ulasiyor mu (panel/agent.py, __DUZEN_YOKSAYAR__),
+    ve KOSULLARIYLA birlikte mi
+Ucuncusu olmadan 1-2 dogru bir tabloyla ve sessiz bir donusle gecilirdi;
+dorduncusu olmadan tablo dogru olup planlayici yine habersiz kalirdi.
 
-DORDUNCU AYAK, ayni sebeple ve bir katman yukarida: sema PLANLAYICIYA
-ulasiyor mu. Kayip cikista bildirilmek yerine GIRISTE onlensin diye tablo
-prompt'a gomuluyor (panel/agent.py, __DUZEN_YOKSAYAR__). Ikisi de olculdu:
-    token doldurulmadi            -> "planlayici semayi gormuyor"
-    semadan `section` satiri silindi -> "eksik duzen(ler): ['section']"
+BES EKILMIS KUSURUN BESI DE KIRMIZIYA DONDURDU (olculdu 2026-09-08):
+    beyan DAR   (section'dan buttons cikarildi) -> "SESSIZCE dusuyor"
+    beyan GENIS (section'a title eklendi)       -> "yanlis uyari gider"
+    KOSUL DUZLESTIRILDI (section eyebrow'u kosulsuz duser yapildi)
+        -> ['eyebrow'] ve ['eyebrow','title'] kumelerinde yakalandi, yani
+           ESKI PROBUN HIC UGRAMADIGI kumelerde. Tek kume gezen surum bu
+           kusuru goremezdi ve bu, kume gezmenin tek cumlelik gerekcesi.
+    donus bosaltildi (cizilmeyen=[])            -> "cagirana SOYLEMIYOR"
+    semadan kosul satiri silindi                -> "prompt KOSULU tasimiyor"
 
     python tools/dusen_arguman.py
-    python tools/dusen_arguman.py --yaz    olculen tabloyu bas (beyan icin)
+    python tools/dusen_arguman.py --yaz    olculen yuzeyi kume kume bas
 """
 
 from __future__ import annotations
 
 import argparse
+import itertools
 import shutil
 import sys
 import unicodedata
@@ -68,9 +89,9 @@ from storyline_mcp.package import StoryPackage
 BLANK = ROOT.parent / "test" / "bos.story"
 WORK = ROOT.parent / "test" / "_canary" / "dusen_arguman_{}.story"
 
-# Sentineller: i/I/ı/İ YOK (Turkce buyuk harf tuzagi), ve her biri
-# digerlerinin alt dizisi DEGIL -- "ZQEAZ" ile "ZQEABZ" olsaydi biri
-# digerini bulur ve dusen bir arguman bulunmus sayilirdi.
+# Sentineller: i/I/ı/İ YOK (Turkce buyuk harf tuzagi), ve hicbiri
+# digerinin alt dizisi DEGIL -- "ZQEAZ" ile "ZQEABZ" olsaydi biri
+# otekini bulur ve dusen bir arguman bulunmus sayilirdi.
 ARGS: dict[str, object] = {
     "title":   "ZQABZ",
     "eyebrow": "ZQBCZ",
@@ -79,6 +100,24 @@ ARGS: dict[str, object] = {
     "buttons": ["ZQFAZ"],
     "index":   "ZQGAZ",
 }
+
+# GEZILEN KUMELER. Uc metin alani birbiriyle yuva icin yarisiyor
+# (`content = body or title`, `etiket = eyebrow or title`), yani kosullar
+# orada doguyor; yapisal alanlar ya hep duser ya hic. O yuzden metin
+# alanlarinin BUTUN alt kumeleri, her biri yapisal alanlarla ve onlarsiz:
+# 7 x 2 = 14 kume. 63 kumenin tamamini gezmek dort kat pahali ve olculdu
+# ki yeni bir kosul acmiyor.
+METIN_ALANLARI = ("title", "eyebrow", "body")
+YAPI_ALANLARI = frozenset({"bullets", "buttons", "index"})
+
+
+def kombolar() -> list[frozenset[str]]:
+    out: list[frozenset[str]] = []
+    for r in range(1, len(METIN_ALANLARI) + 1):
+        for alt in itertools.combinations(METIN_ALANLARI, r):
+            out.append(frozenset(alt))
+            out.append(frozenset(alt) | YAPI_ALANLARI)
+    return out
 
 
 def _katla(metin: str) -> str:
@@ -93,8 +132,9 @@ def _izler(deger: object) -> list[str]:
     return [_katla(str(deger).split()[0])]
 
 
-def olc(layout: str, style: str) -> set[str]:
-    """Bu düzen+üslupta ÇİZİLMEYEN argümanların adları."""
+def olc(layout: str, verilen: "frozenset[str] | set[str]",
+        style: str = "rail") -> set[str]:
+    """Bu düzen+üslupta, BU alanlar verildiğinde çizilmeyenler."""
     yol = Path(str(WORK).format(style))
     shutil.copy2(BLANK, yol)
     with warnings.catch_warnings():
@@ -104,56 +144,41 @@ def olc(layout: str, style: str) -> set[str]:
         compose.compose_slide(
             pkg, slide, layout, style=style, identity="arguman",
             **{k: (list(v) if isinstance(v, list) else v)
-               for k, v in ARGS.items()})
+               for k, v in ARGS.items() if k in verilen})
         pkg.save(yol, backup=False)
     done = StoryPackage(yol)
     root = done.parse(done.slide_part_for(slide))
     govde = _katla(" ".join(
         (model.shape_text(root, el.get("g") or "") or "")
         for el in list(root.find("shapeLst") or [])))
-    return {ad for ad, deger in ARGS.items()
-            if any(iz not in govde for iz in _izler(deger))}
-
-
-def gercek() -> dict[str, set[str]]:
-    """{duzen: cizilmeyen argumanlar} -- dört üslubun ORTAK kesişimi değil,
-    BİRLEŞİMİ değil: her üslup ayrı raporlanır ve ayrışma da bir kusurdur."""
-    out: dict[str, set[str]] = {}
-    for layout in compose.LAYOUTS:
-        per = {st: olc(layout, st) for st in sorted(compose.STYLES)}
-        farkli = {frozenset(v) for v in per.values()}
-        if len(farkli) != 1:
-            # Uslup basina degisen bir dusme, tablonun tek satirla
-            # anlatilamayacagi anlamina gelir; sessiz gecmemeli.
-            out[layout] = set.union(*per.values()) | {"__uslup_ayrisiyor__"}
-        else:
-            out[layout] = next(iter(per.values()))
-    return out
+    return {ad for ad in verilen
+            if any(iz not in govde for iz in _izler(ARGS[ad]))}
 
 
 def kanarya() -> list[str]:
-    """Kapı gerçekten koşuyor ve gerçekten görüyor mu. IKI YONLU."""
+    """Ölçü koşuyor mu, ve KOŞULU görüyor mu. IKI YONLU."""
     kusur = []
-    # DUYARLILIK: bilinen bir dusme beyandan cikarilirsa kapi bagirmali.
-    # Beyan gecici olarak bozulur, sonuc olculur, geri konur.
-    layout = "section"
-    gercekten = olc(layout, "rail")
-    print(f"kanarya duyarlilik: {layout}/rail gercekte dusurdukleri = "
-          f"{sorted(gercekten) or '-'}")
-    if "buttons" not in gercekten:
-        kusur.append(f"olcu KOR: {layout} `buttons`i cizmiyor (olculdu, "
-                     f"2026-09-08) ama olcu onu cizilmis sayiyor")
-    # KARARLILIK: cizilen bir arguman yanlislikla "dusmus" sayilmamali.
-    if "title" in gercekten:
-        kusur.append(f"olcu YANLIS ALARM veriyor: {layout} basligi ciziyor "
-                     f"ama olcu dusmus sayiyor — sentinel ya da katlama bozuk")
+    # DUYARLILIK, ve bilerek KOSULLU bir cift uzerinde: tek kume olcen bir
+    # prob bu ikisini ayirt edemez, ve ayirt edememesi bu aracin daha once
+    # yayimladigi matrisi yanlis yapmisti.
+    yok = olc("section", {"eyebrow", "title"})
+    var = olc("section", {"eyebrow", "title", "index"})
+    print(f"kanarya kosul: section eyebrow -> index'siz "
+          f"{'DUSTU' if 'eyebrow' in yok else 'cizildi'}, "
+          f"index'li {'DUSTU' if 'eyebrow' in var else 'cizildi'}")
+    if "eyebrow" in yok:
+        kusur.append("olcu YANLIS ALARM veriyor: section index'siz "
+                     "eyebrow'u ciziyor (olculdu) ama olcu dusmus sayiyor")
+    if "eyebrow" not in var:
+        kusur.append("olcu KOR: section `index` ile eyebrow'u dusuruyor "
+                     "(olculdu) ama olcu onu cizilmis sayiyor")
     return kusur
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--yaz", action="store_true",
-                        help="olculen tabloyu LAYOUT_DROPS bicimiinde bas")
+                        help="olculen yuzeyi kume kume bas")
     args = parser.parse_args()
 
     kusur = kanarya()
@@ -163,40 +188,47 @@ def main() -> int:
             print(f"  - {k}")
         return 1
 
-    olculen = gercek()
-    if args.yaz:
-        print("\nLAYOUT_DROPS = {")
-        for layout in compose.LAYOUTS:
-            deger = tuple(sorted(olculen[layout]))
-            etiket = f'"{layout}":'
-            print(f"    {etiket:<14} {deger!r},")
-        print("}")
-        return 0
+    kume_listesi = kombolar()
+    sorunlar: list[str] = []
+    kosullu_bulunan: list[str] = []
 
-    print(f"\n{'duzen':<11}{'beyan':<34}{'olculen':<34}")
-    print("-" * 79)
-    sorunlar = []
+    # 1. AYAK: her duzen, HER KUME, iki yonlu.
     for layout in compose.LAYOUTS:
-        # Beyan TABLODAN DEGIL COZUCUDEN okunuyor: `compose.dusecek` bazi
-        # duzenlerde kosullu (statement'in iki metin yuvasi var, uc metin
-        # verilirse ucuncusu duser). Tabloyu dogrudan okumak, cozucudeki
-        # kosulu bu kapinin gormedigi anlamina gelirdi -- yani kapi,
-        # denetledigi kodun yardimcisini atlayip kendi kopyasini kurardi.
-        beyan = compose.dusecek(layout, set(ARGS))
-        olc_ = olculen[layout]
-        print(f"{layout:<11}{str(sorted(beyan)):<34}{str(sorted(olc_)):<34}")
-        # BEYAN VAR, CIZIM VAR: yanlis uyari.
-        for ad in sorted(beyan - olc_):
-            sorunlar.append(f"{layout}: `{ad}` beyanda DUSUYOR yaziyor ama "
-                            f"ciziliyor — cagirana yanlis uyari gider")
-        # CIZIM YOK, BEYAN YOK: SESSIZ KAYIP. Aranan kusur bu.
-        for ad in sorted(olc_ - beyan):
-            sorunlar.append(f"{layout}: `{ad}` verildiginde SESSIZCE dusuyor "
-                            f"ve beyanda yok — cagiran icerigin kayboldugunu "
-                            f"bilmiyor")
+        for verilen in kume_listesi:
+            olculen = olc(layout, verilen)
+            beyan = compose.dusecek(layout, set(verilen))
+            if args.yaz and olculen:
+                print(f"  {layout:<10} {sorted(verilen)} -> {sorted(olculen)}")
+            for ad in sorted(beyan - olculen):
+                sorunlar.append(
+                    f"{layout} {sorted(verilen)}: `{ad}` beyanda DUSUYOR "
+                    f"yaziyor ama ciziliyor — cagirana yanlis uyari gider")
+            for ad in sorted(olculen - beyan):
+                sorunlar.append(
+                    f"{layout} {sorted(verilen)}: `{ad}` SESSIZCE dusuyor ve "
+                    f"beyanda yok — cagiran icerigin kayboldugunu bilmiyor")
+        for alan in compose.ICERIK_ALANLARI:
+            tetik = compose.kosul_of(layout, alan)
+            if tetik:
+                kosullu_bulunan.append(
+                    f"{layout}.{alan} <- {' + '.join(sorted(tetik))}")
+    print(f"\n{len(compose.LAYOUTS)} duzen x {len(kume_listesi)} kume = "
+          f"{len(compose.LAYOUTS) * len(kume_listesi)} kurulum olculdu.")
+    print(f"kosullu davranis: {', '.join(kosullu_bulunan) or 'yok'}")
 
-    # Beyanin cagirana GERCEKTEN ulastigini da sinar: tablo dogru olup
-    # donus degeri bos kalsaydi kapi yesil, kullanici yine habersiz olurdu.
+    # 2. AYAK: en genis kume dort uslupte ayni mi.
+    tum = frozenset(ARGS)
+    for layout in compose.LAYOUTS:
+        per = {st: olc(layout, tum, st) for st in sorted(compose.STYLES)}
+        if len({frozenset(v) for v in per.values()}) != 1:
+            sorunlar.append(
+                f"{layout}: dusen alanlar USLUBA GORE degisiyor "
+                f"{ {k: sorted(v) for k, v in per.items()} } — tek satirlik "
+                f"bir beyan bunu anlatamaz")
+    print(f"uslup ekseni: {len(compose.STYLES)} uslup x "
+          f"{len(compose.LAYOUTS)} duzen, en genis kume")
+
+    # 3. AYAK: beyan cagirana ULASIYOR mu.
     yol = Path(str(WORK).format("donus"))
     shutil.copy2(BLANK, yol)
     with warnings.catch_warnings():
@@ -206,15 +238,12 @@ def main() -> int:
         sonuc = compose.compose_slide(pkg, slide, "section", title="Baslik",
                                       buttons=["Devam"], identity="arguman")
     bildirilen = sonuc.get("cizilmeyen")
-    print(f"\ndonus degeri: section + buttons -> cizilmeyen={bildirilen}")
+    print(f"donus degeri: section + buttons -> cizilmeyen={bildirilen}")
     if bildirilen != ["buttons"]:
         sorunlar.append(f"compose_slide donusu cagirana SOYLEMIYOR: "
                         f"cizilmeyen={bildirilen!r}, ['buttons'] bekleniyordu")
 
-    # DORDUNCU AYAK: sema PLANLAYICIYA da ulasiyor mu. Kayip cikista
-    # bildirilmek yerine GIRISTE onlensin diye tablo prompt'a gomuluyor;
-    # token doldurulmazsa ya da satir dusesrse planlayici semayi hic
-    # gormez ve icerik yine kaybolur -- ustelik her sey yesil kalarak.
+    # 4. AYAK: sema PLANLAYICIYA ulasiyor mu, KOSULLARIYLA birlikte mi.
     try:
         sys.path.insert(0, str(ROOT / "panel"))
         import agent as _agent
@@ -226,21 +255,31 @@ def main() -> int:
         if "__DUZEN_YOKSAYAR__" in prompt:
             sorunlar.append("prompt'taki __DUZEN_YOKSAYAR__ token'i "
                             "DOLDURULMAMIS — planlayici semayi gormuyor")
+        gomulu = prompt.split("HER DUZEN HER ALANI")[-1][:1600]
         eksik = [l for l in compose.LAYOUTS
                  if compose.dusecek(l, set(compose.ICERIK_ALANLARI))
-                 and l not in prompt.split("HER DUZEN HER ALANI")[-1][:900]]
+                 and l not in gomulu]
         if eksik:
             sorunlar.append(f"prompt semasinda eksik duzen(ler): {eksik} — "
                             f"planlayici o duzenin yok saydiklarini bilmiyor")
+        # KOSULLAR DA GITMELI. Kosulsuz yazilmis bir sema en sik durumda
+        # yanlis uyari verir: planlayici `section`a eyebrow'u hic
+        # gondermez, oysa index'siz section onu gayet ciziyor.
+        for satir in kosullu_bulunan:
+            alan = satir.split(" <- ")[0].split(".")[1]
+            if f"+ {alan}:" not in gomulu:
+                sorunlar.append(f"prompt semasi KOSULU tasimiyor ({satir}) — "
+                                f"planlayici alani kosulsuz duser sanir")
         print(f"prompt semasi: {len(compose.LAYOUTS)} duzen gomulu, "
-              f"token dolu")
+              f"{len(kosullu_bulunan)} kosul gomulu")
 
     if sorunlar:
         print("\nSORUN:")
         for s in sorunlar:
             print(f"  ! {s}")
         return 1
-    print("\nBeyan ile cizim ortusuyor, ve beyan cagirana ulasiyor.")
+    print("\nBeyan ile cizim HER KUMEDE ortusuyor; beyan cagirana ve "
+          "planlayiciya ulasiyor.")
     return 0
 
 

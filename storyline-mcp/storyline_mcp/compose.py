@@ -415,6 +415,26 @@ LAYOUTS = ("cover", "section", "content", "bullets", "steps", "statement",
 # Sabit bir demet bunu anlatamaz: "statement title dusurur" demek, en sik
 # durumda (title+body) yanlis uyari verirdi -- ve yanlis uyari, zamanla
 # butun uyarilari degersizlestirir.
+def _section_drops(verilen: set[str]) -> set[str]:
+    """`section`: eyebrow'u YALNIZCA `index` de verilmisse duser.
+
+    OLCULDU 2026-09-08. Ikisi ayni yuvaya giriyor: `index` verilince kutu
+    `Numeral` oluyor ve ust etiket cizilmiyor; `index` yokken `Eyebrow`
+    normal cizilir.
+        eyebrow            -> cizilir      eyebrow+index -> DUSER
+        eyebrow+title      -> cizilir      eyebrow+title+index -> DUSER
+    Bu satir bir tur once "section eyebrow'u SABIT dusurur" diye
+    yayimlanmisti ve YANLISTI: prob her cagride `index` de geciyordu,
+    yani kosul hep saglaniyordu ve kosullu davranis sabit gorunuyordu.
+    Tek bir arguman kumesiyle olculen bir matris, davranisin tamami degil
+    o kumedeki kesitidir.
+    """
+    dusen = {"bullets", "buttons"} & verilen
+    if {"eyebrow", "index"} <= verilen:
+        dusen.add("eyebrow")
+    return dusen
+
+
 def _statement_drops(verilen: set[str]) -> set[str]:
     dusen = {"bullets", "buttons", "index"} & verilen
     if {"eyebrow", "title", "body"} <= verilen:
@@ -424,7 +444,7 @@ def _statement_drops(verilen: set[str]) -> set[str]:
 
 LAYOUT_DROPS: dict[str, "tuple[str, ...] | Callable[[set[str]], set[str]]"] = {
     "cover":     ("bullets", "index"),
-    "section":   ("bullets", "buttons", "eyebrow"),
+    "section":   _section_drops,
     "content":   ("index",),
     "bullets":   ("body", "index"),
     "steps":     ("body", "index"),
@@ -459,6 +479,30 @@ def dusecek(layout: str, verilen: "set[str] | frozenset[str]") -> set[str]:
 ICERIK_ALANLARI = ("title", "eyebrow", "body", "bullets", "buttons", "index")
 
 
+def kosul_of(layout: str, alan: str) -> set[str] | None:
+    """`alan` bu düzende hangi alanlarla BİRLİKTE verilirse düşer.
+
+    None = ya hic dusmez, ya da kosulsuz duser (tek basina verilse bile).
+    Aksi halde donen kume, dusmeyi tetikleyen EN KUCUK ek alan kumesidir.
+
+    URETILIYOR, YAZILMIYOR: kosul `dusecek`ten geriye dogru aranir, yani
+    kural degistiginde aciklama kendiliginden degisir. Elle yazilan bir
+    aciklama koddan kayar, ve kayan aciklama olmayandan kotudur.
+    """
+    tum = set(ICERIK_ALANLARI)
+    if alan not in dusecek(layout, tum):
+        return None                       # hic dusmuyor
+    if alan in dusecek(layout, {alan}):
+        return None                       # tek basina da duser: kosulsuz
+    # En kucuk tetikleyici: hepsinden basla, atilabileni at.
+    aday = tum - {alan}
+    for baska in sorted(aday):
+        kalan = aday - {baska}
+        if alan in dusecek(layout, kalan | {alan}):
+            aday = kalan
+    return aday
+
+
 def drops_metni() -> str:
     """Düzen başına yok sayılan alanlar, prompt'a gömülecek biçimde.
 
@@ -470,15 +514,15 @@ def drops_metni() -> str:
     """
     satirlar = []
     for layout in LAYOUTS:
-        tum = set(ICERIK_ALANLARI)
         kesin = sorted(a for a in ICERIK_ALANLARI if dusecek(layout, {a}))
-        kosullu = sorted(dusecek(layout, tum) - set(kesin))
+        kosullu = [(a, sorted(t)) for a in ICERIK_ALANLARI
+                   if (t := kosul_of(layout, a))]
         if not kesin and not kosullu:
             continue
         parca = f"     {layout:<10} {', '.join(kesin) if kesin else '-'}"
-        if kosullu:
-            parca += (f"   (ayrica {', '.join(kosullu)}: yalnizca oteki "
-                      f"alanlarla BIRLIKTE verilirse duser)")
+        for alan, tetik in kosullu:
+            parca += (f"\n     {'':<10} + {alan}: yalnizca "
+                      f"{' ve '.join(tetik)} ile BIRLIKTE verilirse duser")
         satirlar.append(parca)
     return "\n".join(satirlar)
 IMAGE_STYLES = ("panel", "bleed", "hero")
