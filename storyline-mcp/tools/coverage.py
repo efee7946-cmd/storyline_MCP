@@ -182,6 +182,32 @@ _ESKI_TABAN_2026_08_16 = {"cover": 23, "section": 36, "content": 44,
 # diyor. Olcunun buyumesi tasarimin bozulmasi degil, olcunun durustlesmesi.
 SLACK = 4
 
+# EN BUYUK BOS DIKDORTGEN, duzen basina. KAPI BU; ustteki EMPTY_BASELINE
+# artik RAPOR.
+#
+# NEDEN DEGISTI. `EMPTY_BASELINE` TOPLAM bos alani olcuyor ve bunu
+# "bitmemislik" icin vekil olarak kullaniyordu. Vekil tek bir tasarimda
+# tutuyordu; uslup ayrim ekseni acilinca kirildi -- daha az murekkep
+# kullanan her uslup kapiyi dusuruyordu (olculdu, `bullets`: rail %25,
+# corner %28, plain %35, band %38, taban %10). Yani kapi, ayrimdan ONCEKI
+# tasarima kalibreydi ve yeni ekseni cezalandiriyordu.
+#
+# Iki tur bosluk var ve toplam ikisini ayirt etmiyor:
+#     dagilmis     kartlar arasi nefes, blok araliklari
+#     havuzlanmis  tek parca delik -- doldurulmamis bir sutun
+# Aranan sey ikincisi. Olcu artik `deadband.en_buyuk_delik`: izgaradaki en
+# buyuk bos DIKDORTGEN. Baglantili bolge de denendi ve olculerek elendi;
+# gerekce ve sayilar deadband.en_buyuk_delik'in yorumunda.
+#
+# TABAN USLUPTAN NEREDEYSE BAGIMSIZ, ve olcunun dogru olcu oldugunun kaniti
+# bu (olculdu 2026-09-08, dort uslup):
+#     section  19/19/19/19    content  31/31/31/31    bullets  11/12/12/12
+#     cover    11/15/15/15    steps     6/10/15/12    menu     22/33/33/31
+# Karsilastir: ayni slaytlarda TOPLAM bos alan uslupla %25-%38 arasi
+# saliniyordu. Taban her duzenin dort uslup uzerindeki EN BUYUGU.
+HOLE_BASELINE = {"cover": 15, "section": 19, "content": 31, "bullets": 12,
+                 "steps": 15, "statement": 29, "menu": 33}
+
 
 def sweep() -> dict[str, dict[str, tuple[int, int]]]:
     """{tema: {duzen: (kontrast uyarisi, bos alan %)}}"""
@@ -752,6 +778,94 @@ def kanarya(kaynak: Path) -> int:
     return 0
 
 
+def delik_sweep(themes: list[str] | None = None
+                ) -> dict[str, dict[str, dict[str, int]]]:
+    """{tema: {duzen: {uslup: en buyuk bos dikdortgen %}}}
+
+    USLUP EKSENI BURADA ACIK, ve bunun sebebi bu turda uc kez olculdu:
+    kapi, yazandan dar bakarsa kusur aradaki boslukta yasar. `compose_slide`
+    uslubu verilmediginde dosya adindan TOHUMLUYOR -- yani eski sweep dort
+    geometriden birine, hem de secilmemis birine bakiyordu.
+
+    Tema ekseni ikinci bir tema ile SINANIYOR, tek tema ile degil: olcunun
+    renge kor oldugu bir IDDIA ve iddia kosulmadan durmaz.
+    """
+    themes = themes or compose.theme_names()[:2]
+    out: dict[str, dict[str, dict[str, int]]] = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for theme in themes:
+            out[theme] = {}
+            for style in sorted(compose.STYLES):
+                path = Path(str(WORK).format(f"delik_{theme}_{style}"))
+                shutil.copy2(BLANK, path)
+                pkg = StoryPackage(path)
+                names = [r.basename for r in model.slide_index(pkg).values()]
+                for slide, (layout, spec) in zip(names, SPECS.items()):
+                    compose.compose_slide(pkg, slide, layout, theme=theme,
+                                          identity="kapsam", style=style,
+                                          **dict(spec))
+                pkg.save(path, backup=False)
+                done = StoryPackage(path)
+                for slide, layout in zip(names, SPECS):
+                    delik, _toplam = deadband.en_buyuk_delik(done, slide)
+                    out[theme].setdefault(layout, {})[style] = delik
+    return out
+
+
+def delik_kanaryasi() -> list[str]:
+    """Delik ölçüsü gerçekten koşuyor ve gerçekten görüyor mu. IKI YONLU."""
+    kusur = []
+    # BIRIM AYAGI: elle kurulmus izgara. Kurs kurmadan kosar, yani "olcu
+    # kostu mu" sorusu dosya okumaya bagli kalmaz. Ayrica AYRIMI sinar:
+    # ayni miktarda bosluk, biri dagilmis biri havuzlanmis.
+    dagilmis = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]      # iki 1x3 sutun
+    havuzlu = [1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1]       # tek 2x2 blok
+    d_dik, d_top = deadband._delik_izgarada([float(v) for v in dagilmis], 4, 3)
+    h_dik, h_top = deadband._delik_izgarada([float(v) for v in havuzlu], 4, 3)
+    print(f"delik birim kanaryasi: dagilmis {d_top}% bos -> dikdortgen "
+          f"{d_dik}% | havuzlu {h_top}% bos -> dikdortgen {h_dik}%")
+    if not (d_top > h_top and d_dik < h_dik):
+        kusur.append(f"delik olcusu AYIRMIYOR: dagilmis ({d_top}/{d_dik}) ile "
+                     f"havuzlu ({h_top}/{h_dik}) beklenen yonde ayrismiyor")
+
+    # EKILMIS DELIK AYAGI: gercek bir slaydin sag yarisi bosaltilir.
+    path = Path(str(WORK).format("delik_kanarya"))
+    shutil.copy2(BLANK, path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pkg = StoryPackage(path)
+        slide = [r.basename for r in model.slide_index(pkg).values()][0]
+        compose.compose_slide(pkg, slide, "bullets", theme="gece",
+                              identity="kapsam", style="rail",
+                              **dict(SPECS["bullets"]))
+        pkg.save(path, backup=False)
+    once, _t = deadband.en_buyuk_delik(StoryPackage(path), slide)
+    pkg = StoryPackage(path)
+    part = pkg.slide_part_for(slide)
+    root = pkg.parse(part)
+    genislik, _yuk = shapes.slide_size(root)
+    liste = root.find("shapeLst")
+    silinen = 0
+    for el in list(liste or []):
+        rect = shapes.shape_rect(el)
+        if rect and (rect[0] + rect[2]) / 2 > 0.55 * genislik                 and (rect[2] - rect[0]) < 0.9 * genislik:
+            liste.remove(el)
+            silinen += 1
+    pkg.replace_xml(part, root)
+    pkg.save(path, backup=False)
+    sonra, _t2 = deadband.en_buyuk_delik(StoryPackage(path), slide)
+    sinir = HOLE_BASELINE["bullets"] + SLACK
+    print(f"delik ekili kanarya: sag yari bosaltildi ({silinen} sekil) -> "
+          f"%{once} -> %{sonra} (sinir %{sinir})")
+    if not silinen:
+        kusur.append("delik kanaryasi bos calisti: hicbir sekil silinemedi")
+    elif sonra <= sinir:
+        kusur.append(f"delik olcusu KOR: sag yarisi bosaltilmis slayt %{sonra} "
+                     f"veriyor, sinir %{sinir} — ekilmis delik gorunmuyor")
+    return kusur
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--envanter", nargs="?", const="", metavar="KURS",
@@ -787,19 +901,63 @@ def main() -> int:
         if len(seen) != 1:
             problems.append(f"{layout}: bos alan temaya gore degisiyor {seen}")
 
+    # TOPLAM BOS ALAN ARTIK RAPOR, KAPI DEGIL. Neden: bu sayi bir uslubun
+    # ne kadar murekkep kullandigini olcuyor ve "az murekkep"i gerileme
+    # sayiyor. Tek bir tasarim varken tuttu; ayrim ekseni acilinca her yeni
+    # uslubu cezalandirir hale geldi (olculdu, `bullets`: rail %25,
+    # corner %28, plain %35, band %38, taban %10). Silinmiyor cunku hala
+    # bir seyi goruyor: her yeri seyrek ama hicbir yeri havuzlanmamis bir
+    # slaytta dikdortgen olcusu sessiz kalir, bu sayi kalmaz.
     print()
+    print("toplam bos alan (RAPOR, kapi degil):")
     for layout in SPECS:
         value = table[themes[0]][layout][1]
         base = EMPTY_BASELINE[layout]
-        if value > base + SLACK:
-            problems.append(f"{layout}: bos alan %{value}, taban %{base}")
-            print(f"  {layout:<10} %{value}  <- taban %{base}")
+        isaret = f"  <- taban %{base} asildi" if value > base + SLACK else ""
+        print(f"  {layout:<10} %{value:<4}(taban %{base}){isaret}")
+
+    # KAPI: EN BUYUK BOS DIKDORTGEN, her duzen x her uslup.
+    # Kanarya ONCE: bu olcu de sifira yakin sayilar uretiyor ve kor bir
+    # olcu tam olarak ayni goruntuyu verir.
+    kusur = delik_kanaryasi()
+    if kusur:
+        print("\nDELIK KANARYASI KALDI. Asagidaki sayilar okunmamali:")
+        for k in kusur:
+            print(f"  - {k}")
+        return 1
+    delikler = delik_sweep()
+    d_temalar = list(delikler)
+    print("\nen buyuk bos dikdortgen (KAPI):")
+    print(f"  {'duzen':<10}"
+          + "".join(f"{st:>9}" for st in sorted(compose.STYLES))
+          + f"{'taban':>9}")
+    for layout in SPECS:
+        satir = delikler[d_temalar[0]][layout]
+        print(f"  {layout:<10}"
+              + "".join(f"{satir[st]:>8}%" for st in sorted(compose.STYLES))
+              + f"{HOLE_BASELINE[layout]:>8}%")
+        for style, value in satir.items():
+            if value > HOLE_BASELINE[layout] + SLACK:
+                problems.append(f"{layout}/{style}: bos dikdortgen %{value}, "
+                                f"taban %{HOLE_BASELINE[layout]}")
+    # Olcunun renge kor oldugu bir IDDIA; iki temada kosuluyor ve burada
+    # sinaniyor. Kor degilse taban zaten anlamsiz.
+    for layout in SPECS:
+        for style in sorted(compose.STYLES):
+            gorulen = {delikler[t][layout][style] for t in d_temalar}
+            if len(gorulen) != 1:
+                problems.append(f"{layout}/{style}: bos dikdortgen temaya gore "
+                                f"degisiyor {gorulen} — olcu renge kor degil")
+
     print(f"\n{len(themes)} tema x {len(SPECS)} duzen = "
-          f"{len(themes) * len(SPECS)} slayt tarandi.")
+          f"{len(themes) * len(SPECS)} slayt (kontrast + toplam bos); "
+          f"{len(d_temalar)} tema x {len(compose.STYLES)} uslup x "
+          f"{len(SPECS)} duzen = "
+          f"{len(d_temalar) * len(compose.STYLES) * len(SPECS)} slayt (delik).")
     if problems:
         print("SORUN:")
-        for p in problems:
-            print(f"  ! {p}")
+        for pr in problems:
+            print(f"  ! {pr}")
         return 1
     print("Tabanla uyumlu. Bilinen sinir: menu ve content, yogunluk olcegi "
           "content disinda yok.")

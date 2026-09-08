@@ -33,6 +33,16 @@ SCOPES = {
     "deadband": [
         "bu olcu GEOMETRIKTIR: bos alanin nerede oldugunu sayar, o alanin",
         "ne renk oldugunu degil. Acik zeminli bir tema ayni sayiyi verir.",
+        "IKI AYRI SAYI VAR ve karistirilmamalari gerekiyor:",
+        "  toplam bos  -- ne kadar murekkep kullanildigi. Bir uslubun",
+        "     tercihine duyarli: az murekkep kullanan uslup yuksek verir,",
+        "     ve bu bir kusur DEGILDIR. RAPOR olarak tutulur.",
+        "  bos dikdortgen -- havuzlanmis boslugun buyuklugu, yani",
+        "     'doldurulmamis bir sutun' sorusu. Uslup degisiminden",
+        "     etkilenmedigi OLCULDU (content: dort uslupta da %31). KAPI",
+        "     budur (tools/coverage.py).",
+        "Baglantili bos BOLGE de denendi ve elendi: neredeyse her slaytta",
+        "toplamin aynisini veriyor, cunku bosluk icerigin etrafini dolanir.",
         "okunabilirlik icin: tools/contrast.py.",
     ],
     "uslup": [
