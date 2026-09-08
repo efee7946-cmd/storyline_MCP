@@ -35,6 +35,16 @@ SCOPES = {
         "ne renk oldugunu degil. Acik zeminli bir tema ayni sayiyi verir.",
         "okunabilirlik icin: tools/contrast.py.",
     ],
+    "uslup": [
+        "bu olcu KONUMSALDIR (silhouette uzerine kurulu): iki uslubun ayni",
+        "renkte, ayni puntoda, ayni harf araliginda olup olmadigini gormez.",
+        "Dolayisiyla dusuk bir ayrim orani 'uslup hicbir sey yapmiyor'",
+        "DEMEK DEGIL -- 'uslup GEOMETRIYE dokunmuyor' demek. Bugun STYLES'in",
+        "degistirdigi dort seyin ucu (vurgu rengi, eyebrow harf duzeni, zemin",
+        "gradyani) bu sayida GORUNMEZ; yalnizca `mark`in yeri gorunur.",
+        "Sifir bu yuzden 'usluplar ayni' degil, 'usluplar ayni ISKELETI",
+        "ciziyor' diye okunur. Renk icin: tools/contrast.py, ve gozle bakis.",
+    ],
     "silhouette": [
         "bu olcu KONUMSALDIR: iki slaytin ayni renkte olup olmadigini",
         "gormez, yalnizca murekkebin nerede toplandigini gorur.",

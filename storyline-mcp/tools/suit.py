@@ -65,6 +65,19 @@ ADIMLAR = [
      False, False, "yalnizca kaynak kodu; cikis kodu YOK"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
+    # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine
+    # bakar; bu, IKI KURSUN birbirine benzeyip benzemedigine. "Panelden cikan
+    # her sey tek makineden gecmis gibi" sikayetinin olculebilir hali.
+    #
+    # KAPI OLAN SEY ORAN DEGIL, OLCUNUN KENDISI. Bugun oran 0.000 --
+    # yani dort uslup 21 hucrenin hicbirinde farkli bir resim uretmiyor,
+    # cunku STYLES geometriye dokunmuyor (mark disinda). Orani kapi yapmak
+    # suiti kalici kirmiziya boyardi ve kalici kirmizi bir kapi sinyal
+    # uretmeyi birakir; o yuzden oran TABANA (uslup_taban.json) karsi
+    # raporlanir, kapi ise arac kendi iki yonlu kanaryasini gecti mi.
+    # Sifir, olcu korlestiginde de basilir -- ayirt eden tek sey o kanarya.
+    ("uslup",           [PY, "tools/uslup.py"],
+     True,  False, "kendi prob kurslarini kurar; KAPI = olcunun kanaryasi"),
     ("rubric_fixtures", [PY, "tools/rubric_fixtures.py"],
      True,  False, "URETIR: test/_rubrik/*.story"),
     ("invariants",      [PY, "tools/invariants.py"],
