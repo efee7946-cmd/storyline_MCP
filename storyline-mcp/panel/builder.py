@@ -1987,6 +1987,26 @@ def build(
                         if reveal_items else spec.get("buttons"))
             if _icerik_sayilir_mi(spec):
                 _kur_icerik += 1
+            # SESSIZ DUSME OLMASIN -- medya istegiyle AYNI kural, bu kez
+            # metin alanlari icin. `section`a `buttons`, `bullets`a `body`
+            # vermek hicbir sey yapmiyordu ve akista tek satir yazmiyordu;
+            # kayip ancak uretilmis kurs gozle denetlenince goruluyordu
+            # (uc kursta uc madde, hepsi planlayicinin hanesine yazilmisti).
+            #
+            # GIRISTE, cizimden ONCE: cikista bildirmek kaybi belgeler,
+            # girise bakmak kaybin SEBEBINI soyler -- hangi alan, hangi
+            # slaytta, hangi duzende.
+            _dusen = compose.dusecek(duzen, {
+                ad for ad, deger in (("title", spec.get("title")),
+                                     ("eyebrow", spec.get("eyebrow")),
+                                     ("body", spec.get("body")),
+                                     ("bullets", spec.get("bullets")),
+                                     ("buttons", butonlar),
+                                     ("index", spec.get("index"))) if deger})
+            if _dusen:
+                on_progress(f"alan dusuruldu ({spec.get('title', '')}): "
+                            f"{duzen} duzeni {', '.join(sorted(_dusen))} "
+                            f"cizmiyor -- icerik slayta girmedi")
             laid = compose.compose_slide(
                 pkg, new["new_slide"], duzen,
                 title=spec.get("title"), eyebrow=spec.get("eyebrow"),

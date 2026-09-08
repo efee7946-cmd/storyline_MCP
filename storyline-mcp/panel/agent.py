@@ -182,6 +182,12 @@ duzenin yedisi de SUNUM duzenidir. Etkilesim gerekiyorsa compose_slide'in
 disina cikmak dogrudur, amatorluk degildir.
      compose_slide(slide, layout, title, eyebrow, body, bullets, buttons)
      layout: cover | section | content | bullets | steps | statement | menu
+- HER DUZEN HER ALANI CIZMEZ. Asagidaki alanlar o duzende YOK SAYILIR: verirsen
+sessizce kaybolur, ogrenci onu hic gormez. Icerik kaybetmemek icin ya alani
+verme ya da o icerigi tasiyabilen bir duzen sec.
+__DUZEN_YOKSAYAR__
+     Kesin cevap her cagride donuste: compose_slide'in donusundeki
+     `cizilmeyen` listesi, O CAGRIDA gercekten cizilmeyen alanlari sayar.
 - Bir kursun tum slaytlarinda ayni theme'i kullan; boylece kurs tek bir dile
 sahip olur. theme: gece, kagit, komur, orman, sis, murdum. Her temanin zemini
 ayridir ve zemin slaydin neredeyse tamami demektir -- iki kursu birbirinden
@@ -356,6 +362,16 @@ yazmak henuz olculmedi.
 # replace, format DEGIL: yukaridaki metin literal JSON suslu parantezi tasiyor.
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
     "__OGRETIM_KURALLARI__", ogretim.ORTAK_KURALLAR)
+
+# DUZEN YOK SAYMA TABLOSU DA URETILIYOR, ayni gerekceyle: elle yazilan bir
+# kopya koddan kayar, ve kayan bir sema olmayan semadan kotudur --
+# planlayici ona guvenip icerigi kaybeder. Kaynak compose.dusecek; ayni
+# cozucuyu compose_slide'in donusu ve tools/dusen_arguman.py kapisi da
+# kullaniyor, yani uc tuketici tek sayidan besleniyor.
+from storyline_mcp import compose as _compose      # noqa: E402
+
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
+    "__DUZEN_YOKSAYAR__", _compose.drops_metni())
 
 
 def _mcp_config() -> Path:

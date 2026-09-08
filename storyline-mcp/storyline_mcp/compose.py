@@ -26,6 +26,8 @@ project and a 1920x1080 one alike.
 
 from __future__ import annotations
 
+from typing import Callable
+
 import hashlib
 import json
 import xml.etree.ElementTree as ET
@@ -405,16 +407,80 @@ LAYOUTS = ("cover", "section", "content", "bullets", "steps", "statement",
 # `index` ozel: docstring'i zaten "where the layout shows one" diyor, yani
 # yalnizca `section` gosteriyor. Digerlerinde sessiz dusmesi tasarim, ama
 # cagiranin bunu BILMESI yine de gerekiyor.
-LAYOUT_DROPS: dict[str, tuple[str, ...]] = {
+# `statement` KOSULLU, ve kosul olcumle bulundu. Duzenin IKI metin yuvasi
+# var: buyuk cumle (`body or title`) ve kucuk etiket (`eyebrow or title`).
+# Uc metin birden verilirse ucuncusune yer yok:
+#     eyebrow+title+body -> title DUSER      title+body -> hicbiri dusmez
+#     eyebrow+body       -> hicbiri dusmez   eyebrow+title -> hicbiri dusmez
+# Sabit bir demet bunu anlatamaz: "statement title dusurur" demek, en sik
+# durumda (title+body) yanlis uyari verirdi -- ve yanlis uyari, zamanla
+# butun uyarilari degersizlestirir.
+def _statement_drops(verilen: set[str]) -> set[str]:
+    dusen = {"bullets", "buttons", "index"} & verilen
+    if {"eyebrow", "title", "body"} <= verilen:
+        dusen.add("title")
+    return dusen
+
+
+LAYOUT_DROPS: dict[str, "tuple[str, ...] | Callable[[set[str]], set[str]]"] = {
     "cover":     ("bullets", "index"),
     "section":   ("bullets", "buttons", "eyebrow"),
     "content":   ("index",),
     "bullets":   ("body", "index"),
     "steps":     ("body", "index"),
-    "statement": ("bullets", "buttons", "eyebrow", "index"),
+    "statement": _statement_drops,
     "menu":      ("bullets", "index"),
     "reveal":    ("bullets", "index"),
 }
+
+
+def dusecek(layout: str, verilen: "set[str] | frozenset[str]") -> set[str]:
+    """Bu düzene bu argümanlar verilirse hangileri çizilmez. TEK YETKILI.
+
+    Uc yerden cagriliyor ve UCUNUN DE ayni cevabi almasi sart:
+      compose_slide   donusteki `cizilmeyen` -- cagiran cikista ogrenir
+      dusen_arguman   kapi -- beyan ile cizim iki yonlu karsilastirilir
+      GIRIS DOGRULAMA spec bestelenmeden once, kayip CIKISTA bildirilmek
+                      yerine GIRISTE onlenir
+    Ucu ayri ayri hesaplasaydi ayrisirlardi ve fark yuvarlama degil KESIT
+    olurdu -- bu dosyada uc kez olculmus bir kusur.
+
+    Sonuc her zaman `verilen`in alt kumesi: verilmemis bir arguman
+    "dusuyor" diye raporlanamaz.
+    """
+    verilen = set(verilen)
+    kural = LAYOUT_DROPS.get(layout, ())
+    dusen = kural(verilen) if callable(kural) else set(kural)
+    return dusen & verilen
+
+
+# Planlayiciya verilen alanlarin tamami. `dusecek` bu kumeyle sorulunca
+# "en kotu hal"i verir; tek tek sorulunca kosulsuz dusenleri ayirir.
+ICERIK_ALANLARI = ("title", "eyebrow", "body", "bullets", "buttons", "index")
+
+
+def drops_metni() -> str:
+    """Düzen başına yok sayılan alanlar, prompt'a gömülecek biçimde.
+
+    URETILIYOR, YAZILMIYOR. Ayni tablonun bir de prompt icinde elle
+    tutulan kopyasi olsaydi kacinilmaz olarak koddan kayardi -- ve kayan
+    bir sema, olmayan semadan kotudur: planlayici ona guvenip icerigi
+    kaybeder. Bu depoda ayni sekil `ogretim.ORTAK_KURALLAR` icin bir kez
+    yasandi (iki uretici ayri metin tasiyordu, kurallar sessizce ayristi).
+    """
+    satirlar = []
+    for layout in LAYOUTS:
+        tum = set(ICERIK_ALANLARI)
+        kesin = sorted(a for a in ICERIK_ALANLARI if dusecek(layout, {a}))
+        kosullu = sorted(dusecek(layout, tum) - set(kesin))
+        if not kesin and not kosullu:
+            continue
+        parca = f"     {layout:<10} {', '.join(kesin) if kesin else '-'}"
+        if kosullu:
+            parca += (f"   (ayrica {', '.join(kosullu)}: yalnizca oteki "
+                      f"alanlarla BIRLIKTE verilirse duser)")
+        satirlar.append(parca)
+    return "\n".join(satirlar)
 IMAGE_STYLES = ("panel", "bleed", "hero")
 
 # Structural variants. Each layout has one skeleton, which is what keeps a deck
@@ -4017,6 +4083,24 @@ def compose_slide(
         # zarars1zdi cunku neredeyse hic kullanilmiyordu. Ayrac kapisi onu
         # sik kullanilan bir duzen yaptigi anda tek imza bir kusura donustu.
         content = body or title or "…"
+        # KUCUK ETIKET: verilen `eyebrow` VARSA odur, yoksa baslik.
+        #
+        # OLCULEN KUSUR (2026-09-08). Bu dal verilen `eyebrow`u HIC
+        # kullanmiyordu ve `if title and body` oldugunda BASLIGI eyebrow
+        # rolune yaziyordu. Sonuc uretilmis uc kursta gozle goruldu ve
+        # planlayicinin hanesine yazilmisti:
+        #     tuzla/slide4          Eyebrow = "Tuzla, adini kiyisinda ..."
+        #     etkiliyapayzeka/slide5  Eyebrow = "Bir Sonraki Kelimeyi ..."
+        #     etkiliyapayzeka/slidea  Eyebrow = "Simdi Ne Yapacaksiniz?"
+        # Ucu de statement, ucunde de kucuk vurgu kutusunda cumle boyunda
+        # bir BASLIK duruyor, bolum etiketi yok. Planlayici dogru etiketi
+        # yazmisti; duzen onu atip yerine basligi koyuyordu.
+        #
+        # ETIKET IF/ELSE'TEN ONCE, TEK YERDE hesaplaniyor: asagida iki
+        # bicim dali var (`serit` ve digeri) ve ikisi de ayni kurali
+        # tasiyordu. Bu dosyada ayni kuralin bir dalda unutulmasi bes kez
+        # olculdu; ikinci bir kopya birakmamak icin karar yukari alindi.
+        etiket = buyuk(eyebrow) if eyebrow else (title if body else None)
         bicim = shape_var.get("bicim", "vurgu")
         tx, tw = shape_var.get("text", (MARGIN_X + 4, CONTENT_W * 0.74))
         hiza = shape_var.get("hiza", "l")
@@ -4029,9 +4113,9 @@ def compose_slide(
             page.text(content, serit_y + UNIT * 100 * 1.2, role="subtitle",
                       x=tx, w=tw, height=h, align=hiza, bold=False,
                       bottom=serit_y + serit_h)
-            if title and body:
-                page.text(title, min(serit_y + serit_h + UNIT * 100 * 0.8,
-                                     FLOOR - 4),
+            if etiket:
+                page.text(etiket, min(serit_y + serit_h + UNIT * 100 * 0.8,
+                                      FLOOR - 4),
                           role="eyebrow", x=tx, w=tw, align=hiza,
                           color=colors["accent_text"])
         else:
@@ -4041,8 +4125,8 @@ def compose_slide(
             h = page.text_height(content, "subtitle", tw)
             page.text(content, max((100 - h) / 2, CEILING), role="subtitle",
                       x=tx, w=tw, height=h, align=hiza, bold=False)
-            if title and body:
-                page.text(title, FLOOR - 6, role="eyebrow", x=tx, w=tw,
+            if etiket:
+                page.text(etiket, FLOOR - 6, role="eyebrow", x=tx, w=tw,
                           align=hiza, color=colors["accent_text"])
 
     elif layout in ("menu", "reveal"):
@@ -4207,7 +4291,7 @@ def compose_slide(
         "motion": choreography,
         # CAGIRAN BILSIN. Bu duzene verildi ama cizilmedi -- sessizce
         # dusen icerik, kaybolmadan once bir kez soylenmis olur.
-        "cizilmeyen": sorted(_verilen & set(LAYOUT_DROPS.get(layout, ()))),
+        "cizilmeyen": sorted(dusecek(layout, _verilen)),
     }
 
 

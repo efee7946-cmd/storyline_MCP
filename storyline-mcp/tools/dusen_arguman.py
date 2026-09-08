@@ -39,6 +39,12 @@ kapinin dusebildigi gosterilmeden yesili bir sey ifade etmez:
 Ucuncusu ayri bir ayak ve gerekli: tablo dogru olup donus degeri bos
 kalsaydi ilk iki ayak yesil kalir, kullanici yine habersiz olurdu.
 
+DORDUNCU AYAK, ayni sebeple ve bir katman yukarida: sema PLANLAYICIYA
+ulasiyor mu. Kayip cikista bildirilmek yerine GIRISTE onlensin diye tablo
+prompt'a gomuluyor (panel/agent.py, __DUZEN_YOKSAYAR__). Ikisi de olculdu:
+    token doldurulmadi            -> "planlayici semayi gormuyor"
+    semadan `section` satiri silindi -> "eksik duzen(ler): ['section']"
+
     python tools/dusen_arguman.py
     python tools/dusen_arguman.py --yaz    olculen tabloyu bas (beyan icin)
 """
@@ -171,7 +177,12 @@ def main() -> int:
     print("-" * 79)
     sorunlar = []
     for layout in compose.LAYOUTS:
-        beyan = set(compose.LAYOUT_DROPS.get(layout, ()))
+        # Beyan TABLODAN DEGIL COZUCUDEN okunuyor: `compose.dusecek` bazi
+        # duzenlerde kosullu (statement'in iki metin yuvasi var, uc metin
+        # verilirse ucuncusu duser). Tabloyu dogrudan okumak, cozucudeki
+        # kosulu bu kapinin gormedigi anlamina gelirdi -- yani kapi,
+        # denetledigi kodun yardimcisini atlayip kendi kopyasini kurardi.
+        beyan = compose.dusecek(layout, set(ARGS))
         olc_ = olculen[layout]
         print(f"{layout:<11}{str(sorted(beyan)):<34}{str(sorted(olc_)):<34}")
         # BEYAN VAR, CIZIM VAR: yanlis uyari.
@@ -199,6 +210,30 @@ def main() -> int:
     if bildirilen != ["buttons"]:
         sorunlar.append(f"compose_slide donusu cagirana SOYLEMIYOR: "
                         f"cizilmeyen={bildirilen!r}, ['buttons'] bekleniyordu")
+
+    # DORDUNCU AYAK: sema PLANLAYICIYA da ulasiyor mu. Kayip cikista
+    # bildirilmek yerine GIRISTE onlensin diye tablo prompt'a gomuluyor;
+    # token doldurulmazsa ya da satir dusesrse planlayici semayi hic
+    # gormez ve icerik yine kaybolur -- ustelik her sey yesil kalarak.
+    try:
+        sys.path.insert(0, str(ROOT / "panel"))
+        import agent as _agent
+        prompt = _agent.SYSTEM_PROMPT
+    except Exception as exc:                       # pragma: no cover
+        sorunlar.append(f"prompt okunamadi, sema planlayiciya ulasiyor mu "
+                        f"SINANAMADI: {type(exc).__name__}: {str(exc)[:60]}")
+    else:
+        if "__DUZEN_YOKSAYAR__" in prompt:
+            sorunlar.append("prompt'taki __DUZEN_YOKSAYAR__ token'i "
+                            "DOLDURULMAMIS — planlayici semayi gormuyor")
+        eksik = [l for l in compose.LAYOUTS
+                 if compose.dusecek(l, set(compose.ICERIK_ALANLARI))
+                 and l not in prompt.split("HER DUZEN HER ALANI")[-1][:900]]
+        if eksik:
+            sorunlar.append(f"prompt semasinda eksik duzen(ler): {eksik} — "
+                            f"planlayici o duzenin yok saydiklarini bilmiyor")
+        print(f"prompt semasi: {len(compose.LAYOUTS)} duzen gomulu, "
+              f"token dolu")
 
     if sorunlar:
         print("\nSORUN:")
