@@ -428,6 +428,22 @@ def _section_drops(verilen: set[str]) -> set[str]:
     yani kosul hep saglaniyordu ve kosullu davranis sabit gorunuyordu.
     Tek bir arguman kumesiyle olculen bir matris, davranisin tamami degil
     o kumedeki kesitidir.
+
+    BU DAVRANIS DUZELTILMEYECEK, ve gerekcesi ARTEFAKTTA dogrulandi.
+    Uretilmis dort pakette indexli section slaytlari sayildi (2026-09-08,
+    kullanici kontrolu): savunma slide2/5/7, yks slide4/7 -- besinde de
+    Numeral var, Eyebrow sekli HIC YOK, ve besi de dogru okunuyor:
+    "01 / Savunmanin Temel Ilkeleri" tam bir bolum ayracidir, numara
+    zaten etiketin isini gorur. Indexsiz section da ayni paketlerde
+    geciyor, yani kosulun iki yani da CANLI.
+
+    AYRIMI KORUYUN, cunku yuzeysel olarak `statement`in kusuruna benziyor
+    ve birisi onu "normallestirmek" isteyebilir:
+        statement.eyebrow <- (title, body)   VERILEN etiket ATILIP yerine
+            baslik konuyordu. Uc kursta gozle gorulur kusur. DUZELTILDI.
+        section.eyebrow   <- index           Iki alan ayni yuvayi MESRU
+            paylasiyor, cikti dogru. Beyan yeterli.
+    Birincisi icerigi kaybediyordu; ikincisi bir tasarim karari veriyor.
     """
     dusen = {"bullets", "buttons"} & verilen
     if {"eyebrow", "index"} <= verilen:
