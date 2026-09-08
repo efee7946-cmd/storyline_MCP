@@ -30,6 +30,24 @@ sozluge giremezler; onlar ADI KENDI METNINE ESIT olmasindan taniniyor --
 tag imzasi DENENDI VE ELENDI, compose'un butonlari `Kart` ile ayni tag'i
 (`roundRect`) tasiyor.
 
+BAYRAK ESIKSIZ, ve bu bilerek: `acilabilir > 0 ve ayrilmis == 0`, yani
+"yer vardi, hicbiri kullanilmadi". Bir buyukluk esigi uydurulmus bir sayi
+olurdu ve kurs uzunluguna gore kayardi. Yedi kursta davranisi OLCULDU:
+
+    kurs             acilabilir  ayrilmis  bayrak
+    uretilmis                17         4    -
+    kosul_probu2             14         6    -
+    olcum_ilerleme            6         6    -
+    kurs.story               10         0    BAYRAK
+    deneme.kurs               0         0    -
+    yks                       7         2    -
+    savunma                   8         0    BAYRAK
+
+Tam olarak medya boru hattinin yer VARKEN hic calismadigi iki kursu
+isaretliyor; yeri OLMAYAN kursta (deneme.kurs) susuyor, kismen
+calisanlarda susuyor. savunma'nin bayraklanmasi BAGIMSIZ dogrulama --
+o kursun medyasiz ciktigi bu oturumda ayri yoldan tespit edilmisti.
+
 NE OLCMEZ: bu olcu slaydin yeniden bestelenmeye DEGER olup olmadigini
 soylemez, yalnizca KALDIRIP kaldiramayacagini. Emniyetten gecen bir slayt
 zaten iyi yerlesmis olabilir; gorsel istemek ayri bir karar.
@@ -313,6 +331,7 @@ def main() -> int:
           f"{'ACILABILIR':>12}")
     print("-" * 71)
     toplam_acilabilir = 0
+    bayraklar: list[str] = []
     for yol in args.kurslar:
         p = Path(yol)
         if not p.is_file():
@@ -328,8 +347,16 @@ def main() -> int:
         # Gecisin yer ACABILECEGI slaytlar bunlar.
         acilabilir = [r for r in gecen if not r["ayrilmis"]]
         toplam_acilabilir += len(acilabilir)
+        # BAYRAK: ESIK DEGIL BIRLESIM. "Yer vardi, hicbiri kullanilmadi."
+        # Bir buyukluk esigi ("acilabilir > 5" gibi) uydurulmus bir sayi
+        # olurdu ve kurs uzunluguna gore kayardi. Aranan sey buyukluk
+        # degil: medya boru hatti yer VARKEN hic mi calismadi.
+        bayrak = bool(acilabilir) and not ayrilmis
         print(f"{p.name:<34}{len(sonuc):>7}{len(gecen):>8}"
-              f"{len(ayrilmis):>10}{len(acilabilir):>12}")
+              f"{len(ayrilmis):>10}{len(acilabilir):>12}"
+              f"{'  <- BAYRAK' if bayrak else ''}")
+        if bayrak:
+            bayraklar.append(p.name)
         if args.dokum:
             for r in sonuc:
                 if r["gecer"]:
@@ -346,6 +373,9 @@ def main() -> int:
                 print(f"    {r['slayt']:<16} {durum}")
 
     print(f"\nyeniden bestelenebilir VE alani ayrilmamis: {toplam_acilabilir}")
+    if bayraklar:
+        print(f"BAYRAK ({len(bayraklar)}): {', '.join(bayraklar)} -- yer "
+              f"acilabilirdi ama hicbir slaytta alan ayrilmamis")
     print("KAPSAM: bu olcu slaydin yeniden bestelenmeye DEGER oldugunu\n"
           "        soylemez, yalnizca KALDIRABILECEGINI. Gorsel istemek\n"
           "        ayri bir karar; bu sayi o kararin UST SINIRI.")

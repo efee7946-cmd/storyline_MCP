@@ -141,6 +141,14 @@ ADIMLAR = [
     # cevabi.
     ("yeni modul",      [PY, "tools/yeni_modul.py"],
      True,  False, "URETIR: sifirdan modul; 8 kusur sinifini sinar"),
+    # MEDYA YERI. `produced`tan SONRA, cunku taze uretilmis kursu okuyor.
+    # KAPI OLAN SEY BAYRAK DEGIL, OLCUNUN KANARYASI (uslup ile ayni bicim):
+    # bes ayak -- taze slayt gecmeli, yabanci sekil/tetikleyici yakalanmali,
+    # hero kapak hem gecmeli hem AYRILMIS sayilmali, katmanli slayt kalmali.
+    # Bayrak (`acilabilir>0 ve ayrilmis==0`) rapor satiri; esigi yok, cunku
+    # aranan sey buyukluk degil birlesim.
+    ("medya yeri",      [PY, "tools/yeniden_beste.py", URETILMIS],
+     True,  False, "OKUR: uretilmis kurs; KAPI = olcunun bes ayakli kanaryasi"),
     ("ogretim",         [PY, "tools/ogretim_kapi.py"],
      True,  False, "OKUR: donors/* + referans; kanarya URETIR"),
     ("inventory",       [PY, "tools/inventory.py", REFERANS],
