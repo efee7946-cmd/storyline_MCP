@@ -395,15 +395,92 @@ IMAGE_STYLES = ("panel", "bleed", "hero")
 # "ground" is how the slide is painted underneath everything: a flat field is
 # the giveaway that nobody designed it. A gradient costs one extra element and
 # reads as depth, so only "plain" keeps the flat ground, on purpose.
+#
+# `cards` ve `cta` 2026-09-08'DE EKLENDI, VE SEBEBI OLCULDU. tools/uslup.py
+# ayni icerigi dort uslupla cizip siluetleri karsilastirdi: 21 (duzen x
+# varyant) hucresinin HICBIRINDE ayrisma yok, 0/126. En ayrik cift
+# band/corner 0.0811 -- "ayni fikir" esiginin (0.15) yarisi. plain/rail
+# 0.0115: vurgu cubugunu TAMAMEN kaldirmak bile resmi oynatmiyor.
+#
+# Yani ustteki dort anahtar (mark / rule / eyebrow_case / ground) uslup
+# ekseni kuruyor ama GEOMETRININ COZUNURLUGUNUN ALTINDA calisiyor: ucu
+# renk ve harf duzeni, dorduncusu %0.7 genisliginde bir cubuk. Eksen olu
+# degil; bilesenlere hic baglanmamis.
+#
+# `cards` ve `cta` o baglantiyi kurar. Ikisi de AYAK IZINE dokunacak
+# sekilde secildi, cunku olcu konumsal: kartin kenar cubugunu soldan uste
+# tasimak kart dikdortgenini yerinde birakir ve sayiyi KIMILDATMAZ. En az
+# iki tedavi bandin kendisini oynatmali -- `tek` sutun sayisini, `serit`
+# yuzeyin varligini, `tam` butonu tam genislige gecirir.
+#
+# CTA ONCE GELIR, cunku etkisi on kat: uretilmis dort kursta `Button` 499
+# kez geciyor, `Kart` 45.
 STYLES = {
     "rail":   {"mark": "rail",   "rule": True,  "eyebrow_case": "upper",
-               "ground": ("grad", 90)},
+               "ground": ("grad", 90),  "cards": "sutun", "cta": "sira"},
     "corner": {"mark": "corner", "rule": False, "eyebrow_case": "upper",
-               "ground": ("grad", 45)},
+               "ground": ("grad", 45),  "cards": "tek",   "cta": "genis"},
     "band":   {"mark": "band",   "rule": False, "eyebrow_case": "title",
-               "ground": ("grad", 135)},
+               "ground": ("grad", 135), "cards": "serit", "cta": "tam"},
     "plain":  {"mark": "none",   "rule": True,  "eyebrow_case": "title",
-               "ground": ("flat", 0)},
+               "ground": ("flat", 0),   "cards": "kutu",  "cta": "ince"},
+}
+
+# Kart tedavileri. REZERVASYON ILE CIZIM AYNI SATIRI OKUR: `_card_band`
+# bandi bu sozlukten olcer, `_cards` ayni satirdan cizer. Iki yerde iki
+# kopya tutulsaydi ayrisirlardi ve fark yuvarlama degil KESIT olurdu --
+# bu dosyada bir kez olculmus bir kusur.
+#
+#   cols   sutun politikasi: "auto" bugunku kural (>=4 madde ve genis
+#          sutunda iki), tam sayi ise zorlar. AYAK IZINI en cok bu oynatir.
+#   pay    kutunun ne kadari metne ayriliyor. CIZILEN degerle AYNI
+#          (`_cards`: height=card_h*pay), yani bir ayar dugmesi degil.
+#   yuzey  "kutu" tam bir zemin dikdortgeni, "cizgi" yalnizca bir kural
+#          cizgisi -- ikincisinde kart dikdortgeni HIC CIZILMEZ.
+#   kenar  vurgu isaretinin kutu icindeki yeri; "yok" ise hic konmaz.
+#          Bu eksen AYAK IZINI DEGISTIRMEZ (kutu yerinde kalir) ve
+#          uslup.py'de gorunmez -- bilerek, cunku uslubun tamami
+#          geometrik olmak zorunda degil.
+# `taban` (MIN_CARD_H carpani) DENENDI VE KALDIRILDI, ve sebebi bu
+# katmanin en onemli dersi: kart bandi `density_scale`in girdisidir.
+# Bandi kucultmek metne daha cok yer birakir, punto buyur, ve GENIS bir
+# sutunda buyuk punto satir basina DAHA AZ karakter demektir. `tek`in
+# 0.72'lik tabani yeni_modul'un "yuklu havuz olcusu" kapisini tam
+# oradan dusurdu: 29 kar/satir, taban 30 -- ve o 30 secilmis degil,
+# %44 sutunda 13pt ile OLCULMUS bir tavan.
+#
+# Yani bir kart tedavisi, hicbir karta dokunmadan slaydin TIPOGRAFISINI
+# degistirebiliyor. O yuzden ayrim yalnizca CIZILEN seyden alinir --
+# sutun sayisi, yuzeyin varligi, vurgunun yeri -- rezerve edilen alani
+# oynatan bir carpandan degil. Taban MIN_CARD_H'de, tek yerde kalir.
+CARD_LOOKS = {
+    "sutun": {"cols": "auto", "pay": 0.70, "yuzey": "kutu",  "kenar": "sol"},
+    "tek":   {"cols": 1,      "pay": 0.70, "yuzey": "kutu",  "kenar": "ust"},
+    "serit": {"cols": "auto", "pay": 0.80, "yuzey": "cizgi", "kenar": "alt"},
+    "kutu":  {"cols": "auto", "pay": 0.70, "yuzey": "kutu",  "kenar": "yok"},
+}
+
+# Cagri tedavileri. `tam` HER ZAMAN yigin kurar -- yani tek bir "Devam"
+# butonu bile tam genislikte bir bara doner. Sira/yigin karari
+# `_buttons_stacked`de TEK YERDE duruyor; tedavi o karara girer, yanina
+# ikinci bir karar koymaz.
+#
+# `taban` YIGIN KUTUSUNUN ALT SINIRI, ve `tam` icin ayrica verilmesi
+# OLCULEREK ogrenildi. Yigin yuksekligi metinden hesaplanip
+# BUTTON_STACK_MIN_H'ye (%4.0) tabanlaniyor; tek kelimelik bir etiket
+# ("Devam") o tabana duser ve `tam` barı %84x5.5 olur -- eski %30x9.0
+# butondan DAHA KISA. Sonuc: coverage kapisi `cover` duzeninde bos alani
+# %27'den %32'ye cikmis gordu ve dustu. Bar tam genislige cikiyorsa
+# yuksekligini de tasimali.
+#
+# None = "BUTTON_STACK_MIN_H kullan". Sayiyi buraya kopyalamak, tabani iki
+# yerde tutmak olurdu ve bu dosyada tabanin deger olarak kullanilmasi zaten
+# iki kez olculmus bir kusur.
+CTA_LOOKS = {
+    "sira":  {"h": 9.0, "en": 30.0, "aralik": 2.5, "tam": False, "taban": None},
+    "genis": {"h": 6.5, "en": 46.0, "aralik": 1.6, "tam": False, "taban": None},
+    "tam":   {"h": 9.0, "en": 30.0, "aralik": 2.5, "tam": True,  "taban": 9.0},
+    "ince":  {"h": 5.5, "en": 22.0, "aralik": 2.0, "tam": False, "taban": None},
 }
 
 
@@ -2959,6 +3036,18 @@ class _Page:
         self.space = shapes.space_of(root, shapes.stage_size(pkg))
         # Icerik yogunluguna gore punto olcegi. 1.0 = TYPE_SCALE oldugu gibi.
         self.scale = 1.0
+        # USLUP SAYFANIN UZERINDE DURUR, cagri listesinde DEGIL. `_cards`,
+        # `_card_band` ve `_buttons` zaten `page` aliyor; uslubu ayrica
+        # parametre olarak gezdirmek her cagirana ayni satiri yazdirirdi ve
+        # bu dosyada ayni kuralin bir dalda unutulmasi DORT kez olculdu
+        # (K25, kart bandi, buton bandi, _distribute). `_apply_style` uc
+        # cercevenin de gectigi tek nokta; orada bir kez konur.
+        #
+        # None = "uslup henuz konmadi". Cozucu o durumda bugunku
+        # geometriyi verir: yeni bir dal `_apply_style`i atlarsa slayt
+        # BOZULMAZ, yalnizca uslupsuz kalir -- ve uslup.py o hucreyi
+        # ayrismayan olarak gosterir, yani sessiz kalmaz.
+        self.look: dict | None = None
 
     # ---------------------------------------------------------------- measure
 
@@ -3515,9 +3604,9 @@ def compose_slide(
                                   0.62 if role == "lead" else 1.0),
                       color=colors["accent_text"] if role == "eyebrow" else
                             colors["muted"] if role == "lead" else colors["text"])
-        button_specs = _buttons(buttons, y=FLOOR - 9.5, fill=colors["accent"],
-                                color=colors["on_accent"],
-                                space=page.space)
+        button_specs = _buttons(buttons, page=page, y=FLOOR - 9.5,
+                                fill=colors["accent"],
+                                color=colors["on_accent"])
 
     elif layout == "section":
         # A divider earns its slide by being nearly empty: a large index, a
@@ -3715,10 +3804,11 @@ def compose_slide(
                 # Yirmi satir yukarida ayni tuzak kartlarin KENDI dalinda
                 # yaziliyla isaretlenmis, ama donusu kimse duzeltmemis.
                 reserved = None
-        button_specs = _buttons(buttons, y=FLOOR - 9.5, fill=colors["accent"],
+        button_specs = _buttons(buttons, page=page, y=FLOOR - 9.5,
+                                fill=colors["accent"],
                                 color=colors["on_accent"],
                                 x=text_x, w_avail=text_w,
-                                anchor=shape_var["cta"], space=page.space)
+                                anchor=shape_var["cta"])
 
     elif layout == "bullets":
         # Cards, not dots. Each point gets a surface of its own, which reads as
@@ -3825,9 +3915,9 @@ def compose_slide(
             top = min(top, bottom - need)
         _cards(page, bullets or [], {"x": k_x, "y": top, "w": k_w,
                                      "h": max(bottom - top, 0.0)}, colors)
-        button_specs = _buttons(buttons, y=FLOOR - 9.5, fill=colors["accent"],
-                                color=colors["on_accent"],
-                                space=page.space)
+        button_specs = _buttons(buttons, page=page, y=FLOOR - 9.5,
+                                fill=colors["accent"],
+                                color=colors["on_accent"])
 
     elif layout == "steps":
         # A sequence, numbered because the order carries meaning here.
@@ -3877,9 +3967,9 @@ def compose_slide(
                 page.text(item, y + slot * 0.08, role="body",
                           x=MARGIN_X + 7.5, w=CONTENT_W - 7.5,
                           height=slot * 0.7, color=colors["text"])
-        button_specs = _buttons(buttons, y=FLOOR - 9.5, fill=colors["accent"],
-                                color=colors["on_accent"],
-                                space=page.space)
+        button_specs = _buttons(buttons, page=page, y=FLOOR - 9.5,
+                                fill=colors["accent"],
+                                color=colors["on_accent"])
 
     elif layout == "statement":
         # One idea, large, with room around it. Used where a slide exists to
@@ -3931,8 +4021,8 @@ def compose_slide(
         # dallarinda var. Bu BESINCISI. Sayi artik _button_band'de, tek
         # yerde: sira mi yigin mi karari da oradan okunuyor, cunku band
         # ayirmak o karari bilmeyi gerektiriyor.
-        _b_each, _b_need = _button_band(buttons or [], w_avail=CONTENT_W,
-                                        space=page.space)
+        _b_each, _b_need = _button_band(buttons or [], page=page,
+                                        w_avail=CONTENT_W)
         _b_head_bottom = FLOOR - _b_need - (UNIT * 100 if _b_need else 0.0)
         y = CEILING + 2
         # BOLUM ETIKETI BURADA DA CIZILIR -- OLCULDU 2026-09-06.
@@ -3987,10 +4077,9 @@ def compose_slide(
         # kendi bandinda baslar.
         band_top, band_bottom = min(y + 2, FLOOR - _b_need), FLOOR
         height = min(max((band_bottom - band_top) * 0.42, 11.0), 20.0)
-        button_specs = _buttons(buttons, y=band_top + UNIT * 100,
+        button_specs = _buttons(buttons, page=page, y=band_top + UNIT * 100,
                                 fill=colors["surface"], color=colors["text"],
-                                height=height, space=page.space,
-                                bottom=FLOOR)
+                                height=height, bottom=FLOOR)
 
     # DEKORATIF SEKILLER EKRAN OKUYUCUDAN CIKSIN. Kural `dekoratifi_gizle`de,
     # cunku ayni kurala geri bildirim katmanlarinin da ihtiyaci var ve iki
@@ -4082,7 +4171,20 @@ def compose_slide(
 
 
 def _mark(page: _Page, look: dict, colors: dict, layout: str) -> None:
-    """The recurring accent, placed where this style puts it."""
+    """The recurring accent, placed where this style puts it.
+
+    USLUBU SAYFAYA DA BURADA BAGLAR, ve yeri olculerek secildi. Uslup iki
+    ayri yerde cozuluyor -- `compose_slide` kendi `style_for`ini cagiriyor,
+    soru/surukle/metin cerceveleri `_apply_style`i. Baglama once
+    `_apply_style`e konmustu ve SONUC HIC DEGISMEDI: uslup.py 21 hucrenin
+    hepsinde onceki kosuyla DORT BASAMAGA KADAR AYNI sayiyi verdi. "Fark
+    kucuk" ile "kod hic kosmadi" ayni goruntuyu uretir; ayirt eden sey
+    sayinin kimildamamis olmasiydi -- gercek bir geometri degisikligi bir
+    basamagi oynatirdi.
+    `_mark` iki cozucunun de gectigi TEK nokta, ve atlanmasi gorunur
+    (vurgu isareti hic cizilmez). O yuzden baglama burada.
+    """
+    page.look = look
     mark = look["mark"]
     if mark == "rail":
         page.band(0, 0, 0.7, 100, colors["accent"], name="Vurgu")
@@ -4092,7 +4194,24 @@ def _mark(page: _Page, look: dict, colors: dict, layout: str) -> None:
         page.band(0, 96.5, 100, 3.5, colors["accent"], name="Serit")
 
 
-def _columns(items: list[str], width: float) -> int:
+def card_look(page: "_Page | None") -> dict:
+    """Sayfanın üslubunun kart tedavisi. TEK COZUCU.
+
+    `page.look` konmamissa (bir dal `_apply_style`i atlamis) bugunku
+    geometri doner. Sessiz bir varsayilan degil, OLCULEBILIR bir
+    varsayilan: uslup.py o hucreyi ayrismayan gosterir.
+    """
+    ad = (page.look or {}).get("cards") if page is not None else None
+    return CARD_LOOKS.get(ad or "", CARD_LOOKS["sutun"])
+
+
+def cta_look(page: "_Page | None") -> dict:
+    """Sayfanın üslubunun çağrı tedavisi. TEK COZUCU."""
+    ad = (page.look or {}).get("cta") if page is not None else None
+    return CTA_LOOKS.get(ad or "", CTA_LOOKS["sira"])
+
+
+def _columns(items: list[str], width: float, look: dict) -> int:
     """Two columns once there are four or more: a single column of six cards is
     a list again, and leaves half the slide empty.
 
@@ -4100,8 +4219,27 @@ def _columns(items: list[str], width: float) -> int:
     that draws them have to agree on the row count. Two copies of this rule
     drift, and the drift shows up as cards that overrun the band they were
     measured into.
+
+    `look["cols"]` bu kurali ZORLAYABILIR ve uslup ekseninin en buyuk
+    geometrik kolu odur: dort maddeyi 2x2 izgaradan tek sutuna almak bandi
+    ikiye katlar, yani ayak izini gercekten oynatir. Kutunun ICINDEKI
+    degisiklikler (kenar cubugu nerede) oynatmaz -- olculdu.
     """
+    zorla = look.get("cols", "auto")
+    if isinstance(zorla, int):
+        return max(1, min(zorla, len(items) or 1))
     return 2 if len(items) >= 4 and width > 45 else 1
+
+
+def _card_text_w(card_w: float, look: dict) -> float:
+    """Kartın içindeki metnin genişliği. TEK YETKILI.
+
+    `_card_band` bu genislikle OLCER, `_cards` bu genislikle YAZAR. Kutusuz
+    tedavide ic marj yok, dolayisiyla sutun daha genis; iki taraf ayri
+    sayilar kullansaydi kutusuz kartlar olculdugunden dar yazilir ve
+    tasarlardi. Ayni ayrisma bu dosyada kart bandinda bir kez olculdu.
+    """
+    return card_w - (5.0 if look["yuzey"] == "kutu" else 1.5)
 
 
 def _yigin_bandi(page: _Page, items: list[str], width: float, *,
@@ -4140,18 +4278,23 @@ def _card_band(page: _Page, items: list[str], width: float) -> tuple[int, float]
     """
     if not items:
         return 0, 0.0
-    columns = _columns(items, width)
+    # Tedavi buradan okunur ve `_cards` AYNI satiri okur. Sutun sayisi,
+    # metin payi ve taban carpani uslupla degisiyor; ikisi ayri sozlukten
+    # okusaydi rezervasyon ile cizim ayrisirdi.
+    look = card_look(page)
+    columns = _columns(items, width, look)
     rows = -(-len(items) // columns)
     card_w = (width - CARD_GAP * (columns - 1)) / columns
     scale = page.scale
     page.scale = 1.0
     try:
-        # _cards metni x+3.2, w=card_w-5 ile yaziyor; ayni genislikle olc.
-        need = max(page.text_height(it, "body", card_w - 5) for it in items)
+        # _cards ayni genislikle yaziyor -- ikisi de _card_text_w'den okur.
+        need = max(page.text_height(it, "body", _card_text_w(card_w, look))
+                   for it in items)
     finally:
         page.scale = scale
-    # Kutunun %70'i metne ayriliyor (_cards: height=card_h*0.7).
-    card_h = max(need / 0.7, MIN_CARD_H)
+    # Kutunun `pay` kadari metne ayriliyor (_cards: height=card_h*pay).
+    card_h = max(need / look["pay"], MIN_CARD_H)
     return rows, rows * card_h + (rows - 1) * CARD_GAP
 
 
@@ -4159,7 +4302,8 @@ def _cards(page: _Page, items: list[str], area: dict, colors: dict) -> None:
     """Lay items out as surfaces filling the given area."""
     if not items:
         return
-    columns = _columns(items, area["w"])
+    look = card_look(page)
+    columns = _columns(items, area["w"], look)
     rows = -(-len(items) // columns)
     gap = CARD_GAP
     # Kart etiketi olcege GIRMEZ. Bant hesabi zaten oyle yapiyor (kartlarin
@@ -4176,10 +4320,27 @@ def _cards(page: _Page, items: list[str], area: dict, colors: dict) -> None:
         col, row = i % columns, i // columns
         x = area["x"] + col * (card_w + gap)
         y = area["y"] + row * (card_h + gap)
-        page.band(x, y, card_w, card_h, colors["surface"], name="Kart", rounded=True)
-        page.band(x, y, 0.7, card_h, colors["accent"], name="Kenar")
-        page.text(item, y + card_h * 0.18, role="body", x=x + 3.2,
-                  w=card_w - 5, height=card_h * 0.7,
+        # YUZEY. "kutu" tam bir zemin dikdortgeni, "cizgi" yalnizca alta
+        # bir kural. Ikincisinde kart dikdortgeni HIC CIZILMEZ ve ayak izi
+        # gercekten degisir -- kenar cubugunu soldan uste tasimak degistirmez.
+        if look["yuzey"] == "kutu":
+            page.band(x, y, card_w, card_h, colors["surface"], name="Kart",
+                      rounded=True)
+        kenar = look["kenar"]
+        if kenar == "sol":
+            page.band(x, y, 0.7, card_h, colors["accent"], name="Kenar")
+        elif kenar == "ust":
+            page.band(x, y, card_w, 0.6, colors["accent"], name="Kenar")
+        elif kenar == "alt":
+            page.band(x, y + card_h - 0.4, card_w, 0.4, colors["accent"],
+                      name="Cizgi")
+        # Metin, yuzey yoksa sola yaslanir: 3.2'lik girinti kutunun ic
+        # marjiydi, kutu olmayinca sutunu sebepsiz iceri iter.
+        ic = 3.2 if look["yuzey"] == "kutu" else 0.0
+        page.text(item, y + card_h * (0.18 if look["yuzey"] == "kutu" else 0.06),
+                  role="body", x=x + ic,
+                  w=_card_text_w(card_w, look),
+                  height=card_h * look["pay"],
                   bottom=y + card_h, color=colors["text"])
     page.scale = scale
 
@@ -4191,20 +4352,34 @@ BUTTON_STACK_MIN_H = 4.0
 BUTTON_STACK_GAP = 1.6
 
 
-def _buttons_stacked(labels, *, w_avail, space) -> bool:
+def _buttons_stacked(labels, *, page, w_avail) -> bool:
     """Sıra mı yığın mı -- TEK YETKILI.
 
     Karar `_buttons`in icinde gomuluydu ve disaridan sorulamiyordu. Bandi
     ayirmasi gereken cagiran, yigin mi kurulacagini BILMEDEN ayiramaz:
     yigin n kutu, sira tek kutu. Iki yerde ayri ayri karar verilirse
     ayrisirlar (K25).
+
+    USLUP BU KARARA GIRER, YANINA IKINCI BIR KARAR KOYMAZ. `tam`
+    tedavisinde cevap her zaman yigin: tek bir "Devam" butonu bile tam
+    genislikte bir bara doner, ve ayak izi %30x9'dan %84x9'a cikar. Ikinci
+    bir "tam mi" bayragi eklemek, sira/yigin sorusunu iki yerde sormak
+    olurdu -- bu fonksiyonun var olma sebebinin tersi.
+
+    `page` ALINIYOR, `space` DEGIL: uslup sayfanin uzerinde duruyor ve
+    space zaten ondan cikiyor. Bes cagiranin her birine ayrica `look=`
+    yazdirmak, ayni kuralin bir dalda unutulmasi icin dorduncu firsat
+    olurdu.
     """
     if not labels:
         return False
+    look = cta_look(page)
+    if look["tam"]:
+        return True
     count = len(labels)
-    gap = 2.5
-    width = min((w_avail - gap * (count - 1)) / count, 30.0)
-    uzay = shapes._space(space)
+    gap = look["aralik"]
+    width = min((w_avail - gap * (count - 1)) / count, look["en"])
+    uzay = shapes._space(page.space)
     per_px = 16.0 * uzay.h * shapes.CHAR_WIDTH_RATIO
     row_chars = int((width / 100 * uzay.slide_w) / per_px)
     return max(len(str(label)) for label in labels) > row_chars
@@ -4224,7 +4399,7 @@ def _buttons_stacked(labels, *, w_avail, space) -> bool:
 BUTTON_LABEL_MARGIN = 1.2      # slayt yuksekliginin yuzdesi
 
 
-def _button_band(labels, *, w_avail, space, height=9.0) -> tuple[float, float]:
+def _button_band(labels, *, page, w_avail, height=None) -> tuple[float, float]:
     """(her butonun yuksekligi %, toplam bant %) -- TEK YETKILI.
 
     Onceki hali `n * BUTTON_STACK_MIN_H` idi: yani TABANI deger olarak
@@ -4237,9 +4412,14 @@ def _button_band(labels, *, w_avail, space, height=9.0) -> tuple[float, float]:
     """
     if not labels:
         return 0.0, 0.0
-    if not _buttons_stacked(labels, w_avail=w_avail, space=space):
+    look = cta_look(page)
+    # Sira yuksekligi TEDAVIDEN gelir; cagiranin verdigi `height` yalnizca
+    # acikca gecildiginde ezer. Iki uslup ayni sirayi farkli yukseklikte
+    # cizer ve bant o farki bilmezse rezervasyon ile cizim ayrisir.
+    height = look["h"] if height is None else height
+    if not _buttons_stacked(labels, page=page, w_avail=w_avail):
         return height, height
-    uzay = shapes._space(space)
+    uzay = shapes._space(page.space)
     n = len(labels)
     w_units = w_avail / 100 * uzay.slide_w
     gereken = max(shapes.measured_text_height(str(label),
@@ -4247,12 +4427,15 @@ def _button_band(labels, *, w_avail, space, height=9.0) -> tuple[float, float]:
                                               w_units, uzay)
                   for label in labels)
     each = gereken / uzay.slide_h * 100 + BUTTON_LABEL_MARGIN
-    each = max(each, BUTTON_STACK_MIN_H)
+    # Taban TEDAVIDEN gelir; verilmemisse modul tabani. Yigin bandi burada
+    # TEK YERDE olculuyor, `_buttons` de bu sayiyi buradan okuyor -- taban
+    # iki yerde uygulanirsa sira ile yigin ayrisir.
+    each = max(each, look["taban"] or BUTTON_STACK_MIN_H)
     return each, n * each + (n - 1) * BUTTON_STACK_GAP
 
 
-def _buttons(labels, *, y, fill, color, height=9.0, x=MARGIN_X,
-             w_avail=CONTENT_W, anchor="left", space=None,
+def _buttons(labels, *, page, y, fill, color, height=None, x=MARGIN_X,
+             w_avail=CONTENT_W, anchor="left",
              bottom=FLOOR) -> list[dict]:
     """Butonları yerleştirir -- ve etiket uzunsa SIRA yerine YIĞIN kurar.
 
@@ -4282,17 +4465,19 @@ def _buttons(labels, *, y, fill, color, height=9.0, x=MARGIN_X,
     """
     if not labels:
         return []
+    look = cta_look(page)
+    height = look["h"] if height is None else height
     count = len(labels)
-    gap = 2.5
-    width = min((w_avail - gap * (count - 1)) / count, 30.0)
+    gap = look["aralik"]
+    width = min((w_avail - gap * (count - 1)) / count, look["en"])
 
-    uzay = shapes._space(space)
-    if _buttons_stacked(labels, w_avail=w_avail, space=space):
+    uzay = shapes._space(page.space)
+    if _buttons_stacked(labels, page=page, w_avail=w_avail):
         # YIGIN: tam genislik, alt alta, banda sigacak yukseklikte.
         stack_gap = BUTTON_STACK_GAP
         # OLCULEN yukseklik, sabit degil -- rezervasyonu yapan da ayni
         # sayiyi buradan okur, yani yuva ile bant AYRISAMAZ.
-        each, toplam = _button_band(labels, w_avail=w_avail, space=space,
+        each, toplam = _button_band(labels, page=page, w_avail=w_avail,
                                     height=height)
         # TABAN BANDI ASAMAZ. `max(each, 4.0)` kosulsuzdu ve banda
         # bakmiyordu: olculdu (2026-08-19), dort buton y=%82.5'ten

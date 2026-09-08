@@ -788,17 +788,17 @@ def check_button_band() -> list[str]:
         "Erisim iznine bir bitis tarihi koy ve suresi dolunca gozden gecir",
         "Yanlis gonderimi fark ettiginde kime bildirecegini onceden bil",
     ]
-    shutil.copy2(source, work)
-    try:
-        pkg = StoryPackage(work)
+    def kur(uslup: str):
+        """Bir üslupla menü slaydını kurar; dosyayı döndürür."""
+        dosya = work.with_name(f"buton_bandi_{uslup}.story")
+        shutil.copy2(source, dosya)
+        pkg = StoryPackage(dosya)
         part = next(iter(model.slide_index(pkg)))
         _quiet(compose.compose_slide, pkg, part, "menu",
                title="Paylasilan bir dosyayi gonderirken hangileri dogru?",
-               buttons=butonlar)
-        pkg.save(work, backup=False)
-    except Exception as exc:
-        return [f"buton bandi kontrolu kurulamadi: {type(exc).__name__}: "
-                f"{str(exc)[:60]}"]
+               buttons=butonlar, style=uslup)
+        pkg.save(dosya, backup=False)
+        return dosya
 
     def olc(dosya):
         """(en buyuk tasma orani, olculen buton sayisi, taban asan sayi)."""
@@ -825,18 +825,37 @@ def check_button_band() -> list[str]:
 
     out: list[str] = []
     AGIR = 1.6
-    en, sayi, asan = olc(work)
-    # KOSTUGUNU KANITLA: hic buton olculmediyse "temiz" bos calismaktir.
-    if sayi < len(butonlar):
-        return [f"buton bandi: {len(butonlar)} buton verildi ama {sayi} tanesi "
-                f"olculebildi — olcu bos calisti, sonucu 'temiz' sayilamaz"]
-    if en > AGIR:
-        out.append(f"buton bandi: etiket kutusunu {en:.1f} KAT asiyor "
-                   f"(sinir {AGIR:.1f}) — bant buton sayisindan degil sabit "
-                   f"tabandan ayrilmis")
-    if asan:
-        out.append(f"buton bandi: {asan} buton slaydin tabanini asiyor — "
-                   f"yigin banda sigmadigi halde yukari kaydirilmamis")
+    # HER USLUP AYRI OLCULUR. 2026-09-08'de `cta` tedavileri eklendi ve
+    # buton geometrisi uslupla degisiyor: `tam` tek butonu bile tam
+    # genislikte bir bara ceviriyor, `ince` kutuyu %22x5.5'e indiriyor.
+    # Kontrol tek uslup kosarken YAZANDAN DAR bakiyordu -- uretici dort
+    # geometri yaziyor, kapi birine bakiyordu, ve kusur aradaki bosluga
+    # sigardi. Ustelik hangisine baktigi da secilmemisti: `style_for`
+    # dosya adindan tohumlaniyor.
+    olculen = {}
+    for uslup in sorted(compose.STYLES):
+        try:
+            dosya = kur(uslup)
+        except Exception as exc:
+            return [f"buton bandi kontrolu kurulamadi ({uslup}): "
+                    f"{type(exc).__name__}: {str(exc)[:60]}"]
+        en, sayi, asan = olc(dosya)
+        olculen[uslup] = (en, sayi, asan)
+        # KOSTUGUNU KANITLA: hic buton olculmediyse "temiz" bos calismaktir.
+        if sayi < len(butonlar):
+            return [f"buton bandi ({uslup}): {len(butonlar)} buton verildi ama "
+                    f"{sayi} tanesi olculebildi — olcu bos calisti, sonucu "
+                    f"'temiz' sayilamaz"]
+        if en > AGIR:
+            out.append(f"buton bandi ({uslup}): etiket kutusunu {en:.1f} KAT "
+                       f"asiyor (sinir {AGIR:.1f}) — bant buton sayisindan "
+                       f"degil sabit tabandan ayrilmis")
+        if asan:
+            out.append(f"buton bandi ({uslup}): {asan} buton slaydin tabanini "
+                       f"asiyor — yigin banda sigmadigi halde yukari "
+                       f"kaydirilmamis")
+    work = kur(sorted(compose.STYLES)[0])
+    en, sayi, asan = olculen[sorted(compose.STYLES)[0]]
 
     # KANARYA: kutulari olculen cokmus degere (%4.0) ezip olcu bagirmali.
     kanarya = "kurulamadi"
@@ -864,9 +883,12 @@ def check_button_band() -> list[str]:
             out.append("buton bandi kanaryasi OLDU: kutular %4.0'a ezildigi "
                        "halde olcu temiz dedi")
 
-    print("buton bandi (%d buton): en buyuk tasma %.1f kat (sinir %.1f), "
-          "taban asan %d | kanarya: %s"
-          % (sayi, en, AGIR, asan, kanarya))
+    print("buton bandi (%d buton, %d uslup): en buyuk tasma %s (sinir %.1f) "
+          "| kanarya: %s"
+          % (len(butonlar), len(olculen),
+             ", ".join(f"{u} {v[0]:.1f}x/taban asan {v[2]}"
+                       for u, v in sorted(olculen.items())),
+             AGIR, kanarya))
     return out
 
 
@@ -911,16 +933,17 @@ def check_card_band() -> list[str]:
         "Iki adimli dogrulamayi acin, SMS yerine uygulama secin",
         "Parolayi e-posta, WhatsApp veya not defterinde tasimayin",
     ]
-    shutil.copy2(source, work)
-    try:
-        pkg = StoryPackage(work)
+    def kur(uslup: str):
+        """Bir üslupla kartlı slaydı kurar; dosyayı döndürür."""
+        dosya = work.with_name(f"kart_bandi_{uslup}.story")
+        shutil.copy2(source, dosya)
+        pkg = StoryPackage(dosya)
         part = next(iter(model.slide_index(pkg)))
         _quiet(compose.compose_slide, pkg, part, "bullets",
-               title=baslik, eyebrow="Parola hijyeni", bullets=maddeler)
-        pkg.save(work, backup=False)
-    except Exception as exc:
-        return [f"kart bandi kontrolu kurulamadi: {type(exc).__name__}: "
-                f"{str(exc)[:60]}"]
+               title=baslik, eyebrow="Parola hijyeni", bullets=maddeler,
+               style=uslup)
+        pkg.save(dosya, backup=False)
+        return dosya
 
     def olc(dosya):
         """(en buyuk tasma orani, olculen kart sayisi)."""
@@ -946,15 +969,30 @@ def check_card_band() -> list[str]:
 
     out: list[str] = []
     AGIR = 2.0
-    en, sayi = olc(work)
-    # KOSTUGUNU KANITLA: sifir kart olculduyse "temiz" sonucu bos calismaktir.
-    if sayi < len(maddeler):
-        return [f"kart bandi: {len(maddeler)} madde verildi ama {sayi} kart "
-                f"olculebildi — olcu bos calisti, sonucu 'temiz' sayilamaz"]
-    if en > AGIR:
-        out.append(f"kart bandi: govde metni kutusunu {en:.1f} KAT asiyor "
-                   f"(sinir {AGIR:.1f}) — kart bandi metinden once ayrilmamis, "
-                   f"maddeler ust uste biniyor")
+    # HER USLUP AYRI OLCULUR -- buton bandiyla ayni sebeple. 2026-09-08'de
+    # `cards` tedavileri eklendi: `tek` sutun sayisini zorluyor, `serit`
+    # kart yuzeyini hic cizmiyor ve metin genisligini degistiriyor. Tek
+    # uslup kosan bir kontrol, uc geometriyi hic gormeden yesil kalirdi.
+    olculen = {}
+    for uslup in sorted(compose.STYLES):
+        try:
+            dosya = kur(uslup)
+        except Exception as exc:
+            return [f"kart bandi kontrolu kurulamadi ({uslup}): "
+                    f"{type(exc).__name__}: {str(exc)[:60]}"]
+        en, sayi = olc(dosya)
+        olculen[uslup] = (en, sayi)
+        # KOSTUGUNU KANITLA: sifir kart olculduyse "temiz" bos calismaktir.
+        if sayi < len(maddeler):
+            return [f"kart bandi ({uslup}): {len(maddeler)} madde verildi ama "
+                    f"{sayi} kart olculebildi — olcu bos calisti, sonucu "
+                    f"'temiz' sayilamaz"]
+        if en > AGIR:
+            out.append(f"kart bandi ({uslup}): govde metni kutusunu {en:.1f} "
+                       f"KAT asiyor (sinir {AGIR:.1f}) — kart bandi metinden "
+                       f"once ayrilmamis, maddeler ust uste biniyor")
+    work = kur(sorted(compose.STYLES)[0])
+    en, sayi = olculen[sorted(compose.STYLES)[0]]
 
     # KANARYA: kart kutularini eski cokmus olcusune indir, olcu bagirmali.
     kanarya = "kurulamadi"
@@ -984,8 +1022,11 @@ def check_card_band() -> list[str]:
             out.append("kart bandi kanaryasi OLDU: kutular %2.2'ye ezildigi "
                        "halde olcu temiz dedi")
 
-    print("kart bandi (%d madde, %d kart): en buyuk tasma %.1f kat "
-          "(sinir %.1f) | kanarya: %s" % (len(maddeler), sayi, en, AGIR, kanarya))
+    print("kart bandi (%d madde, %d uslup): en buyuk tasma %s (sinir %.1f) "
+          "| kanarya: %s"
+          % (len(maddeler), len(olculen),
+             ", ".join(f"{u} {v[0]:.1f}x" for u, v in sorted(olculen.items())),
+             AGIR, kanarya))
     return out
 
 
