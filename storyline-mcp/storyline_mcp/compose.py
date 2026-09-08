@@ -386,6 +386,35 @@ def fit_choices(labels: list[str], area_h: float, area_w: float, *,
 # cunku ikisi de "basliklar sayfanin kendisidir" diyor.
 LAYOUTS = ("cover", "section", "content", "bullets", "steps", "statement",
            "menu", "reveal")
+
+# HANGI DUZEN HANGI ARGUMANI CIZMIYOR. Olculdu 2026-09-08, dort uslupte de
+# ayni (tools/dusen_arguman.py).
+#
+# NEDEN YAZILI DURUYOR. `section`e `buttons` vermek sessizce hicbir sey
+# yapmiyordu: ogrenciye gidecek icerik kayboluyor ve HICBIR SEY BAGIRMIYOR.
+# Bugun sema o duzene `buttons` teklif etmedigi icin erisilemez, ama
+# erisilebilirligi tek bir prompt duzenlemesiyle degisir -- yani kusur
+# yok degil, YALNIZCA ULASILAMAZ. Bu depoda "bugun ulasilamiyor" bir
+# koruma sayilmadi.
+#
+# TABLO BIR IDDIA, KOD DEGIL: elle tutulan bir kopya kaciniilmaz olarak
+# koddan kayar. Kaymayi tools/dusen_arguman.py kapatiyor -- gercegi olcup
+# bu tabloyla IKI YONLU karsilastirir (burada yazip cizilen de,
+# cizilmeyip burada yazilmayan da bagirir).
+#
+# `index` ozel: docstring'i zaten "where the layout shows one" diyor, yani
+# yalnizca `section` gosteriyor. Digerlerinde sessiz dusmesi tasarim, ama
+# cagiranin bunu BILMESI yine de gerekiyor.
+LAYOUT_DROPS: dict[str, tuple[str, ...]] = {
+    "cover":     ("bullets", "index"),
+    "section":   ("bullets", "buttons", "eyebrow"),
+    "content":   ("index",),
+    "bullets":   ("body", "index"),
+    "steps":     ("body", "index"),
+    "statement": ("bullets", "buttons", "eyebrow", "index"),
+    "menu":      ("bullets", "index"),
+    "reveal":    ("bullets", "index"),
+}
 IMAGE_STYLES = ("panel", "bleed", "hero")
 
 # Structural variants. Each layout has one skeleton, which is what keeps a deck
@@ -3409,6 +3438,15 @@ def compose_slide(
         raise StoryError(f"Bilinmeyen gorsel yerlesimi: {image_style!r}. "
                          f"Secenekler: {', '.join(IMAGE_STYLES)}")
 
+    # VERILEN ARGUMANLAR EN BASTA YAKALANIR. Dallar ilerledikce `title` ve
+    # `eyebrow` None'a ceviriliyor (bullets dali basligi serit icine yazip
+    # ikisini de dusuruyor), yani donusten once bakmak "verilmedi" ile
+    # "cizildi ve temizlendi"yi karistirirdi.
+    _verilen = {ad for ad, deger in (
+        ("title", title), ("eyebrow", eyebrow), ("body", body),
+        ("bullets", bullets), ("buttons", buttons), ("index", index),
+    ) if deger}
+
     part = pkg.slide_part_for(slide)
     root = pkg.parse(part)
     # Tema, acikca verilen bir palete YENIK dusmez sirasi tersine de olmaz:
@@ -4167,6 +4205,9 @@ def compose_slide(
         "image_area": reserved,
         "image_style": image_style if reserved else None,
         "motion": choreography,
+        # CAGIRAN BILSIN. Bu duzene verildi ama cizilmedi -- sessizce
+        # dusen icerik, kaybolmadan once bir kez soylenmis olur.
+        "cizilmeyen": sorted(_verilen & set(LAYOUT_DROPS.get(layout, ()))),
     }
 
 

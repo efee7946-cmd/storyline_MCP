@@ -69,15 +69,30 @@ ADIMLAR = [
     # bakar; bu, IKI KURSUN birbirine benzeyip benzemedigine. "Panelden cikan
     # her sey tek makineden gecmis gibi" sikayetinin olculebilir hali.
     #
-    # KAPI OLAN SEY ORAN DEGIL, OLCUNUN KENDISI. Bugun oran 0.000 --
-    # yani dort uslup 21 hucrenin hicbirinde farkli bir resim uretmiyor,
-    # cunku STYLES geometriye dokunmuyor (mark disinda). Orani kapi yapmak
-    # suiti kalici kirmiziya boyardi ve kalici kirmizi bir kapi sinyal
-    # uretmeyi birakir; o yuzden oran TABANA (uslup_taban.json) karsi
-    # raporlanir, kapi ise arac kendi iki yonlu kanaryasini gecti mi.
+    # KAPI OLAN SEY ORAN DEGIL, OLCUNUN KENDISI. Oran TABANA
+    # (uslup_taban.json) karsi raporlanir; kapi, arac kendi iki yonlu
+    # kanaryasini gecti mi.
+    #
+    # Olcu ilk kuruldugunda oran 0.000'di: dort uslup 21 hucrenin
+    # hicbirinde farkli bir resim uretmiyordu, cunku STYLES geometriye
+    # dokunmuyordu. `cards`/`cta` tedavilerinden sonra 0.444. Orani kapi
+    # yapmak o gun suiti KALICI kirmiziya boyardi ve kalici kirmizi bir
+    # kapi sinyal uretmeyi birakir -- taban o yuzden ulasilan degerde
+    # dondurulur, kapi degil.
     # Sifir, olcu korlestiginde de basilir -- ayirt eden tek sey o kanarya.
     ("uslup",           [PY, "tools/uslup.py"],
      True,  False, "kendi prob kurslarini kurar; KAPI = olcunun kanaryasi"),
+    # DUSEN ARGUMAN KAPISI. Ustteki kapilar kursun NASIL GORUNDUGUNE
+    # bakiyor; bu, cagiranin VERDIGI seyin slayda GIRIP girmedigine.
+    # `section`e `buttons` vermek sessizce hicbir sey yapmiyordu --
+    # ogrenciye gidecek icerik kayboluyor ve slayt "basarili" donuyordu.
+    #
+    # Uc ayak: beyan ile cizim IKI YONLU ortusuyor mu, ve beyan cagirana
+    # GERCEKTEN ulasiyor mu (compose_slide donusundeki `cizilmeyen`).
+    # Ucuncusu olmadan ilk ikisi dogru bir tabloyla ve sessiz bir donusle
+    # de gecilirdi.
+    ("dusen arguman",   [PY, "tools/dusen_arguman.py"],
+     True,  False, "8 duzen x 4 uslup; beyan <-> cizim iki yonlu"),
     ("rubric_fixtures", [PY, "tools/rubric_fixtures.py"],
      True,  False, "URETIR: test/_rubrik/*.story"),
     ("invariants",      [PY, "tools/invariants.py"],
