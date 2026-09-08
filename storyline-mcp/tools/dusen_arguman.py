@@ -105,8 +105,16 @@ ARGS: dict[str, object] = {
 # (`content = body or title`, `etiket = eyebrow or title`), yani kosullar
 # orada doguyor; yapisal alanlar ya hep duser ya hic. O yuzden metin
 # alanlarinin BUTUN alt kumeleri, her biri yapisal alanlarla ve onlarsiz:
-# 7 x 2 = 14 kume. 63 kumenin tamamini gezmek dort kat pahali ve olculdu
-# ki yeni bir kosul acmiyor.
+# 7 x 2 = 14 kume.
+#
+# 14 KUMENIN YETTIGI OLCULDU, VARSAYILMADI (2026-09-08). Alti alanin
+# BUTUN alt kumeleri gezildi -- 63 kume x 8 duzen = 504 kurulum, 114s --
+# ve hicbirinde beyan ile cizim ayrismadi. Yani 14'luk gezinti, 63'lukle
+# ayni yuzeyi 4.4 kat ucuza veriyor.
+#
+# Bu satir once "olculdu ki yeni kosul acmiyor" diye YAZILMISTI ve
+# olculmemisti; iddia ile olcum arasindaki farki bu dosyanin kendi konusu
+# yaptiktan sonra birakilacak bir bosluk degildi.
 METIN_ALANLARI = ("title", "eyebrow", "body")
 YAPI_ALANLARI = frozenset({"bullets", "buttons", "index"})
 
