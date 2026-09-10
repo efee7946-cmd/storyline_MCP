@@ -18,16 +18,27 @@ BU KAPI URETICIYI DEGIL OLCUYU KORUYOR. Kurs kalitesi modelin ciktisina
 bagli ve kapilar model cagirmaz. Korunan sey su: olcu sessizce olurse
 her kurs temiz gorunur. `tools/ogretim_kapi.py` ile ayni bicim.
 
-DORT AYAK:
+ALTI AYAK:
   1 CIPA        saglam soru isaretlenmemeli (yanlis pozitif yok)
   2 EKILI       dogruluk isareti silinmis soru GORULMELI
   3 KAPSAM      surukle-birak sorusu cevapsiz SAYILMAMALI -- ilk surum
                 tam olarak bunu yapiyordu ve 51 kursun 18'inde birer
                 yanlis pozitif uretiyordu
   4 YAZMA KAPISI aralik disi `correct` REDDEDILMELI, ve tohum kolundan da
+  5 SESSIZLIK   sonuc slaydi olmayan PUANLI kurs bildirilmeli, sorusuz
+                kurs SESSIZ kalmali (tek yonlu olsaydi gurultu uretirdi)
+  6 UYARI       soruyu ekleyen cagrinin KENDI donusu uyarmali; sonuc
+                slaydi gelince SUSMALI. Yapiskan bir uyariyi ajan
+                gormezden gelmeyi ogrenir.
 
 Ucuncusu olmadan ilk ikisi "choices tasiyan her sey" diyen kor bir
 olcuyle de gecilirdi.
+
+UYARI, RED DEGIL -- ve sebebi kaybin sekli. `compose_slide`in reddi bir
+EYLEMIN icinde durabiliyor cunku kayip o eylemin sonucu. Sonuc slaydinin
+YOKLUGU ise hicbir eylemin urunu degil; yazmayi reddetmek, yapim
+ortasindaki normal ara hali (soru var, sonuc slaydi henuz yok) kusur
+sayardi ve dogru kurulusu imkansiz kilardi.
 
     python tools/puanlanabilirlik.py
 """
@@ -169,6 +180,44 @@ def kanarya() -> list[str]:
             "SESSIZ KOR NOKTA: puanli soru var, sonuc slaydi yok ve zincir "
             "hicbir kirik bildirmiyor -- ogrenci puanini gormez, LMS'e "
             "rapor gitmez, ve audit temiz gorunur")
+    # 6. UYARI, DOGDUGU ANDA. `zincir` kursun TAMAMINA bakiyor ve
+    # ajan onu ancak `audit` cagirirsa gorur. Bu ayak, soruyu ekleyen
+    # cagrinin KENDI donusunde uyarinin ciktigini sinar -- kaybin
+    # dogdugu an degil ama fark edilebilecegi EN ERKEN an.
+    #
+    # UC YONLU, cunku yalnizca "cikiyor mu" sormak gurultuyu de gecirir:
+    # sorusuz kursta CIKMAMALI, sonuc slaydi varken CIKMAMALI.
+    yol5 = CANARY / "puanlanabilirlik_uyari.story"
+    shutil.copy2(BLANK, yol5)
+    pk5 = StoryPackage(yol5)
+    bos_uyari = puanlama.eksik_sonuc_uyarisi(pk5)
+    print(f"uyari(a)    : sorusuz kurs "
+          f"{'SESSIZ (dogru)' if not bos_uyari else 'KONUSUYOR: ' + bos_uyari[:40]}")
+    if bos_uyari:
+        kusur.append(f"GURULTU: puanli sorusu olmayan kursta 'sonuc slaydi "
+                     f"yok' uyarisi cikiyor ({bos_uyari[:60]})")
+
+    authoring.add_question(
+        pk5, None, "S", ["a", "b", "c", "d"], [1], eyebrow="B",
+        feedback={"correct": "E", "incorrect": "H"})
+    pk5.save(yol5, backup=False)
+    var_uyari = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
+    print(f"uyari(b)    : puanli soru eklendi -> "
+          f"{'UYARDI' if var_uyari else 'SESSIZ KALDI'}")
+    if not var_uyari:
+        kusur.append(
+            "UYARI DUSTU: puanli soru eklendi, sonuc slaydi yok ve arac "
+            "hicbir sey soylemiyor -- ajan kursu boyle teslim eder")
+
+    authoring.add_results_slide(pk5)
+    pk5.save(yol5, backup=False)
+    kalan = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
+    print(f"uyari(c)    : sonuc slaydi eklendi -> "
+          f"{'SUSTU (dogru)' if not kalan else 'HALA UYARIYOR'}")
+    if kalan:
+        kusur.append(f"UYARI YAPISKAN: sonuc slaydi eklendigi halde uyari "
+                     f"suruyor ({kalan[:60]}) -- ajan onu gormezden gelmeyi "
+                     f"ogrenir")
     return kusur
 
 

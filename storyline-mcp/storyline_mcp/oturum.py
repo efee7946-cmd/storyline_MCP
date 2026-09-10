@@ -165,20 +165,10 @@ def fark(path: str | Path) -> dict:
         eski = o_s.get(g)
         if eski is None:
             continue
-        neler = []
-        for alan, etiket in (("sekil", "sekil"), ("tetik", "tetikleyici"),
-                             ("katman", "katman")):
-            if eski[alan] != yeni[alan]:
-                delta = yeni[alan] - eski[alan]
-                neler.append(f"{etiket} {eski[alan]}->{yeni[alan]} "
-                             f"({'+' if delta > 0 else ''}{delta})")
-        if eski["metin"] != yeni["metin"]:
-            neler.append("metin degisti")
-        if eski["ad"] != yeni["ad"]:
-            neler.append(f"ad {eski['ad']!r}->{yeni['ad']!r}")
+        neler = _degisimler(eski, yeni)
         if neler:
             degisen.append({"slayt": yeni["basename"], "ad": yeni["ad"],
-                            "neler": neler})
+                            "neler": neler, "ozet": _ozet_satiri(neler)})
 
     ekl_d = [d for d in sonra["degiskenler"] if d not in once["degiskenler"]]
     sil_d = [d for d in once["degiskenler"] if d not in sonra["degiskenler"]]
@@ -197,6 +187,57 @@ def fark(path: str | Path) -> dict:
                    "ve metin OZETI. Renk, punto ve konum bu sayida GORUNMEZ -- "
                    "iki slayt ayni sayilara sahip olup bambaska gorunebilir."),
     }
+
+
+
+# DEGISIM YAPILI DONER, DIZGE DEGIL -- VE BU BIR DUZELTME (2026-09-10).
+#
+# Ilk surum insan-okur bir satir uretiyordu ("sekil 4->3 (-1)") ve kapinin
+# sorabilecegi tek soru o dizgide ALT DIZI aramakti. Iki kez isirdi:
+# `"-" in n` OKU yakaladi (yani "sekil 0->4" da eslesti ve ayak her kosulda
+# yesildi), sonra `"(-" in n` yazildi -- o da bugun calisiyor cunku
+# BICIMLENDIRICI isareti paranteze koyuyor. Bicim degisirse, ya da bir
+# slayt adinda "(-" gecerse, ayak sessizce yesile doner.
+#
+# Sayilar zaten hesaplanmisti ve f-string'e girip kayboluyorlardi. Artik
+# kalyorlar: kapi `delta < 0` sorar, ve bu soru bir GORUNTULEME
+# degisikligiyle yanlis cevaplanamaz. Insanin okudugu satir ayrica
+# uretilir (`ozet`), cunku iki tuketici var ve ikisi ayni seyi istemiyor.
+#
+# AYNI SINIF BU OTURUMDA DORT KEZ ISIRDI (ikisi olcum tarafinda, ikisi
+# urun tarafinda): hayal edilen bir bicime yazilmis yuklem. Dizgeyi
+# kapiya vermeyi birakinca o iki durum IMKANSIZ hale geliyor.
+def _degisimler(eski: dict, yeni: dict) -> list[dict]:
+    """Iki slayt ozeti arasindaki farklar -- makine icin."""
+    out = []
+    for alan, etiket in (("sekil", "sekil"), ("tetik", "tetikleyici"),
+                         ("katman", "katman")):
+        if eski[alan] != yeni[alan]:
+            out.append({"alan": etiket, "once": eski[alan],
+                        "sonra": yeni[alan],
+                        "delta": yeni[alan] - eski[alan]})
+    if eski["metin"] != yeni["metin"]:
+        # METNIN KENDISI DEGIL OZETI: fark "degisti"yi tasir, icerigi degil.
+        out.append({"alan": "metin", "once": eski["metin"],
+                    "sonra": yeni["metin"], "delta": None})
+    if eski["ad"] != yeni["ad"]:
+        out.append({"alan": "ad", "once": eski["ad"], "sonra": yeni["ad"],
+                    "delta": None})
+    return out
+
+
+def _ozet_satiri(neler: list[dict]) -> str:
+    """Insanin okudugu satir. KAPI BUNU OKUMAZ -- `neler` yapisini okur."""
+    parcalar = []
+    for n in neler:
+        if n["delta"] is None:
+            parcalar.append("metin degisti" if n["alan"] == "metin"
+                            else f"ad {n['once']!r}->{n['sonra']!r}")
+        else:
+            isaret = "+" if n["delta"] > 0 else ""
+            parcalar.append(f"{n['alan']} {n['once']}->{n['sonra']} "
+                            f"({isaret}{n['delta']})")
+    return "; ".join(parcalar)
 
 
 def geri_al(path: str | Path) -> dict:

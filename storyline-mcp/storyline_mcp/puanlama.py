@@ -275,3 +275,35 @@ def cevaplanamaz(pkg: StoryPackage, index: dict) -> list[dict]:
                     "problem": "hicbir secenek dogru isaretli degil: "
                                "ogrenci bu soruyu dogru cevaplayamaz"})
     return bulgular
+
+
+def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
+    """Puanlı soru var ama sonuç slaydı yok mu -- SORUYU EKLEYEN AN İÇİN.
+
+    NICIN UYARI, RED DEGIL -- VE FARK BICIMDE DEGIL, KAYBIN SEKLINDE.
+    `compose_slide`in reddi bir EYLEMIN icinde durabiliyor cunku kayip o
+    eylemin SONUCU: slaydi bastan cizmek katmanlari goturuyor. Burada
+    kayip bir YOKLUK -- hicbir eylem onu uretmiyor, dolayisiyla hicbir
+    eylemin icine konamaz. Yazmayi reddetmek daha kotusu olurdu: yapim
+    ortasinda soru eklenmis ve sonuc slaydi henuz eklenmemis bir kurs
+    KUSURLU DEGIL, ARA HALDIR, ve o hali reddeden bir kapi dogru kurulusu
+    imkansiz kilar.
+
+    O yuzden bu, soruyu ekleyen cagrinin donusune giren bir cumle:
+    kaybin dogdugu an degil ama FARK EDILEBILECEGI en erken an. Kursun
+    tamamina bakan hukum `zincir`de ve `audit`te duruyor.
+
+    KAYDEDILMIS HALE ESIT OLDUGU AN cagrilmali (yazmadan hemen sonra):
+    `izleme` story.xml'i okuyor ve bellekteki agac ancak o noktada
+    dosyayla ayni.
+    """
+    index = model.slide_index(pkg)
+    puanli = puanli_slaytlar(pkg, index)
+    if not puanli:
+        return ""
+    for part in index:
+        if any(e.tag == "rsltsIntr" for e in pkg.parse(part).iter()):
+            return ""
+    return ("%d puanli slayt var ama SONUC SLAYDI YOK: bu haliyle ogrenci "
+            "puanini gormez ve LMS'e rapor gitmez. Kursu bitirmeden once "
+            "add_results_slide cagirin." % len(puanli))

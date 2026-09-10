@@ -461,7 +461,10 @@ def duplicate_slide(
     _guard(path)
     pkg = StoryPackage(path)
     result = clone_slide(pkg, slide, scene=scene, name=name)
-    return {**result, **_write(pkg, path, output_path, in_place)}
+    yazma = _write(pkg, path, output_path, in_place)
+    # UYARI, RED DEGIL: gerekcesi puanlama.eksik_sonuc_uyarisi'nda.
+    uyari = puanlama.eksik_sonuc_uyarisi(pkg)
+    return {**result, **yazma, **({"uyari": uyari} if uyari else {})}
 
 
 @mcp.tool()
@@ -481,7 +484,10 @@ def add_slide(
     _guard(path)
     pkg = StoryPackage(path)
     result = authoring.add_slide(pkg, template, title=title, scene=scene, name=name)
-    return {**result, **_write(pkg, path, output_path, in_place)}
+    yazma = _write(pkg, path, output_path, in_place)
+    # UYARI, RED DEGIL: gerekcesi puanlama.eksik_sonuc_uyarisi'nda.
+    uyari = puanlama.eksik_sonuc_uyarisi(pkg)
+    return {**result, **yazma, **({"uyari": uyari} if uyari else {})}
 
 
 @mcp.tool()
@@ -557,7 +563,10 @@ def add_question(
             {k: v for k, v in compose.theme_palette(theme).items()
              if not k.startswith("_")} if theme else None),
     )
-    return {**result, **_write(pkg, path, output_path, in_place)}
+    yazma = _write(pkg, path, output_path, in_place)
+    # UYARI, RED DEGIL: gerekcesi puanlama.eksik_sonuc_uyarisi'nda.
+    uyari = puanlama.eksik_sonuc_uyarisi(pkg)
+    return {**result, **yazma, **({"uyari": uyari} if uyari else {})}
 
 
 @mcp.tool()
@@ -605,7 +614,10 @@ def add_drag_question(
             {k: v for k, v in compose.theme_palette(theme).items()
              if not k.startswith("_")} if theme else None),
     )
-    return {**result, **_write(pkg, path, output_path, in_place)}
+    yazma = _write(pkg, path, output_path, in_place)
+    # UYARI, RED DEGIL: gerekcesi puanlama.eksik_sonuc_uyarisi'nda.
+    uyari = puanlama.eksik_sonuc_uyarisi(pkg)
+    return {**result, **yazma, **({"uyari": uyari} if uyari else {})}
 
 
 @mcp.tool()

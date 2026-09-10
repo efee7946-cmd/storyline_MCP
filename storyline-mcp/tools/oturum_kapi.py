@@ -121,7 +121,7 @@ def kanarya() -> list[str]:
     f2 = oturum.fark(yol)
     yerinde = [d for d in f2["degisen_slaytlar"] if d["slayt"] == hedef]
     print(f"yerinde     : {hedef} -> "
-          f"{yerinde[0]['neler'] if yerinde else 'GORULMEDI'}")
+          f"{yerinde[0]['ozet'] if yerinde else 'GORULMEDI'}")
     if not yerinde:
         kusur.append(f"OLCU KOR: {hedef} yerinde degistirildi ama farkta "
                      f"gorunmuyor -- ajan kendi ayak izini goremez")
@@ -165,10 +165,17 @@ def kanarya() -> list[str]:
         f_sil = oturum.fark(yol_sil)
         neler = [n for d in f_sil["degisen_slaytlar"]
                  if d["slayt"] == s_sil for n in d["neler"]]
-        # EKSI DELTA ARANIYOR, ok DEGIL: "(-1)" ile "0->4" ayirt edilmeli.
-        dusen = [n for n in neler if n.startswith("sekil") and "(-" in n]
+        # SORU YAPIYA SORULUYOR, DIZGEYE DEGIL. Onceki iki surum de
+        # `neler`in insan-okur satirinda alt dizi ariyordu: once `"-"`
+        # (oku yakaladi, ayak her kosulda yesildi), sonra `"(-"` (bugun
+        # calisiyordu ama yalnizca bicimlendirici isareti paranteze
+        # koydugu icin). Artik `delta` alani duruyor ve bir goruntuleme
+        # degisikligi bu soruyu yanlis cevaplayamaz.
+        dusen = [n for n in neler
+                 if n["alan"] == "sekil" and (n["delta"] or 0) < 0]
         print(f"silme       : {silinebilir!r} silindi ({once_sayi} sekil "
-              f"vardi) -> farkta {dusen or neler or 'GORULMEDI'}")
+              f"vardi) -> farkta "
+              f"{dusen or [n['alan'] for n in neler] or 'GORULMEDI'}")
         if not dusen:
             kusur.append(
                 f"OLCU KOR: {silinebilir!r} silindi ama fark EKSI bir sekil "

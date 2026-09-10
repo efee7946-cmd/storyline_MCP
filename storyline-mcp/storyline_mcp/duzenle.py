@@ -38,7 +38,26 @@ from .package import StoryPackage, StoryError
 
 
 def _guid_referanslari(root, guid: str, sekil) -> list[str]:
-    """Bu guid'e sekil'in DISINDAN kim bakiyor. Bos liste = silmek guvenli."""
+    """Bu guid'e sekil'in DISINDAN kim bakiyor. Bos liste = silmek guvenli.
+
+    TARAMA KAPSAYICI, LISTE DEGIL. Yukaridaki modul basligi `shapeG`,
+    `objG`, `shpG` sayiyor ama bunlar ORNEK; kod her elemanin her
+    ONITELIGINE bakiyor ve degeri guid'e esit olan her yeri buluyor.
+    `matchShpG`, `shapePath shapeG`, kosul referanslari ve bugun adini
+    bilmedigimiz alanlar da yapi geregi kapsamda. Docstring'i okuyup
+    "listeyi genisleteyim" diye bir beyaz liste yazmak, tam tersine
+    DARALTIR -- `cevaplanamaz`da beyaz liste dogru tercihti (orada
+    mekanizmasi olculmemis tipleri disarida birakiyoruz), burada
+    yanlistir: burada bilinmeyen bir referans, kacirilirsa sessiz bir
+    kirilma demek.
+
+    KAPSAM SLAYT KOKU. Tarama slaydin kokunden asagi iniyor, yani
+    katmanlar da dahil (onlar da o kokun icinde). Sekil guid'leri icin
+    bu yeterli. BASKA bir slayttan ya da `story.xml`den gelen referans
+    -- ornegin bir atlama hedefi -- bu taramada GORUNMEZ; sekil
+    silmede boyle bir referans sinifi olculmedi, ama SLAYT silme
+    araci yazilirsa oradan baslanmali.
+    """
     if not guid:
         return []
     icinde = {el for el in sekil.iter()}
