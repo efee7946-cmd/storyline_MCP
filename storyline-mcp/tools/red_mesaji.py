@@ -83,63 +83,70 @@ async def kosu() -> list[str]:
         args=["-c", "from storyline_mcp.server import main; main()"],
         env=None,
     )
-    async with stdio_client(params) as (r, w):
-        async with ClientSession(r, w) as s:
-            await s.initialize()
-            araclar = await s.list_tools()
-            print(f"el sikisti: {len(araclar.tools)} arac bildirildi")
-            if len(araclar.tools) < 54:
-                kusur.append(f"arac sayisi dustu: {len(araclar.tools)} < 54 "
-                             f"-- kayit sarmalayicisi araclari yutuyor olabilir")
+    # ALT SURECIN STDERR'I YUTULUYOR. Sunucu kalibrasyon
+    # uyarilari basiyor ve suit "son satir" sutununda kapinin
+    # HUKMU yerine o uyari goruunuyordu -- kapi yesil ama satiri
+    # okunamaz. Gercek hatalar zaten arac donusunde (`is_error`)
+    # geliyor, stderr'de degil.
+    import os
+    with open(os.devnull, "w") as _sessiz:
+        async with stdio_client(params, errlog=_sessiz) as (r, w):
+            async with ClientSession(r, w) as s:
+                await s.initialize()
+                araclar = await s.list_tools()
+                print(f"el sikisti: {len(araclar.tools)} arac bildirildi")
+                if len(araclar.tools) < 54:
+                    kusur.append(f"arac sayisi dustu: {len(araclar.tools)} < 54 "
+                                 f"-- kayit sarmalayicisi araclari yutuyor olabilir")
 
-            # 1. KASITLI RED: metni GECMELI. Fikstur gerekmez.
-            res = await s.call_tool("list_slides", {"path": "Z:/yok/olmayan.story"})
-            metin = _metin(res)
-            gecti = "bulunamadi" in metin.lower()
-            print(f"kasitli red  : {'METIN GECTI' if gecti else 'MASKELENDI'} "
-                  f"-> {metin[:90]}")
-            if not gecti:
-                kusur.append(
-                    "RED MASKELENIYOR: kasitli bir StoryError'in metni "
-                    f"istemciye varmiyor (gorulen: {metin[:80]!r}). Ajan "
-                    "sebebi okuyamaz, reddi 'arac bozuk' diye okur. "
-                    "server.py'deki StoryError -> ToolError donusumu dusmus.")
+                # 1. KASITLI RED: metni GECMELI. Fikstur gerekmez.
+                res = await s.call_tool("list_slides", {"path": "Z:/yok/olmayan.story"})
+                metin = _metin(res)
+                gecti = "bulunamadi" in metin.lower()
+                print(f"kasitli red  : {'METIN GECTI' if gecti else 'MASKELENDI'} "
+                      f"-> {metin[:90]}")
+                if not gecti:
+                    kusur.append(
+                        "RED MASKELENIYOR: kasitli bir StoryError'in metni "
+                        f"istemciye varmiyor (gorulen: {metin[:80]!r}). Ajan "
+                        "sebebi okuyamaz, reddi 'arac bozuk' diye okur. "
+                        "server.py'deki StoryError -> ToolError donusumu dusmus.")
 
-            # 2. COMPOSE KAPISI, ucdan uca -- FIKSTUR VARSA.
-            if not BLANK.exists():
-                print(f"compose kapisi: KOSMADI (fikstur yok: {BLANK}) -- "
-                      f"bu bolumun sessizligi 'gecti' demek DEGIL")
-            else:
-                hedef = ROOT.parent / "test" / "_canary" / "red_mesaji.story"
-                hedef.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(BLANK, hedef)
-                q = await s.call_tool("add_question", {
-                    "path": str(hedef), "prompt": "Hangisi dogru?",
-                    "choices": ["a", "b", "c", "d"], "correct": [1],
-                    "eyebrow": "B", "in_place": True,
-                    "feedback": {"correct": "E", "incorrect": "H"}})
-                slayt = _cozum(q).get("new_slide")
-                # GORSEL ISTEMEDEN yeniden beste: reddedilmeli VE sebebini
-                # soylemeli. Ikisi ayri sorudur ve ikisi de sorulur.
-                res2 = await s.call_tool("compose_slide", {
-                    "path": str(hedef), "slide": slayt, "layout": "content",
-                    "title": "Uzerine yaz", "body": "...", "in_place": True})
-                m2 = _metin(res2)
-                reddedildi = bool(getattr(res2, "is_error", False))
-                sebepli = ("kaybolacak icerik" in m2) and (
-                    "katman" in m2 or "tetikleyici" in m2)
-                print(f"compose kapisi: {'REDDETTI' if reddedildi else 'KABUL ETTI'}, "
-                      f"{'sebep VAR' if sebepli else 'sebep YOK'}")
-                if not reddedildi:
-                    kusur.append(
-                        "KAPI KOSMUYOR: gorsel istemeden yeniden beste "
-                        "KABUL edildi -- soru etkilesimi (intrProps + "
-                        "SubmitInteraction) sessizce siliniyor. Kosul "
-                        "`image_area and clear` diye daralmis olabilir.")
-                elif not sebepli:
-                    kusur.append(
-                        f"RED SEBEPSIZ: kapi reddediyor ama neyin kaybolacagini "
-                        f"soylemiyor (gorulen: {m2[:80]!r})")
+                # 2. COMPOSE KAPISI, ucdan uca -- FIKSTUR VARSA.
+                if not BLANK.exists():
+                    print(f"compose kapisi: KOSMADI (fikstur yok: {BLANK}) -- "
+                          f"bu bolumun sessizligi 'gecti' demek DEGIL")
+                else:
+                    hedef = ROOT.parent / "test" / "_canary" / "red_mesaji.story"
+                    hedef.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(BLANK, hedef)
+                    q = await s.call_tool("add_question", {
+                        "path": str(hedef), "prompt": "Hangisi dogru?",
+                        "choices": ["a", "b", "c", "d"], "correct": [1],
+                        "eyebrow": "B", "in_place": True,
+                        "feedback": {"correct": "E", "incorrect": "H"}})
+                    slayt = _cozum(q).get("new_slide")
+                    # GORSEL ISTEMEDEN yeniden beste: reddedilmeli VE sebebini
+                    # soylemeli. Ikisi ayri sorudur ve ikisi de sorulur.
+                    res2 = await s.call_tool("compose_slide", {
+                        "path": str(hedef), "slide": slayt, "layout": "content",
+                        "title": "Uzerine yaz", "body": "...", "in_place": True})
+                    m2 = _metin(res2)
+                    reddedildi = bool(getattr(res2, "is_error", False))
+                    sebepli = ("kaybolacak icerik" in m2) and (
+                        "katman" in m2 or "tetikleyici" in m2)
+                    print(f"compose kapisi: {'REDDETTI' if reddedildi else 'KABUL ETTI'}, "
+                          f"{'sebep VAR' if sebepli else 'sebep YOK'}")
+                    if not reddedildi:
+                        kusur.append(
+                            "KAPI KOSMUYOR: gorsel istemeden yeniden beste "
+                            "KABUL edildi -- soru etkilesimi (intrProps + "
+                            "SubmitInteraction) sessizce siliniyor. Kosul "
+                            "`image_area and clear` diye daralmis olabilir.")
+                    elif not sebepli:
+                        kusur.append(
+                            f"RED SEBEPSIZ: kapi reddediyor ama neyin kaybolacagini "
+                            f"soylemiyor (gorulen: {m2[:80]!r})")
     return kusur
 
 

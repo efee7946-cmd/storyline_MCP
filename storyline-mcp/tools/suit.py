@@ -184,6 +184,19 @@ ADIMLAR = [
     # cevabi.
     ("yeni modul",      [PY, "tools/yeni_modul.py"],
      True,  False, "URETIR: sifirdan modul; 8 kusur sinifini sinar"),
+    # AJAN YOLU KAPISI, `yeni modul`un HEMEN YANINDA ve bu bilerek:
+    # ikisi ayni soruyu iki YOLDAN soruyor. `yeni modul` kurucu yolu
+    # (authoring + compose fonksiyonlari) uctan uca kosuyordu; bu, ajanin
+    # gectigi yolu -- gercek MCP sunucusu, stdio, her cagrida `_write` --
+    # kosar. Takim bir sure BIRINCIL OLMAYAN yolu uctan uca olcup
+    # birincil yapilmak isteneni hic olcmuyordu.
+    #
+    # MODEL CAGIRMAZ: cagri dizisi betiklenmis. Olculen sey PLANLAYICI
+    # degil YOL. Iddia kumesi kurucuya ESIT DEGIL (Ilerleme, medya plani
+    # ve sonuc kilidi disarida) -- esitlik iddia eden bir kapi yol
+    # haritasinin 3. maddesi acilana kadar INSA GEREGI kirmizi kalirdi.
+    ("ajan yolu",       [PY, "tools/ajan_yolu.py"],
+     True,  False, "URETIR: _canary/ajan_yolu*.story; 3 = mcp istemcisi yok"),
     # MEDYA YERI. `produced`tan SONRA, cunku taze uretilmis kursu okuyor.
     # KAPI OLAN SEY BAYRAK DEGIL, OLCUNUN KANARYASI (uslup ile ayni bicim):
     # bes ayak -- taze slayt gecmeli, yabanci sekil/tetikleyici yakalanmali,
