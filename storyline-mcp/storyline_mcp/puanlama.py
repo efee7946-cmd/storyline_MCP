@@ -278,7 +278,7 @@ def cevaplanamaz(pkg: StoryPackage, index: dict) -> list[dict]:
 
 
 def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
-    """Puanlı soru var ama sonuç slaydı yok mu -- SORUYU EKLEYEN AN İÇİN.
+    """Bu kurs bir puan raporlayabilir mi -- SORUYU EKLEYEN AN İÇİN.
 
     NICIN UYARI, RED DEGIL -- VE FARK BICIMDE DEGIL, KAYBIN SEKLINDE.
     `compose_slide`in reddi bir EYLEMIN icinde durabiliyor cunku kayip o
@@ -289,21 +289,28 @@ def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
     KUSURLU DEGIL, ARA HALDIR, ve o hali reddeden bir kapi dogru kurulusu
     imkansiz kilar.
 
-    O yuzden bu, soruyu ekleyen cagrinin donusune giren bir cumle:
-    kaybin dogdugu an degil ama FARK EDILEBILECEGI en erken an. Kursun
-    tamamina bakan hukum `zincir`de ve `audit`te duruyor.
+    YUKLEM `zincir`IN KENDISI, ve BU BIR DUZELTME (2026-09-10).
+    Ilk surum kendi kosulunu tasiyordu: "pakette `rsltsIntr` var mi".
+    O, `zincir`in DORT kosulundan yalnizca BIRIYDI (sonuc slaydinin
+    varligi). Sonuc: `add_results_slide` cagrildigi anda uyari
+    susuyordu -- zincir kurulsun ya da kurulmasin. Diskte olculdu:
+    `rsltsIntr` tasiyan 10 kursun 8'inde `zincir` kirik bildiriyor ve
+    uyari hepsinde SESSIZ. Yani uyari, var olmak icin kuruldugu
+    basarisizligin BIR ADIM ONCESINDE susuyordu.
+
+    Duzeltme yapiskanlik degil, tek yuklem: `zincir` dordunu de
+    hesapliyor ve temizse BOS donuyor. Sonuc slaydinin yoklugu da o
+    bulgulardan biri. Uyari boylece yalnizca DOGRU olayda susar.
+    `neler`in dizgeden yapiya cevrilmesiyle ayni hamle: tek soru icin
+    iki yuklem tutmayi birakmak.
 
     KAYDEDILMIS HALE ESIT OLDUGU AN cagrilmali (yazmadan hemen sonra):
     `izleme` story.xml'i okuyor ve bellekteki agac ancak o noktada
     dosyayla ayni.
     """
-    index = model.slide_index(pkg)
-    puanli = puanli_slaytlar(pkg, index)
-    if not puanli:
+    kirik = zincir(pkg)
+    if not kirik:
         return ""
-    for part in index:
-        if any(e.tag == "rsltsIntr" for e in pkg.parse(part).iter()):
-            return ""
-    return ("%d puanli slayt var ama SONUC SLAYDI YOK: bu haliyle ogrenci "
-            "puanini gormez ve LMS'e rapor gitmez. Kursu bitirmeden once "
-            "add_results_slide cagirin." % len(puanli))
+    if len(kirik) == 1:
+        return kirik[0]
+    return "%s (+%d kirik daha; tamami icin audit)" % (kirik[0], len(kirik) - 1)

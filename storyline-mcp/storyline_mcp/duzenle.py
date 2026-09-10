@@ -57,6 +57,16 @@ def _guid_referanslari(root, guid: str, sekil) -> list[str]:
     -- ornegin bir atlama hedefi -- bu taramada GORUNMEZ; sekil
     silmede boyle bir referans sinifi olculmedi, ama SLAYT silme
     araci yazilirsa oradan baslanmali.
+
+    VE ORADA ZATEN SESSIZ BIR YENIDEN YAZMA VAR. `clone.py`, hedefi
+    projede bulunmayan bir atlamayi `action="jumpToSlide"
+    actSubType="next"`e ceviriyor -- yani KOPUK bir hedef, silinen bir
+    slayda giden bir hedefle ayni yoldan geciyor ve "sonraki slayt"a
+    donusuyor. Kendi notu sinirini da yaziyor: `results.xml`in "Sinavi
+    Yeniden Dene" dugmesi icin "sonraki slayt" ANLAMCA yanlis. Slayt
+    silme araci capraz referans taramasini yazarken kapatilacak ILK sey
+    bu: silme, kopuk hedefi sessizce yeniden yazan bir yola baglanmamali;
+    once ne kirilacagini SOYLEMELI.
     """
     if not guid:
         return []

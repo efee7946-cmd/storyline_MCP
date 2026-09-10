@@ -218,6 +218,40 @@ def kanarya() -> list[str]:
         kusur.append(f"UYARI YAPISKAN: sonuc slaydi eklendigi halde uyari "
                      f"suruyor ({kalan[:60]}) -- ajan onu gormezden gelmeyi "
                      f"ogrenir")
+
+    # 6d. AYIRT EDICI AYAK: SONUC SLAYDI VAR AMA ZINCIR KIRIK.
+    #
+    # Uyarinin ilk surumu "pakette rsltsIntr var mi" diye soruyordu ve
+    # bu, `zincir`in DORT kosulundan yalnizca biriydi -- yani
+    # `add_results_slide` cagrilir cagrilmaz susuyordu, zincir kurulsun
+    # ya da kurulmasin. Diskte olculdu: rsltsIntr tasiyan 10 kursun
+    # 8'inde zincir kirik ve uyari hepsinde SESSIZDI. Uyari, var olmak
+    # icin kuruldugu basarisizligin BIR ADIM ONCESINDE susuyordu.
+    #
+    # Kusur ARTEFAKTA ekiliyor (questionIdLst bosaltiliyor), cunku
+    # yazma yolu artik bu hali kendiliginden uretmiyor.
+    story = pk5.parse("story/story.xml")
+    bosaltilan = 0
+    for liste in story.iter("questionIdLst"):
+        if len(liste):
+            bosaltilan += len(liste)
+            for oge in list(liste):
+                liste.remove(oge)
+    pk5.replace_xml("story/story.xml", story)
+    pk5.save(yol5, backup=False)
+    if not bosaltilan:
+        print("uyari(d)    : KOSAMADI (questionIdLst zaten bostu)")
+        kusur.append("AYAK KOSAMADI: bosaltilacak questionIdLst kaydi yok -- "
+                     "uyarinin kirik zincirde konusup konusmadigi OLCULMEDI")
+    else:
+        kirik_uyari = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
+        print(f"uyari(d)    : sonuc slaydi VAR, {bosaltilan} kayit silindi -> "
+              f"{'KONUSTU (dogru)' if kirik_uyari else 'SUSTU (YANLIS)'}")
+        if not kirik_uyari:
+            kusur.append(
+                "UYARI ERKEN SUSUYOR: sonuc slaydi var ama questionIdLst BOS "
+                "-- kurs LMS'e sifir raporlar ve uyari sessiz. Yuklem "
+                "`zincir` degil, yalnizca 'rsltsIntr var mi' olmus olabilir.")
     return kusur
 
 
