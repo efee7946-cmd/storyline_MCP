@@ -72,8 +72,25 @@ def izleme(pkg: StoryPackage, index: dict) -> dict:
     }
 
 
+def puanli_slaytlar(pkg: StoryPackage, index: dict) -> list[str]:
+    """Puanli etkilesim tasiyan slaytlar. Zincirin ILK halkasi.
+
+    Ayri bir fonksiyon cunku IKI kosul bunu soruyor: "sonuc slaydi yoksa
+    ortada puanlanacak bir sey var mi" ve "questionIdLst hepsini kapsiyor
+    mu". Iki kopya, iki farkli kesit ve sessizce ayrisan iki sayi demekti.
+    """
+    return [ref.basename for part, ref in index.items()
+            if any(e.tag.endswith("Intr") and e.tag != "rsltsIntr"
+                   and e.find("intrProps") is not None
+                   for e in pkg.parse(part).iter())]
+
+
 def zincir(pkg: StoryPackage) -> list[str]:
-    """Sonuç slaydı varsa puanlama zinciri BÜTÜN mü? Kırıkları adıyla döner.
+    """Puanlama zinciri BÜTÜN mü? Kırıkları adıyla döner.
+
+    Sonuc slaydi YOKSA da konusur: puanli soru varken sonuc slaydinin
+    olmamasi zincirin bir kirigidir (2026-09-10'da eklendi; onceden
+    kosulsuz bos donuyordu ve en eksik kurs en temiz gorunuyordu).
 
     TEK BIRLESIK IDDIA, cunku kablolama birbirinden BAGIMSIZ adimlardan
     olusuyor ve kismi tamamlanma basaridan ayirt edilemiyor. Kullanicinin uc
@@ -126,7 +143,24 @@ def zincir(pkg: StoryPackage) -> list[str]:
             sonuc_slaytlari.append((ref.basename, kok.get("g") or ""))
             quiz_g_ref = quiz_g_ref or (rslts.get("quizG") or "")
     if not sonuc_slaytlari:
-        return []                    # sonuc slaydi yoksa iddia da yok
+        # SESSIZLIK, "SORUN YOK" DEMEK DEGIL -- VE BURADA OYLE OKUNUYORDU.
+        #
+        # Eski satir kosulsuz `return []` idi ve gerekcesi makuldu: "sonuc
+        # slaydi yoksa iddia da yok". Ama olculdu (2026-09-10, diske
+        # yazilmis dosya): uc puanli soru + sonuc slaydi YOK ->
+        # `zincir` bos, yani EN EKSIK kurs en temiz gorunuyordu.
+        # Ogrenci puanini hic gormuyor, LMS'e hicbir sey gitmiyor.
+        #
+        # Iddiasizlik dogru cevap YALNIZCA ortada puanlanacak bir sey
+        # yokken. Puanli soru varsa sonuc slaydinin YOKLUGU zincirin
+        # ucuncu halkasinin kirikligidir, ayri bir sinif degil.
+        puanli = puanli_slaytlar(pkg, index)
+        if puanli:
+            return ["%d puanli slayt var ama SONUC SLAYDI YOK (%s): ogrenci "
+                    "puanini hic gormez ve LMS'e rapor gitmez -- "
+                    "add_results_slide ile kapatilmali"
+                    % (len(puanli), ", ".join(puanli[:4]))]
+        return []                    # puanlanacak bir sey de yok
 
     kirik: list[str] = []
     ad, sonuc_guid = sonuc_slaytlari[0]
@@ -164,10 +198,7 @@ def zincir(pkg: StoryPackage) -> list[str]:
 
     # 3 -- puanli her slayt kayitli mi
     kayitli = set(_iz["registered"])
-    puanli = [ref.basename for part, ref in index.items()
-              if any(e.tag.endswith("Intr") and e.tag != "rsltsIntr"
-                     and e.find("intrProps") is not None
-                     for e in pkg.parse(part).iter())]
+    puanli = puanli_slaytlar(pkg, index)
     kayitsiz = [b for b in puanli if b not in kayitli]
     if kayitsiz:
         kirik.append("%d puanli slayt quiz'e kayitli degil (%s): puanlari "

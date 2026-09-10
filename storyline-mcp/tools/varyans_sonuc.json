@@ -1,103 +1,137 @@
-[
-  {
-    "kosu": "KISA_A",
-    "hata": "StoryError: Icerik uretilemedi: ",
-    "sure_s": 988.0,
-    "yeniden_isteme": 1,
-    "yama_cagrisi": 1,
-    "ayrac_kararlari": [
-      {
-        "asama": "slides",
-        "sahne": "02_KimlikAvi",
-        "govde": 0,
-        "once_ayrac": 1,
-        "sonra_ayrac": 0,
-        "beklenen": false,
-        "dogru": true
-      },
-      {
-        "asama": "slides",
-        "sahne": "03_ParolaHijyeni",
-        "govde": 0,
-        "once_ayrac": 1,
-        "sonra_ayrac": 0,
-        "beklenen": false,
-        "dogru": true
-      },
-      {
-        "asama": "slides",
-        "sahne": "04_HalkaAcikAglar",
-        "govde": 0,
-        "once_ayrac": 1,
-        "sonra_ayrac": 0,
-        "beklenen": false,
-        "dogru": true
-      },
-      {
-        "asama": "slides",
-        "sahne": "05_FizikselGuvenlik",
-        "govde": 0,
-        "once_ayrac": 1,
-        "sonra_ayrac": 0,
-        "beklenen": false,
-        "dogru": true
-      }
-    ],
-    "duzen_dagilimi": {},
-    "scenes": null,
-    "slides": null,
-    "questions": null,
-    "fallbacks": null,
-    "looks": 0,
-    "written": null,
-    "akis": [
-      "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)",
-      "plan ihlali: 4 slayt ardisik okuma (en fazla 3 olmali); 02_KimlikAvi sahnesinde ayrac var ama arkasinda 1 govde slaydi; 03_ParolaHijyeni sahnesinde ayrac var ama arkasinda 1 govde slaydi; 04_HalkaAcikAglar sahnesinde ayrac var ama arkasinda 1 govde slaydi; 05_FizikselGuvenlik sahnesinde ayrac var ama arkasinda 1 govde slaydi -- iskelet yeniden isteniyor",
-      "iskelet -- yeniden istendi ve duzeldi",
-      "ayrac -- Kimlik Avini Tanima: ayrac plandan cikarildi (arkasi bos)",
-      "ayrac -- Parola Hijyeni ve Iki Adimli Dogrulama: ayrac plandan cikarildi (arkasi bos)",
-      "ayrac -- Halka Acik Aglar ve Uzaktan Calisma: ayrac plandan cikarildi (arkasi bos)",
-      "ayrac -- Fiziksel Guvenlik ve Temiz Masa: ayrac plandan cikarildi (arkasi bos)",
-      "6 bolum, 12 slayt planlandi (hedef ~11; soru bicimleri: birden fazla dogru cevap ile 5 secenek, tek dogru cevap ile 2 secenek, tek dogru cevap ile 3 secenek). Icerik yaziliyor…",
-      "Icerik 1/6: 01_Giris",
-      "Icerik 2/6: 02_KimlikAvi",
-      "Icerik 3/6: 03_ParolaHijyeni"
-    ]
+{
+  "kayit": "ARSIV -- canli taban DEGIL",
+  "nicin": "Uc kosunun UCU de hata aldi (StoryError: Icerik uretilemedi). KISA_A 988 saniye kosup dort ayrac karari uretti; KISA_B ve UZUN_C 3.4 saniyede dustu, yani hic baslamadilar. Dolayisiyla bu dosya bir DAVRANIS tabani degil, dusmus bir olcum oturumunun kaydi. Bir sayiyi buradan alip bugunku bir kosuyla karsilastirmak, olculmemis bir seyi taban saymaktir.",
+  "tarih": "2026-08-30 18:10",
+  "tarih_kaynagi": "dosyanin diskteki degistirilme zamani",
+  "commit": "0f1e22d",
+  "commit_notu": "dosyaya en son dokunan commit; olcumu ureten commit olmayabilir",
+  "hatali_kosular": [
+    "KISA_A",
+    "KISA_B",
+    "UZUN_C"
+  ],
+  "tasidigi_veri": {
+    "KISA_A": {
+      "sure_s": 988.0,
+      "ayrac_karari": 4,
+      "duzen_dagilimi": 0,
+      "yeniden_isteme": 1
+    },
+    "KISA_B": {
+      "sure_s": 3.4,
+      "ayrac_karari": 0,
+      "duzen_dagilimi": 0,
+      "yeniden_isteme": 0
+    },
+    "UZUN_C": {
+      "sure_s": 3.4,
+      "ayrac_karari": 0,
+      "duzen_dagilimi": 0,
+      "yeniden_isteme": 0
+    }
   },
-  {
-    "kosu": "KISA_B",
-    "hata": "StoryError: Icerik uretilemedi: ",
-    "sure_s": 3.4,
-    "yeniden_isteme": 0,
-    "yama_cagrisi": 0,
-    "ayrac_kararlari": [],
-    "duzen_dagilimi": {},
-    "scenes": null,
-    "slides": null,
-    "questions": null,
-    "fallbacks": null,
-    "looks": 0,
-    "written": null,
-    "akis": [
-      "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)"
-    ]
-  },
-  {
-    "kosu": "UZUN_C",
-    "hata": "StoryError: Icerik uretilemedi: ",
-    "sure_s": 3.4,
-    "yeniden_isteme": 0,
-    "yama_cagrisi": 0,
-    "ayrac_kararlari": [],
-    "duzen_dagilimi": {},
-    "scenes": null,
-    "slides": null,
-    "questions": null,
-    "fallbacks": null,
-    "looks": 0,
-    "written": null,
-    "akis": [
-      "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)"
-    ]
-  }
-]
+  "yeniden_uretim": "python tools/varyans.py (~49 dk, MODEL CAGIRIR) ya da --hizli (yalnizca KISA_A, ~12 dk). Suit bunu kosmaz: kapilar model cagirmaz.",
+  "kosular": [
+    {
+      "kosu": "KISA_A",
+      "hata": "StoryError: Icerik uretilemedi: ",
+      "sure_s": 988.0,
+      "yeniden_isteme": 1,
+      "yama_cagrisi": 1,
+      "ayrac_kararlari": [
+        {
+          "asama": "slides",
+          "sahne": "02_KimlikAvi",
+          "govde": 0,
+          "once_ayrac": 1,
+          "sonra_ayrac": 0,
+          "beklenen": false,
+          "dogru": true
+        },
+        {
+          "asama": "slides",
+          "sahne": "03_ParolaHijyeni",
+          "govde": 0,
+          "once_ayrac": 1,
+          "sonra_ayrac": 0,
+          "beklenen": false,
+          "dogru": true
+        },
+        {
+          "asama": "slides",
+          "sahne": "04_HalkaAcikAglar",
+          "govde": 0,
+          "once_ayrac": 1,
+          "sonra_ayrac": 0,
+          "beklenen": false,
+          "dogru": true
+        },
+        {
+          "asama": "slides",
+          "sahne": "05_FizikselGuvenlik",
+          "govde": 0,
+          "once_ayrac": 1,
+          "sonra_ayrac": 0,
+          "beklenen": false,
+          "dogru": true
+        }
+      ],
+      "duzen_dagilimi": {},
+      "scenes": null,
+      "slides": null,
+      "questions": null,
+      "fallbacks": null,
+      "looks": 0,
+      "written": null,
+      "akis": [
+        "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)",
+        "plan ihlali: 4 slayt ardisik okuma (en fazla 3 olmali); 02_KimlikAvi sahnesinde ayrac var ama arkasinda 1 govde slaydi; 03_ParolaHijyeni sahnesinde ayrac var ama arkasinda 1 govde slaydi; 04_HalkaAcikAglar sahnesinde ayrac var ama arkasinda 1 govde slaydi; 05_FizikselGuvenlik sahnesinde ayrac var ama arkasinda 1 govde slaydi -- iskelet yeniden isteniyor",
+        "iskelet -- yeniden istendi ve duzeldi",
+        "ayrac -- Kimlik Avini Tanima: ayrac plandan cikarildi (arkasi bos)",
+        "ayrac -- Parola Hijyeni ve Iki Adimli Dogrulama: ayrac plandan cikarildi (arkasi bos)",
+        "ayrac -- Halka Acik Aglar ve Uzaktan Calisma: ayrac plandan cikarildi (arkasi bos)",
+        "ayrac -- Fiziksel Guvenlik ve Temiz Masa: ayrac plandan cikarildi (arkasi bos)",
+        "6 bolum, 12 slayt planlandi (hedef ~11; soru bicimleri: birden fazla dogru cevap ile 5 secenek, tek dogru cevap ile 2 secenek, tek dogru cevap ile 3 secenek). Icerik yaziliyor…",
+        "Icerik 1/6: 01_Giris",
+        "Icerik 2/6: 02_KimlikAvi",
+        "Icerik 3/6: 03_ParolaHijyeni"
+      ]
+    },
+    {
+      "kosu": "KISA_B",
+      "hata": "StoryError: Icerik uretilemedi: ",
+      "sure_s": 3.4,
+      "yeniden_isteme": 0,
+      "yama_cagrisi": 0,
+      "ayrac_kararlari": [],
+      "duzen_dagilimi": {},
+      "scenes": null,
+      "slides": null,
+      "questions": null,
+      "fallbacks": null,
+      "looks": 0,
+      "written": null,
+      "akis": [
+        "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)"
+      ]
+    },
+    {
+      "kosu": "UZUN_C",
+      "hata": "StoryError: Icerik uretilemedi: ",
+      "sure_s": 3.4,
+      "yeniden_isteme": 0,
+      "yama_cagrisi": 0,
+      "ayrac_kararlari": [],
+      "duzen_dagilimi": {},
+      "scenes": null,
+      "slides": null,
+      "questions": null,
+      "fallbacks": null,
+      "looks": 0,
+      "written": null,
+      "akis": [
+        "Kurs iskeleti tasarlaniyor… (uzun brief'lerde dakikalar surebilir; olculen en uzunu 6.5 dakika)"
+      ]
+    }
+  ]
+}

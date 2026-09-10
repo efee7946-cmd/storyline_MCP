@@ -179,8 +179,63 @@ def kosuyu_yap(ad, brief, ek, sonuclar):
     })
     # HER KOSUDAN SONRA YAZ, sonda degil: ucuncu kosu duserse ilk ikisinin
     # olcumu de gitmesin. Kaybin bedeli 49 dakika.
-    SONUC.write_text(json.dumps(sonuclar, ensure_ascii=False,
+    SONUC.write_text(json.dumps(_zarf(sonuclar), ensure_ascii=False,
                                 default=str, indent=2), encoding="utf-8")
+
+
+def _zarf(sonuclar: list) -> dict:
+    """Kosulari KOKENIYLE birlikte sar -- ciplak liste okunamaz.
+
+    Dosya bir sure ciplak bir liste olarak duruyordu: tarih yok, commit
+    yok, ve en onemlisi KOSUNUN DUSUP DUSMEDIGI ozette yok. Iceride
+    "hata" alanlari vardi ama dosyaya bakan kisi once uc kayit gorup onu
+    bir TABAN saniyordu -- oysa 2026-08-30 kaydinda ucunun ucu de hata
+    almisti (biri 988 s kosup yarida kalmis, ikisi 3.4 s'de hic
+    baslamamis). "Olculdu" ile "olculmeye calisildi" ayni dosyada ayni
+    gorunuyordu.
+
+    Zarf her kosudan sonra yeniden uretiliyor, yani yarida kalan bir
+    oturumun kaydi da kendi durumunu tasiyor.
+    """
+    hatali = [r.get("kosu") for r in sonuclar if r.get("hata")]
+    tam = [r.get("kosu") for r in sonuclar if not r.get("hata")]
+    return {
+        "kayit": ("ARSIV -- canli taban DEGIL" if hatali
+                  else "olcum kaydi"),
+        "nicin": (
+            "Kosularin %d/%d'si hata aldi; bu dosya bir DAVRANIS tabani "
+            "degil, o oturumun kaydidir." % (len(hatali), len(sonuclar))
+            if hatali else
+            "Butun kosular tamamlandi. Taban olarak okunmadan once "
+            "varyans.py'nin basligindaki 'taban karsilastirmasi' notu "
+            "okunmali: prompt degistiginde eski sayilar kiyaslanamaz."),
+        "tarih": time.strftime("%Y-%m-%d %H:%M"),
+        "tarih_kaynagi": "kosu ani",
+        "commit": _commit(),
+        "commit_notu": "olcumu ureten calisma agacinin HEAD'i",
+        "hatali_kosular": hatali,
+        "tamamlanan_kosular": tam,
+        "yeniden_uretim": (
+            "python tools/varyans.py (~49 dk, MODEL CAGIRIR) ya da --hizli "
+            "(yalnizca KISA_A, ~12 dk). Suit bunu kosmaz: kapilar model "
+            "cagirmaz."),
+        "kosular": sonuclar,
+    }
+
+
+def _commit() -> str:
+    """Calisma agacinin HEAD'i; alinamazsa bunu YAZ, uydurma."""
+    try:
+        import subprocess
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                           cwd=str(ROOT), capture_output=True, text=True,
+                           timeout=10)
+        kirli = subprocess.run(["git", "status", "--porcelain"], cwd=str(ROOT),
+                               capture_output=True, text=True, timeout=10)
+        ad = r.stdout.strip() or "(alinamadi)"
+        return ad + (" (calisma agaci KIRLI)" if kirli.stdout.strip() else "")
+    except Exception as exc:      # noqa: BLE001
+        return f"(alinamadi: {type(exc).__name__})"
 
 
 def ozet(sonuclar):

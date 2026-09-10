@@ -136,6 +136,39 @@ def kanarya() -> list[str]:
                 f"SONRA duruyor olabilir -- ajanin kolu o.")
         except StoryError:
             print(f"yazma kapisi: {etiket} correct REDDEDILDI (dogru)")
+    # 5. SESSIZLIK AYAGI. `zincir` sonuc slaydi yokken KOSULSUZ bos
+    # donuyordu ve gerekcesi makuldu ("sonuc slaydi yoksa iddia da yok").
+    # Olculdu 2026-09-10: uc puanli soru + sonuc slaydi YOK -> zincir bos,
+    # yani EN EKSIK kurs en temiz gorunuyordu. Ogrenci puanini gormez,
+    # LMS'e hicbir sey gitmez. Bu ayak o sessizligin geri gelmesini
+    # engelliyor.
+    #
+    # IKI YONLU: puanli soru YOKKEN de konusursa olcu gurultu uretir ve
+    # her bos kurs kirmizi olurdu.
+    yol4 = CANARY / "puanlanabilirlik_sessizlik.story"
+    shutil.copy2(BLANK, yol4)
+    pk4 = StoryPackage(yol4)
+    bos_zincir = puanlama.zincir(pk4)
+    print(f"sessizlik(a): sorusuz kurs "
+          f"{'SESSIZ (dogru)' if not bos_zincir else 'KONUSUYOR: ' + str(bos_zincir[:1])}")
+    if bos_zincir:
+        kusur.append(f"GURULTU: puanli sorusu olmayan kurs icin zincir "
+                     f"kirik bildiriyor ({bos_zincir[:1]})")
+    for i in range(2):
+        authoring.add_question(
+            pk4, None, f"S{i}", ["a", "b", "c", "d"], [1],
+            eyebrow="B", feedback={"correct": "E", "incorrect": "H"})
+    # DISKE YAZILIR: zincir kaydedilmis dosya uzerinde konusur, ve bu
+    # olcunun kendisi bir kez bellekte kosup yanlis sayi uretti.
+    pk4.save(yol4, backup=False)
+    sonucsuz = puanlama.zincir(StoryPackage(yol4))
+    print(f"sessizlik(b): sonuc slaydi olmayan puanli kurs "
+          f"{'BILDIRILDI' if sonucsuz else 'SESSIZ KALDI'}")
+    if not sonucsuz:
+        kusur.append(
+            "SESSIZ KOR NOKTA: puanli soru var, sonuc slaydi yok ve zincir "
+            "hicbir kirik bildirmiyor -- ogrenci puanini gormez, LMS'e "
+            "rapor gitmez, ve audit temiz gorunur")
     return kusur
 
 
