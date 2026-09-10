@@ -244,11 +244,30 @@ def zincir(pkg: StoryPackage) -> list[str]:
     # cozunurluk `bankLst/scene/sldIdLst` uyelerini de kapsamali.
     cozulemeyen = sorted({g for q in _iz["quizzes"] for g in q["cozulemeyen"]})
     if cozulemeyen:
-        kirik.append("%d quiz kaydi hicbir slayda cozulmuyor (%s): ya silinmis "
-                     "bir slayda ya da soru bankasina isaret ediyor -- arac "
-                     "bunlari SILMEZ, once neyi gosterdigi bilinmeli"
-                     % (len(cozulemeyen),
-                        ", ".join(g[:8] for g in cozulemeyen[:4])))
+        # BELIRSIZLIK YALNIZCA BANKA DOLUYKEN GERCEK. Bos bir `bankLst`te
+        # cozulemeyen bir kayit banka sorusu OLAMAZ -- bankanin hic
+        # slaydi yok. Geriye tek olasilik kaliyor: silinmis bir slayt.
+        # Kosul, mesaji olcunun kendisi kadar kesin yapiyor; fikstur
+        # beklemeye gerek yok, bilinmezlik yalnizca OLCEMEDIGIMIZ
+        # dosyada kaliyor.
+        _bank = story.find("quizMgr/bankLst")
+        _banka_slaydi = sum(len(sc.find("sldIdLst") or [])
+                            for sc in (_bank if _bank is not None else []))
+        if _banka_slaydi:
+            kirik.append(
+                "%d quiz kaydi hicbir slayda cozulmuyor (%s): bu projede "
+                "soru bankasi DOLU (%d slayt), yani kayit silinmis bir "
+                "slayda da bankaya da isaret ediyor olabilir -- arac "
+                "SILMEZ, once neyi gosterdigi bilinmeli"
+                % (len(cozulemeyen), ", ".join(g[:8] for g in cozulemeyen[:4]),
+                   _banka_slaydi))
+        else:
+            kirik.append(
+                "%d quiz kaydi SILINMIS bir slayda isaret ediyor (%s): "
+                "bu projede soru bankasi bos, yani baska olasilik yok. "
+                "Arac bunlari SILMEZ -- kaydi kaldirmak puanlamayi "
+                "degistirir ve karar cagirana ait"
+                % (len(cozulemeyen), ", ".join(g[:8] for g in cozulemeyen[:4])))
 
     bayat = [b for b in kayitli if b not in set(puanli)]
     if bayat:

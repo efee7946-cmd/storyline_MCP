@@ -245,9 +245,23 @@ def kanarya() -> list[str]:
                      for q in son.parse("story/story.xml").iter("quiz")
                      for el in (q.find("questionIdLst") or [])}
         duruyor = "deadbeef-0000-0000-0000-000000000001" in kalan_ham
-        bildirdi = any("cozulmuyor" in k for k in puanlama.zincir(son))
+        # SORU YAPIYA SORULUYOR, DIZGEYE DEGIL -- VE BU BIR DUZELTME.
+        #
+        # Ilk yazim `any("cozulmuyor" in k for k in zincir(...))` idi:
+        # insan-okur bir cumlede ALT DIZI aramasi. `zincir`in 3c mesaji
+        # banka bosken "SILINMIS bir slayda isaret ediyor" diye
+        # KESINLESTIRILINCE o alt dizi kayboldu ve kapi UC KOSUDA UC KEZ
+        # kirmiziya dondu -- davranis hic bozulmadan, yalnizca mesaj
+        # degistigi icin.
+        #
+        # Ayni sinif bu iplikte yedinci kez: hayal edilen bir bicime
+        # yazilmis yuklem. `izleme` cozulemeyen kayitlari ZATEN yapisal
+        # olarak sayiyor; soru oradan soruluyor.
+        _iz = puanlama.izleme(son, model.slide_index(son))
+        yapisal = sum(len(q["cozulemeyen"]) for q in _iz["quizzes"])
+        bildirdi = yapisal > 0 and bool(puanlama.zincir(son))
         print(f"ispatsiz    : cozulemeyen kayit duruyor={duruyor}, "
-              f"zincir bildiriyor={bildirdi}")
+              f"izleme sayiyor={yapisal}, zincir konusuyor={bildirdi}")
         if not duruyor:
             kusur.append(
                 "ISPATSIZ SILME: hicbir slayda cozulmeyen bir kayit silindi. "
@@ -298,4 +312,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # KANARYA KILIDI. Kapilar `test/_canary/` icine SABIT adli dosyalar
+    # yaziyor; iki kosu ayni anda ayni dosyaya yazarsa ikisi de yanlis
+    # okur ve sonuc "kostu ve dustu" gibi gorunur. Gerekce ve olcum:
+    # tools/kanarya_kilit.py.
+    from kanarya_kilit import korumali
+    raise SystemExit(korumali(main))

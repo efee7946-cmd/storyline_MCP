@@ -535,4 +535,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # KANARYA KILIDI. Kapilar `test/_canary/` icine SABIT adli dosyalar
+    # yaziyor; iki kosu ayni anda ayni dosyaya yazarsa ikisi de yanlis
+    # okur ve sonuc "kostu ve dustu" gibi gorunur. Gerekce ve olcum:
+    # tools/kanarya_kilit.py.
+    from kanarya_kilit import korumali
+    raise SystemExit(korumali(main))
