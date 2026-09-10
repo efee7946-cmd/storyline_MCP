@@ -62,7 +62,7 @@ ADIMLAR = [
     ("scope",           [PY, "tools/scope.py"],
      True,  False, "kapsam iddialarini kosar"),
     ("consistency",     [PY, "tools/consistency.py"],
-     False, False, "yalnizca kaynak kodu; cikis kodu YOK"),
+     False, False, "yalnizca kaynak kodu; 3 = KOSAMADI (mcp paketi yok)"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
     # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine
@@ -171,6 +171,25 @@ ADIMLAR = [
      True,  True,  "Storyline acar: URETILEN kurs + donor havuzu"),
 ]
 
+# KOSAMADI, KOSTU-VE-DUSTU DEGIL. Bir adim on kosulu saglanmadigi icin
+# hic bakamadiysa (paket yok, dosya yok) 3 doner. Ayni satirda "1" olarak
+# gorunmesi tam olarak normallesen sinyal bicimi: birkac hafta sonra
+# "o adim zaten kirmizi" olur, ve gercekten bir sey buldugu gun okunusu
+# ayni kalir.
+#
+# KOSAMAYAN BIR KAPI YESILE SAYILMAZ. Bu dosyanin ilk cumlesi zaten
+# "cagrilmayan kontrol kontrol degil script" diyor; bakamayan bir kontrol
+# de guvence uretmez, o yuzden kapiysa kosuyu dusurur. Rapor adimlarinda
+# yalnizca goruunur kalir.
+#
+# UC DURUM DA SINANDI (2026-09-10, ADIMLAR ve kos() prob degerlerle
+# degistirilerek -- gercek dallar kosuldu, ikinci bir uygulama yazilmadi):
+#     rapor kosamadi (3)     -> kod 0, "1 adim KOSAMADI: ... (rapor)"
+#     KAPI kosamadi  (3)     -> kod 1, "... (KOSAMADI -- guvence uretmedi)"
+#     KAPI kostu ve dustu(1) -> kod 1, duz "KAPI KALDI"
+# Ucuncusunun ayri gorunmesi onemli: ikisini ayirmak icin kuruldu.
+KOSAMADI = 3
+
 # Kanaryalar en basta kosar ve KALIRSA kosu terk edilir. canary.py'nin kendi
 # sozlesmesi bu: bozuk kontrol bagirmiyorsa, o kosudan gelen bir "gecti"
 # hicbir sey soylemez.
@@ -240,12 +259,20 @@ def main() -> int:
     print(f"{'adim':<{w}}{'tur':<7}{'sure':>7}{'kod':>5}  son satir")
     print("-" * (w + 78))
 
-    kalanlar, raporlar = [], []
+    kalanlar, raporlar, atlananlar = [], [], []
     for ad, komut, kapi, _pahali, _notu, *beklenen in secili:
         kod, gecen, son = kos(ad, komut)
         bekle = beklenen[0] if beklenen else 0
-        print(f"{ad:<{w}}{'kapi' if kapi else 'rapor':<7}{gecen:>6.1f}s"
+        tur = "kapi" if kapi else "rapor"
+        if kod == KOSAMADI and bekle != KOSAMADI:
+            tur = "ATLANDI"
+        print(f"{ad:<{w}}{tur:<7}{gecen:>6.1f}s"
               f"{kod:>5}  {son}")
+        if kod == KOSAMADI and bekle != KOSAMADI:
+            atlananlar.append(f"{ad} ({'KAPI' if kapi else 'rapor'})")
+            if kapi:
+                kalanlar.append(f"{ad} (KOSAMADI -- guvence uretmedi)")
+            continue
         if ad in KANARYALAR and kod != bekle:
             print(f"\nKANARYA KALDI ({ad}). Kosu terk edildi: dogrulayici\n"
                   "yalan soyluyorsa, geri kalan her yesil anlamsizdir.")
@@ -255,6 +282,9 @@ def main() -> int:
                 ad if bekle == 0 else f'{ad} (beklenen {bekle})')
 
     print()
+    if atlananlar:
+        print(f"{len(atlananlar)} adim KOSAMADI: {', '.join(atlananlar)}")
+        print("  (on kosulu saglanmadi; 'temiz' DEGIL, 'bakilmadi')")
     if raporlar:
         print(f"rapor adimlarinda sifir-disi kod: {', '.join(raporlar)} "
               "(kapi degil, kosuyu dusurmez)")

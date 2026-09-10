@@ -1071,6 +1071,11 @@ def slide_layout(path: str, slide: str) -> dict:
     # olur ve tam olarak korunmak istenen icerigi yok eder. Ayni kayip,
     # farkli kapidan. Secim cercevesi bunu bastan kapatir: ajan ENGELI
     # ASMAZ, uygun olani SECER.
+    # HENUZ MCP YUZEYINDEN KOSULARAK DOGRULANMADI (2026-09-10): bu
+    # ortamda `mcp` paketi kurulu degil, yani asagidaki sozluk gercek bir
+    # arac cagrisiyla goruulmedi. Kaynak (emniyet.py) ayri ayri kosuldu ve
+    # sozdizimi dogrulandi -- iki farkli guvence seviyesi, karistirilmasin.
+    # `mcp` kurulu bir ortamda tek bir slide_layout cagrisi bunu kapatir.
     from . import emniyet as _emn
     engeller = _emn.yeniden_beste_engelleri(root)
     return {"slide": slide, "slide_size": [int(width), int(height)],

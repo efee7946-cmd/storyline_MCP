@@ -12,8 +12,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "panel"))
-from storyline_mcp import authoring, compose, media, server, settings
-import agent
+# KOSAMADI ile KOSTU-VE-DUSTU AYRI CIKIS KODLARI.
+#
+# Bu kontrol `server`i import ediyor, o da `mcp` paketini. Paket kurulu
+# degilse import patliyordu ve cikis kodu 1 oluyordu -- yani "tutarsizlik
+# BULDUM" ile "hic BAKAMADIM" ayni satiri uretiyordu. Birkac hafta sonra
+# "consistency zaten 1 doner" diye normallesir, ve gercek bir tutarsizlik
+# icin 1 dondugu gun okunusu ayni kalir.
+#
+# 3 = KOSAMADI. suit.py bunu ayri bir sutunda gosterir.
+try:
+    from storyline_mcp import authoring, compose, media, server, settings
+    import agent
+except ModuleNotFoundError as _exc:
+    print(f"ATLANDI: bu kontrol kosulamadi -- '{_exc.name}' paketi kurulu "
+          f"degil. Tutarsizlik ARANMADI; bu satir temiz sonuc DEGILDIR.")
+    raise SystemExit(3)
 
 # Plumbing, not interface. The check asks "can the agent reach every feature?",
 # so a parameter the agent must NOT set is not a gap.
