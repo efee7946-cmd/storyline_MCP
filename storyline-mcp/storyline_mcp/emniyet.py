@@ -108,3 +108,46 @@ def alan_ayrilmis(root) -> bool:
     """Bu slaytta görsel için yer ZATEN ayrılmış mı."""
     return any((el.get("name") or "") in REZERVASYON_SEKILLERI
                for el in list(root.find("shapeLst") or []))
+
+
+def bestelenebilir_slaytlar(pkg) -> list[str]:
+    """Yeniden bestelenmeyi KALDIRAN slaytlarin adlari, dosya sirasinda.
+
+    NICIN URUN KODUNDA, olcum araclarinda degil. Uc arac (variety, uslup,
+    rubric_fixtures) prob kursunu `bos.story`nin BUTUN slaytlarina
+    besteliyordu ve icinde katmanli bir slayt var (`slideb.xml`). Kapi
+    `clear`e genisleyince ucu birden kirmiziya dondu -- dogru red, yanlis
+    cagri: prob kursunun o slayta ihtiyaci yok, HERHANGI bir slayt yeter.
+
+    Secimi uc yerde tekrarlamak, dorduncu araci yazanin unutacagi bir
+    kural olurdu. Yuklem zaten burada; secim de burada duruyor.
+
+    KAPSAM: "kaldirabilir" demek "besteye deger" demek DEGIL -- bu liste
+    bir UST SINIR, `tools/yeniden_beste.py`nin olctugu sayiyla ayni
+    anlamda.
+    """
+    from . import model
+    return [ref.basename for ref in model.slide_index(pkg).values()
+            if not yeniden_beste_engelleri(pkg.parse(ref.part))]
+
+
+def beste_icin_slaytlar(pkg, adet: int) -> list[str]:
+    """`adet` tane bestelenebilir slayt ver; yetmiyorsa TAZE slayt kur.
+
+    NICIN FILTRELEMEK YETMIYOR. Prob kuran araclar sabit sayida hucre
+    istiyor (variety'nin DECK'i on, uslup'un tablosu ona bagli). Havuzu
+    yalnizca filtrelemek hucre sayisini dusurur, ve o sayi
+    `uslup_taban.json`daki DONDURULMUS orani hesaplayan bolendir --
+    yani filtre, olcunun tabanini sessizce kaydirirdi. Kaydirmak yerine
+    havuz BESLENIYOR: `add_slide` taze slaydi sekilsiz ve katmansiz
+    birakiyor (olculdu), dolayisiyla yeni gelen her slayt bestelenebilir.
+    """
+    from . import authoring
+    havuz = bestelenebilir_slaytlar(pkg)
+    if len(havuz) >= adet:
+        return havuz[:adet]
+    sablon = havuz[0] if havuz else bestelenebilir_slaytlar(pkg)[0]
+    while len(havuz) < adet:
+        yeni = authoring.add_slide(pkg, sablon)["new_slide"]
+        havuz.append(yeni)
+    return havuz[:adet]

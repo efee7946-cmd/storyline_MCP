@@ -45,8 +45,19 @@ sys.path.insert(0, str(ROOT))
 
 warnings.simplefilter("ignore")
 
-from mcp import ClientSession, StdioServerParameters      # noqa: E402
-from mcp.client.stdio import stdio_client                 # noqa: E402
+# KOSAMADI, KOSTU-VE-DUSTU DEGIL (suit.py sozlesmesi: cikis 3).
+# Istemci paketi yoksa bu kapi hukum VEREMEZ. ImportError ile cokmek
+# cikis 1 uretirdi ve suit onu "kapi kaldi" diye okurdu -- yani hicbir
+# sey olculmemisken bir kusur bildirilmis olurdu. Tersi de kotu:
+# sessizce 0 donmek, bakilmamis bir seyi temiz gostermek.
+KOSAMADI = 3
+try:
+    from mcp import ClientSession, StdioServerParameters      # noqa: E402
+    from mcp.client.stdio import stdio_client                 # noqa: E402
+except ImportError as _eksik:                                 # pragma: no cover
+    ISTEMCI_YOK = str(_eksik)
+else:
+    ISTEMCI_YOK = ""
 
 BLANK = ROOT.parent / "test" / "bos.story"
 
@@ -186,6 +197,10 @@ def yerel_ayrim() -> list[str]:
 
 
 def main() -> int:
+    if ISTEMCI_YOK:
+        print(f"KOSAMADI: mcp istemcisi yok ({ISTEMCI_YOK}). Reddin metni "
+              f"olculemedi -- bu 'gecti' DEGIL, 'bakilmadi'.")
+        return KOSAMADI
     kusur = asyncio.run(kosu()) + yerel_ayrim()
     if kusur:
         print("\nKAPI KALDI:")

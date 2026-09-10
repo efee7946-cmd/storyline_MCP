@@ -66,7 +66,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from storyline_mcp import compose, model
+from storyline_mcp import emniyet, compose, model
 from storyline_mcp.package import StoryPackage
 import contrast
 import deadband
@@ -117,7 +117,7 @@ MID = OUT / "orta.story"
 def build_bad(path: Path = BAD, *, palette=None) -> StoryPackage:
     shutil.copy2(BLANK, path)
     pkg = StoryPackage(path)
-    names = [r.basename for r in model.slide_index(pkg).values()]
+    names = emniyet.bestelenebilir_slaytlar(pkg)   # katmanli slayt disarida: bkz. emniyet.bestelenebilir_slaytlar
     ceiling = compose.MAX_TYPE_SCALE
     try:
         compose.MAX_TYPE_SCALE = 1.0          # yogunluk olcegi devre disi
@@ -138,7 +138,7 @@ def build_bad(path: Path = BAD, *, palette=None) -> StoryPackage:
 def build_good() -> StoryPackage:
     shutil.copy2(BLANK, GOOD)
     pkg = StoryPackage(GOOD)
-    names = [r.basename for r in model.slide_index(pkg).values()]
+    names = emniyet.bestelenebilir_slaytlar(pkg)   # katmanli slayt disarida: bkz. emniyet.bestelenebilir_slaytlar
     history: list[str] = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

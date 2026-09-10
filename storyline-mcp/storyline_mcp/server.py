@@ -53,7 +53,11 @@ mcp = MCPServer("storyline")
 # YAMA KAYIT NOKTASINDA, ARAC BASINA DEGIL. 51 dekoratoru tek tek sarmak
 # 52.'yi yazan kisinin unutabilecegi bir kural olur; burada unutulacak
 # bir sey yok, cunku `@mcp.tool()`un kendisi sariyor. Yamanin durdugunu
-# `tools/red_mesaji.py` her kosuda gercek bir istemciyle dogruluyor.
+# `tools/red_mesaji.py` gercek bir istemciyle dogruluyor ve o kapi
+# `tools/suit.py`nin ADIMLAR listesine KAYITLI -- yani "her kosuda"
+# cumlesi bir niyet degil, kosulan bir adim. (Kapi yazilip suit'e
+# baglanmadigi surece bu satir yalnizca bir temenniydi; olculdu:
+# `grep -rn red_mesaji` tek sonuc veriyordu, o da bu yorumun kendisi.)
 _ham_tool = mcp.tool
 
 

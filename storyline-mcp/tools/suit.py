@@ -63,6 +63,23 @@ ADIMLAR = [
      True,  False, "kapsam iddialarini kosar"),
     ("consistency",     [PY, "tools/consistency.py"],
      False, False, "yalnizca kaynak kodu; 3 = KOSAMADI (mcp paketi yok)"),
+    # RED MESAJI KAPISI. Ustteki kapilarin hepsi URETILEN seye bakiyor;
+    # bu, aracin REDDEDERKEN ne soyledigine. Kapatilan kusur sinifi:
+    # mcp 2.x yalnizca `ToolError`in metnini geciriyor, `StoryError` duz
+    # bir RuntimeError oldugu icin maskeleniyordu -- yani depodaki 157
+    # `raise StoryError`in MCP yuzeyinden gecen her biri DILSIZDI ve
+    # ajanin gordugu tek sey "Error executing tool <ad>" oluyordu.
+    #
+    # Nicin bir kapi: bu bir gorunum kusuru degil. Reddin sebebini
+    # okuyamayan ajan, en cok isiranda (`build_course`) hangi islemin
+    # dustugunu de goremez -- teshis URETILIYOR ve maske onu yiyordu.
+    # Sessizce geri dusen bir yama, kursu bozmadan ajani korlestirir.
+    #
+    # Fikstur GEREKTIRMEZ (kasitli red icin olmayan bir dosya yolu yeter),
+    # o yuzden `produced`tan once ve temiz klonda da kosar. Fikstur varsa
+    # ustune compose kapisini da ucdan uca sinar.
+    ("red mesaji",      [PY, "tools/red_mesaji.py"],
+     True,  False, "gercek istemci + stdio; 3 = KOSAMADI (mcp istemcisi yok)"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
     # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine

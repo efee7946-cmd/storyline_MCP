@@ -58,7 +58,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from storyline_mcp import compose, model
+from storyline_mcp import emniyet, compose, model
 from storyline_mcp.package import StoryPackage
 import scope
 import silhouette
@@ -93,7 +93,8 @@ def kur(etiket: str, plan: list[tuple[str, str | None]],
     yol = WORKDIR / f"uslup_{etiket}.story"
     shutil.copy2(BLANK, yol)
     pkg = StoryPackage(yol)
-    names = [r.basename for r in model.slide_index(pkg).values()]
+    # HAVUZ BESLENIR: hucre sayisi uslup_taban.json'un bolenidir.
+    names = emniyet.beste_icin_slaytlar(pkg, len(plan))
     if len(names) < len(plan):
         raise SystemExit(f"{BLANK.name} icinde {len(plan)} slayt yok "
                          f"({len(names)} var).")

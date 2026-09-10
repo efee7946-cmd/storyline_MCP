@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from storyline_mcp import compose, model
+from storyline_mcp import emniyet, compose, model
 from storyline_mcp.package import StoryPackage
 import scope
 import silhouette
@@ -93,7 +93,7 @@ def build_probe(layout: str = "content") -> tuple[StoryPackage, dict[str, str]]:
     """Her varyanttan bir slayt, hepsinde birebir aynı içerik."""
     shutil.copy2(BLANK, PROBE_FILE)
     pkg = StoryPackage(PROBE_FILE)
-    names = [r.basename for r in model.slide_index(pkg).values()]
+    names = emniyet.bestelenebilir_slaytlar(pkg)   # katmanli slayt disarida: bkz. emniyet.bestelenebilir_slaytlar
     per_variant: dict[str, str] = {}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -108,7 +108,8 @@ def build_probe(layout: str = "content") -> tuple[StoryPackage, dict[str, str]]:
 def build() -> tuple[StoryPackage, list[str], list[dict]]:
     shutil.copy2(BLANK, WORK)
     pkg = StoryPackage(WORK)
-    names = [r.basename for r in model.slide_index(pkg).values()]
+    # HAVUZ BESLENIR, DECK KUCULMEZ: DECK'in boyu tabanin boleni.
+    names = emniyet.beste_icin_slaytlar(pkg, len(DECK))
     if len(names) < len(DECK):
         raise SystemExit(f"{BLANK.name} icinde {len(DECK)} slayt yok "
                          f"({len(names)} var).")
