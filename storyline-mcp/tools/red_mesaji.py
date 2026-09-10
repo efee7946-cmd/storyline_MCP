@@ -88,8 +88,8 @@ async def kosu() -> list[str]:
             await s.initialize()
             araclar = await s.list_tools()
             print(f"el sikisti: {len(araclar.tools)} arac bildirildi")
-            if len(araclar.tools) < 51:
-                kusur.append(f"arac sayisi dustu: {len(araclar.tools)} < 51 "
+            if len(araclar.tools) < 54:
+                kusur.append(f"arac sayisi dustu: {len(araclar.tools)} < 54 "
                              f"-- kayit sarmalayicisi araclari yutuyor olabilir")
 
             # 1. KASITLI RED: metni GECMELI. Fikstur gerekmez.

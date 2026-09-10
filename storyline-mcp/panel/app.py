@@ -711,6 +711,29 @@ class Api:
             _ACTIVE_RUN.cancel()
         return "cancelled"
 
+    # --------------------------------------------------------------- oturum
+
+    @guarded
+    def run_changes(self, path: str) -> dict:
+        """Bu kosunun basindan beri ne degisti."""
+        from storyline_mcp import oturum
+        return oturum.fark(path)
+
+    @guarded
+    def undo_run(self, path: str) -> dict:
+        """Kosu basina don. Simdiki hali de `.gerialma.bak` olarak saklanir.
+
+        KULLANICININ KARARI, AJANIN DEGIL: bu yuzden MCP yuzeyinde yok.
+        Ajanin elindeki geri alma, kendi yanlisini "duzeltirken" kullanicinin
+        onceki isini de goturebilirdi.
+        """
+        from storyline_mcp import oturum
+        if lock_state(path) != "free":
+            raise RuntimeError(
+                f"{Path(path).name} Storyline'da acik gorunuyor; kapatip "
+                f"tekrar deneyin.")
+        return oturum.geri_al(path)
+
     # --------------------------------------------------------------- shell
 
     @guarded

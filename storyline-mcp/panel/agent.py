@@ -98,6 +98,14 @@ TOOLS = [
     # yani `--strict-mcp-config` altinda ajan onlari hic cagiramiyordu --
     # arac vardi, tek gercek cagiran ona ulasamiyordu.
     "list_js_capabilities", "add_js_capability", "check_javascript",
+    # AYAK IZI. Ajan kosu boyunca ne degistirdigini bilmiyordu; anlik
+    # goruntuyu panel kosu basinda aliyor, bu arac onu okutuyor.
+    "session_changes",
+    # EL. Bu ikisinden onceki butun araclar EKLIYORDU; ajan kendi
+    # hatasini duzeltemiyordu ve tek "geri alma" yolu compose'un slaydi
+    # bastan cizmesiydi -- emniyet kapisi onu dolu slaytta hakli olarak
+    # reddediyor.
+    "move_shape", "delete_shape",
 ]
 TOOL_PREFIX = "mcp__storyline__"
 ALLOWED = [f"{TOOL_PREFIX}{name}" for name in TOOLS]
@@ -256,6 +264,24 @@ uzerinde". Gorselin USTUNDE YAZI isteme.
 sure ve oran dosyanin icinden okunur.
 - Siparis birakinca kullaniciya SOYLE: hangi slayt, ne istedin, nereden
 verecek.
+
+Duzeltme (yanlis giden bir seyi ONARMAK icin):
+- Bir slayt zaten kuruluysa ve tek bir sey yanlissa, slaydi BASTAN
+KURMA. compose_slide dolu bir slayti temizleyip yeniden cizer ve
+icinde soru/katman/elle konmus sekil varsa REDDEDILIR -- reddin metni
+neyin kaybolacagini yazar, oku.
+- Bunun yerine: move_shape ile sekli tasi/boyutlandir, delete_shape ile
+kaldir, update_text ile yazisini, restyle_text ile rengini degistir.
+     move_shape(slide, shape, x, y, w, h)   verilmeyen alan KORUNUR
+     delete_shape(slide, shape)
+- shape olarak slide_layout'un verdigi ADI kullan ("Title", "Body"),
+uzerindeki metni ya da guid'i. Ayni adi tasiyan birden fazla sekil varsa
+arac secmez, guid ister.
+- delete_shape REFERANS KIRIYORSA REDDEDER: soru secenegi, durum
+degistiren tetikleyicinin hedefi, katman acan sekil. Reddi asmak icin o
+baglantiyi silme -- baska bir yol sec.
+- Ne degistirdigini gormek icin session_changes cagir: kosu basindan beri
+eklenen/silinen/degisen slaytlari ve degiskenleri sayar.
 
 Ince ayar (compose_slide yetmediginde):
 - Yeni bir sayfa tasarlarken once add_slide ile bir icerik slaydi olustur, ama \
@@ -456,6 +482,44 @@ class AgentRun:
 
     def _run(self) -> None:
         config: Path | None = None
+        # KOSU BASI ANLIK GORUNTUSU. `package.save`in `.bak`i her yazmada
+        # eziliyor, yani yirmi cagrilik bir kosudan geriye yalnizca SON
+        # cagrinin yedegi kaliyor. Burasi sohbet yolunun sahip oldugu tek
+        # sinir: "bitti" ani yok ama "basladi" ani var.
+        #
+        # AYNI KOSUDA IKINCI CAGRI DOKUNMAZ (`oturum.anlik_goruntu`
+        # no-op), yani `resume` ile suren bir sohbette geri donus noktasi
+        # ilk komutta kalir -- kosuyla birlikte kaymaz.
+        #
+        # ALINAMAZSA KOSU DUSMEZ, ama sessiz de kalmaz: geri donus
+        # noktasi olmadan calismak bir SECIM, kaza degil.
+        try:
+            from storyline_mcp import oturum as _oturum
+            # "KOSU" NEDIR: BIR SOHBET, bir arac cagrisi degil.
+            #
+            # `anlik_goruntu` var olan bir noktaya DOKUNMUYOR, yani ayni
+            # sohbetteki ikinci komut ilk komutun basina donebiliyor --
+            # istenen de bu. Ama sohbet bittikten sonra gelen YENI bir
+            # komut icin ayni davranis yanlis olurdu: geri donus noktasi
+            # saatler once kalmis olur ve "bu kosuyu geri al" dugmesi
+            # kullanicinin ARADAKI butun isini de goturur.
+            #
+            # Sinir `resume`: panel devam eden bir sohbette oturum
+            # kimligi tasiyor, yeni sohbette tasimiyor. Yeni sohbet =
+            # yeni kosu = yeni anlik goruntu.
+            if not self.resume:
+                _oturum.kapat(self.story_path)
+            _k = _oturum.anlik_goruntu(self.story_path,
+                                       etiket=self.command[:80])
+            if _k.get("yeni"):
+                self.on_event({"kind": "step",
+                               "text": "kosu basi anlik goruntusu alindi "
+                                       "(geri donulebilir)"})
+        except Exception as _hata:  # noqa: BLE001
+            self.on_event({"kind": "step", "error": True,
+                           "text": "kosu basi anlik goruntusu ALINAMADI (%s): "
+                                   "bu kosu geri alinamaz"
+                                   % " ".join(str(_hata).split())[:80]})
         try:
             cli = find_cli()
             if cli is None:
@@ -623,6 +687,28 @@ class AgentRun:
                                 % (len(_yazim["yazilan"]),
                                    ", ".join(_yazim["yazilan"][:3])))
                     yol_notu += _ilerleme.sohbet_yolu_notu(_pkg)
+                    # AYAK IZI. Ajanin ne degistirdigi kosu sonunda
+                    # YAZILIR: "basarili" tek basina neyin dokunuldugunu
+                    # soylemiyor, ve kullanicinin geri alma karari buna
+                    # bagli.
+                    from storyline_mcp import oturum as _ot
+                    _f = _ot.fark(str(written))
+                    if not _f["anlik_goruntu"]:
+                        yol_notu += (" Ayak izi olculemedi: kosu basi anlik "
+                                     "goruntusu yok.")
+                    elif _f["dokunulmadi"]:
+                        yol_notu += " Dosyada hicbir yapisal degisiklik YOK."
+                    else:
+                        _p = []
+                        if _f["eklenen_slaytlar"]:
+                            _p.append("%d slayt eklendi" % len(_f["eklenen_slaytlar"]))
+                        if _f["silinen_slaytlar"]:
+                            _p.append("%d slayt SILINDI" % len(_f["silinen_slaytlar"]))
+                        if _f["degisen_slaytlar"]:
+                            _p.append("%d slayt degisti" % len(_f["degisen_slaytlar"]))
+                        if _f["eklenen_degiskenler"]:
+                            _p.append("degisken: " + ", ".join(_f["eklenen_degiskenler"][:3]))
+                        yol_notu += " Ayak izi: " + ", ".join(_p) + "."
                 except Exception as _hata:  # noqa: BLE001
                     yol_notu = (" (yol teshisi okunamadi: %s)"
                                 % " ".join(str(_hata).split())[:90])

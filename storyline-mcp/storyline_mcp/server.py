@@ -18,7 +18,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from . import (anim, authoring, compose, jscat, jscheck, logic, media, medya,
-               model, pedagogy, puanlama, settings)
+               duzenle, model, oturum, pedagogy, puanlama, settings)
 from .clone import clone_slide, create_scene
 from .edits import Edit, apply_text_edits
 from .package import STORY_PART, StoryPackage, StoryError, lock_state
@@ -1674,6 +1674,89 @@ def build_course(
         except Exception as exc:
             raise StoryError(f"{i}. islem ({op.get('op')!r}) basarisiz: {exc}") from exc
     return {"operations": results, **_write(pkg, path, output_path, in_place)}
+
+
+# ----------------------------------------------------------------- duzenle
+
+
+@mcp.tool()
+def move_shape(
+    path: str,
+    slide: str,
+    shape: str,
+    x: float | None = None,
+    y: float | None = None,
+    w: float | None = None,
+    h: float | None = None,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Var olan bir sekli TASI ya da boyutlandir. x/y/w/h slaydin YUZDESI.
+
+    shape: seklin ADI (slide_layout'un `name` alani), uzerindeki METIN ya
+    da guid'i. Ayni adi tasiyan birden fazla sekil varsa arac SECMEZ,
+    listeyi soyler -- guid verin.
+
+    VERILMEYEN ALAN KORUNUR: yalnizca `y` vermek sekli dikey oynatir,
+    genisligine dokunmaz. Donuste `onceki` ve `yeni` kutular gelir.
+
+    Bu arac `compose_slide`in yerine gecmez: bir slaydi bastan kurmak
+    icin compose, kurulmus bir slaytta tek sekli duzeltmek icin bu."""
+    _guard(path)
+    pkg = StoryPackage(path)
+    sonuc = duzenle.sekil_tasi(pkg, slide, shape, x=x, y=y, w=w, h=h)
+    return {**sonuc, **_write(pkg, path, output_path, in_place)}
+
+
+@mcp.tool()
+def delete_shape(
+    path: str,
+    slide: str,
+    shape: str,
+    output_path: str | None = None,
+    in_place: bool = False,
+) -> dict:
+    """Slayttaki bir sekli SIL -- referans kirmiyorsa.
+
+    Silmeden once o seklin guid'ine kimin baktigi taranir: soru
+    seceneklerinin `intrFreeChoice shpG` esletmesi, `change_state`
+    tetikleyicilerinin `shapeG`si, katman acan baglantilar. Referans
+    varsa arac REDDEDER ve nerelerden bakildigini yazar; silmek onlari
+    kirar ve kirilma ancak dosya Storyline'da acilinca gorunur.
+
+    REFERANSLARI KALDIRARAK GECMEYIN: reddin amaci tam olarak o icerigi
+    korumak.
+
+    Seklin KENDI tetikleyicileri (uzerine tiklaninca calisan) onunla
+    birlikte gider; donuste kac tane oldugu yazar."""
+    _guard(path)
+    pkg = StoryPackage(path)
+    sonuc = duzenle.sekil_sil(pkg, slide, shape)
+    return {**sonuc, **_write(pkg, path, output_path, in_place)}
+
+
+# ------------------------------------------------------------------ oturum
+
+
+@mcp.tool()
+def session_changes(path: str) -> dict:
+    """Bu kosunun BASINDAN beri dosyada ne degisti.
+
+    Yirmi arac cagrisi sonunda ajanin elinde bir DIFF yoktu: ne
+    degistirdigini bilmiyordu. Onarim araclari tek basina yetmez --
+    bulunamayan sey duzeltilemez.
+
+    Doner: eklenen/silinen/degisen slaytlar (guid uzerinden eslenir,
+    konum uzerinden DEGIL), eklenen/silinen degiskenler ve `dokunulmadi`.
+
+    ANLIK GORUNTU YOKSA BUNU SOYLER (`anlik_goruntu: false`) ve sifir
+    degisiklik bildirmez: "bakilamadi" ile "degismedi" ayni gorunmemeli.
+    Anlik goruntuyu panel kosu basinda aliyor; panelsiz cagrilarda
+    olmayabilir.
+
+    KAPSAM YAPISAL: slayt, sekil, tetikleyici, katman, degisken ve metin
+    OZETI. Renk, punto ve konum bu sayida GORUNMEZ."""
+    return oturum.fark(path)
 
 
 # -------------------------------------------------------------------- audit

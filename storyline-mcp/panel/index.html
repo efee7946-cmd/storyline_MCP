@@ -802,6 +802,7 @@ window.onAgentEvent = (ev) => {
       ? `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
            <code>${escapeHtml(ev.output_path.split("\\").pop())}</code>
            <button class="small" onclick="openResult('${escapeHtml(ev.output_path).replace(/\\/g, "\\\\")}')">Storyline'da aç</button>
+           <button class="small" onclick="undoRun('${escapeHtml(ev.output_path).replace(/\\/g, "\\\\")}')">Bu koşuyu geri al</button>
          </div>` : "";
     const ops = toolCount ? ` · ${toolCount} işlem` : "";
     if (sonMetinEl && (ev.text || "").trim() &&
@@ -823,6 +824,31 @@ window.onAgentEvent = (ev) => {
 
 window.openResult = async (p) => {
   try { await call("open_in_storyline", p); } catch (e) { note(e.message, "err"); }
+};
+
+// KOŞUYU GERİ AL. Tek `.bak` her yazmada eziliyordu: yirmi çağrılık bir
+// koşudan geriye yalnızca son adımın yedeği kalıyordu. Anlık görüntü koşu
+// başında alınıyor; bu düğme oraya döner.
+//
+// ÖNCE NE GİDECEĞİNİ SÖYLER, sonra sorar. "Geri al" tek başına neyin
+// kaybolacağını anlatmıyor ve bu, geri alınamaz bir yazma.
+window.undoRun = async (p) => {
+  try {
+    const f = await call("run_changes", p);
+    if (!f.anlik_goruntu) { note("Koşu başı anlık görüntüsü yok; geri alınamaz.", "err"); return; }
+    if (f.dokunulmadi) { note("Bu koşuda yapısal bir değişiklik olmamış.", "ok"); return; }
+    const parca = [];
+    if (f.eklenen_slaytlar.length) parca.push(f.eklenen_slaytlar.length + " eklenen slayt");
+    if (f.silinen_slaytlar.length) parca.push(f.silinen_slaytlar.length + " silinen slayt");
+    if (f.degisen_slaytlar.length) parca.push(f.degisen_slaytlar.length + " değişen slayt");
+    if (f.eklenen_degiskenler.length) parca.push(f.eklenen_degiskenler.length + " değişken");
+    const soru = "Koşu başına dönülecek. Geri alınacaklar: " + parca.join(", ") +
+      ". Şimdiki hali '.gerialma.bak' olarak saklanır. Devam edilsin mi?";
+    if (!confirm(soru)) return;
+    await call("undo_run", p);
+    note("Koşu geri alındı; dosya koşu başındaki haline döndü.", "ok");
+    refresh();
+  } catch (e) { note(e.message, "err"); }
 };
 
 // Is this a whole-course brief rather than an instruction?

@@ -89,6 +89,23 @@ ADIMLAR = [
     # kapisi. Ucuncusu olmadan ilk ikisi kor bir olcuyle de gecilir.
     ("puanlanabilirlik", [PY, "tools/puanlanabilirlik.py"],
      True,  False, "URETIR: _canary/puanlanabilirlik*.story; 3 = fikstur yok"),
+    # OTURUM KAPISI. Geri donus noktasi ve ayak izi olcusu -- ikisi de
+    # SESSIZCE olebilir: anlik goruntu alinmazsa fark bos doner ve bos
+    # fark "hicbir sey degismedi" gibi okunur. Alti ayak, en onemlisi
+    # KIMLIK: eslesme guid uzerinden, konum uzerinden degil (konuma bakan
+    # bir uygulama, slayt eklenince dokunulmamis slaytlari "degisti"
+    # gosterirdi). SILME bu kapida OLCULMUYOR -- araci henuz yok.
+    ("oturum",          [PY, "tools/oturum_kapi.py"],
+     True,  False, "URETIR: _canary/oturum_kapi*.story; 3 = fikstur yok"),
+    # DUZENLEME KAPISI. `move_shape`/`delete_shape` yuzeyin ILK duzeltme
+    # araclari: 52 aracin hepsi ekliyordu. Ikisi de yeni bir sessiz kusur
+    # sinifi aciyor -- yanlis sekli tasimak/silmek ve silerken referans
+    # kirmak; ikisi de "basarili" doner. Alti ayak, ikisi ozellikle:
+    # DURUM GOVDESI (tasima `shapes.set_loc`ten gecmezse isabet alani
+    # oynar, resim yerinde kalir) ve COZUCU (duzenle'nin cozucusu
+    # logic'inkinden GENIS; ayak ikisinin ayristigini kanitlar).
+    ("duzenle",         [PY, "tools/duzenle_kapi.py"],
+     True,  False, "URETIR: _canary/duzenle_kapi*.story; 3 = fikstur yok"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
     # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine
