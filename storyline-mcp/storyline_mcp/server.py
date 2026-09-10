@@ -18,7 +18,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from . import (anim, authoring, compose, jscat, jscheck, logic, media, medya,
-               model, pedagogy, settings)
+               model, pedagogy, puanlama, settings)
 from .clone import clone_slide, create_scene
 from .edits import Edit, apply_text_edits
 from .package import STORY_PART, StoryPackage, StoryError, lock_state
@@ -1770,6 +1770,27 @@ def audit(path: str) -> dict:
                                     "name": trig.get("variable", ""),
                                     "value": deger, "problem": sorun})
 
+    # PUANLANABILIRLIK. Yukaridaki her olcu kursun NE ICERDIGINE bakiyor;
+    # bu ikisi, kursun bir PUAN uretip uretemeyecegine. Ayri bir sinif,
+    # cunku ikisi de "arac basariyla dondu" halinde dogar:
+    #
+    #   cevaplanamaz soru -- `add_question` aralik disi bir `correct`
+    #     kabul ediyordu (tohum kolu denetimden once donuyordu) ve
+    #     hicbir secenegi dogru isaretlenmemis bir soru uretiyordu.
+    #     Yazma kapisi 2026-09-10'da kapandi; bu satir ZATEN VAR OLAN
+    #     dosyalar icin. Ayni bicim `lossy_numbers`da da var.
+    #
+    #   puanlama zinciri -- soru -> quiz -> sonuc slaydi -> LMS. Diskteki
+    #     51 kurs okundu (2026-09-10): 24'unde quizLst tek ve BOS, yani
+    #     kurs LMS'e hicbir puan raporlayamaz. Butun arac cagrilari
+    #     "ok" donmustu; kayip sessizdi.
+    #
+    # HESAP TEK YERDE (`storyline_mcp/puanlama.py`): `tools/completeness`
+    # de oradan okuyor. Ikinci bir uygulama ayni sayiyi baska bir
+    # kesitle uretir ve iki tuketici ayrisir.
+    cevaplanamaz = puanlama.cevaplanamaz(pkg, idx)
+    puanlama_zinciri = puanlama.zincir(pkg)
+
     # OGRETIM OLCUSU. Kursun NASIL GORUNDUGU degil, ogrenciye BIR SEY
     # YAPTIRIP yaptirmadigi. Ayri modulde cunku tek yerde hesaplanmali:
     # ikinci bir uygulama, ayni sayiyi baska bir kesitle uretirdi.
@@ -1803,6 +1824,17 @@ def audit(path: str) -> dict:
         "js_reference_scope": js_refs["scope"],
         "js_syntax_errors": bozuk_kod,
         "lossy_numbers": kayipli_sayilar,
+        "cevaplanamaz_sorular": cevaplanamaz,
+        "cevaplanamaz_kapsam": (
+            "Yalnizca TEK/COK SECMELI sorular (freePickOneIntr, "
+            "freePickManyIntr): dogrulugu `choices/scoringData[@correct]` "
+            "uzerinde tutan iki tip. Surukle-birak, sicak nokta ve metin "
+            "girisi dogrulugu baska yerde tutar ve bu sayinin DISINDA -- "
+            "sifir bulgu 'her soru cevaplanabilir' demek degildir. "
+            "Kapsam beyaz liste, cunku ilk surum `choices` tasiyan her "
+            "etkilesime bakiyordu ve saglam surukle-birak sorularini "
+            "cevapsiz sayiyordu (51 kursun 18'inde birer yanlis pozitif)."),
+        "puanlama_zinciri": puanlama_zinciri,
         "lossy_number_scope": (
             "Yalnizca STATIK degerler bakildi: degisken varsayilanlari "
             "(8 anlamli basamak siniri) ve adjust_variable literalleri "
@@ -1832,6 +1864,8 @@ def audit(path: str) -> dict:
             "js_syntax_errors": (len(bozuk_kod) if js_sozdizimi["available"]
                                  else None),
             "lossy_numbers": len(kayipli_sayilar),
+            "cevaplanamaz_sorular": len(cevaplanamaz),
+            "puanlama_zinciri_kirik": len(puanlama_zinciri),
             # OGRETIM. Ozetteki digerleri "kac kusur" sayar; bunlar DURUM
             # sayar -- esigi cagiran koyar, arac yargilamaz.
             "ardisik_etkilesimsiz_slayt": (

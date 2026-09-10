@@ -183,3 +183,64 @@ def zincir(pkg: StoryPackage) -> list[str]:
     return kirik
 
 
+
+
+def cevaplanamaz(pkg: StoryPackage, index: dict) -> list[dict]:
+    """Doğru cevabı HİÇ işaretlenmemiş sorular -- öğrenci asla tutturamaz.
+
+    NICIN BU BICIM, ve olcum once yapildi (2026-09-10). `add_question`
+    dogruluk isaretini `choices/*/scoringData[@correct]` uzerine yaziyor:
+
+        correct_set = set(correct)
+        for i, choice_el in enumerate(choice_els):
+            scoring.set("correct", "true" if i in correct_set else "false")
+
+    Yani `i` HER ZAMAN 0..n-1 ve kume disindaki her deger sessizce duser.
+    Uc girdi de ayni artefakti uretiyor (olculdu, 4 secenekli soru):
+
+        correct=[0..3]  -> tam bir scoringData correct="true"
+        correct=[9]     -> HICBIRI
+        correct=[-1]    -> HICBIRI    <- Python indekslemesi UYGULANMIYOR
+        correct=[]      -> HICBIRI
+
+    `-1`in son secenegi isaretlemesinden kaygilanilmisti; olcum bunu
+    disladi. Dolayisiyla aranacak sekil TEK ve sade: "hic dogru yok".
+    "Yanlis dogru" diye bir hal uretilmiyor, o yuzden aranmiyor.
+
+    KAPSAM BEYAZ LISTE, VE BU BIR DUZELTME (olculdu 2026-09-10).
+    Ilk surum "choices tasiyan her etkilesim" diyordu ve diskteki 32
+    kursun 18'inde tam olarak 1 bulgu uretti -- 18 bagimsiz yazim hatasi
+    degil, bir OLCUM IMZASI. Sebep: `dragDropIntr` de `choices` tasiyor
+    ama dogrulugu orada TUTMUYOR; tuzla.story/slide9'da dort secenegin
+    dordu de `scoringData correct="false"`, dogruluk surukleme
+    ciftlerinde. Yani olcu, saglam surukle-birak sorularini cevapsiz
+    sayiyordu.
+
+    Beyaz liste, kara liste DEGIL: kara liste yeni bir soru tipini
+    sessizce yanlis olcerdi. Burada yalnizca mekanizmasi OLCULMUS iki tip
+    var; otekiler (dragDrop, freeHotSpot, freeTextEntry) bu sayinin
+    DISINDA ve sifir bulgu "her soru cevaplanabilir" demek degil,
+    "tek/cok secmeli sorularin hepsi cevaplanabilir" demektir.
+    """
+    OLCULEN_TIPLER = ("freePickOneIntr", "freePickManyIntr")
+    bulgular = []
+    for part, ref in index.items():
+        root = pkg.parse(part)
+        for intr in root.iter():
+            if intr.tag not in OLCULEN_TIPLER:
+                continue
+            secenekler = intr.find("choices")
+            if secenekler is None or not len(secenekler):
+                continue
+            dogru = sum(
+                1 for secenek in secenekler
+                if (secenek.find("scoringData") is not None
+                    and (secenek.find("scoringData").get("correct") or "")
+                    .lower() == "true"))
+            if dogru == 0:
+                bulgular.append({
+                    "slide": ref.basename, "slide_name": ref.name,
+                    "interaction": intr.tag, "choices": len(secenekler),
+                    "problem": "hicbir secenek dogru isaretli degil: "
+                               "ogrenci bu soruyu dogru cevaplayamaz"})
+    return bulgular

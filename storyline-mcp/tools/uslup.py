@@ -67,6 +67,21 @@ BLANK = ROOT.parent / "test" / "bos.story"
 WORKDIR = ROOT.parent / "test" / "_canary"
 TABAN = Path(__file__).resolve().parent / "uslup_taban.json"
 
+# GIRDI KUMESI SONUCUN YANINDA DEGIL ICINDE DURUR.
+#
+# Taban "oran 0.4444, 21 hucre" diyordu ve HANGI SLAYTLARIN olculdugunu
+# tasimiyordu. Havuz 2026-09-10'da sessizce degisti -- katmanli slayt
+# (`slideb.xml`) emniyet kapisi genisleyince disarida kaldi, yerine
+# `add_slide` ile taze bir slayt girdi -- ve dosya bunu gosteremiyordu.
+# Oran ayni kaldi (+0.000), ki bu ikame edilen hucrenin ayni katkiyi
+# verdigini soyleyen bir olcum; ama "ayni kaldi" ile "girdi ayni" iki
+# ayri iddia ve ikincisi yazilmadikca dogrulanamaz.
+#
+# `beslenen` bayragi ayrica tutuluyor: fikstur slaydi ile kosuda
+# uretilmis taze slayt ayni sey degil, ve tabanin kaymasi en cok o
+# siniri gecerken olur.
+GIRDI_KUMESI: list[tuple[str, bool]] = []
+
 # Icerik SABIT. Her hucre, her uslup, ayni sozcukler.
 PROBE = dict(title="Parola Hijyeni", eyebrow="Bolum 1",
              body="Guclu bir parola uzundur, tahmin edilemez ve baska hicbir "
@@ -94,7 +109,14 @@ def kur(etiket: str, plan: list[tuple[str, str | None]],
     shutil.copy2(BLANK, yol)
     pkg = StoryPackage(yol)
     # HAVUZ BESLENIR: hucre sayisi uslup_taban.json'un bolenidir.
+    havuz_once = emniyet.bestelenebilir_slaytlar(pkg)
     names = emniyet.beste_icin_slaytlar(pkg, len(plan))
+    # GIRDI KUMESI KAYIT ALTINA ALINIR, cunku taban onsuz okunamaz:
+    # bkz. GIRDI_KUMESI.
+    for ad in names[:len(plan)]:
+        kayit = (ad, ad not in havuz_once)
+        if kayit not in GIRDI_KUMESI:
+            GIRDI_KUMESI.append(kayit)
     if len(names) < len(plan):
         raise SystemExit(f"{BLANK.name} icinde {len(plan)} slayt yok "
                          f"({len(names)} var).")
@@ -220,6 +242,14 @@ def main() -> int:
         TABAN.write_text(json.dumps(
             {"oran": round(oran, 4), "hucre": len(plan), "uslup": styles,
              "esik": silhouette.SAME_IDEA,
+             "fikstur": BLANK.name,
+             "girdi_slaytlari": [ad for ad, _ in GIRDI_KUMESI],
+             "beslenen_slaytlar": [ad for ad, taze in GIRDI_KUMESI if taze],
+             "girdi_notu": (
+                 "Oran BU slaytlar uzerinde olculdu. Havuz degisirse oran "
+                 "ayni kalsa bile taban ayni sey hakkinda konusmuyor "
+                 "olabilir; `beslenen_slaytlar` kosuda add_slide ile "
+                 "uretilenler, fikstur slaydi degil."),
              "not": "silhouette KONUMSAL; renk/punto/harf araligi bu sayida yok"},
             ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"taban yazildi: {TABAN.name}")

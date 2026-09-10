@@ -8,5 +8,22 @@
     "rail"
   ],
   "esik": 0.15,
+  "fikstur": "bos.story",
+  "girdi_slaytlari": [
+    "slide7.xml",
+    "slide2.xml",
+    "slide3.xml",
+    "slide4.xml",
+    "slide8.xml",
+    "slide9.xml",
+    "slidea.xml",
+    "slidec.xml",
+    "slided.xml",
+    "slide.xml"
+  ],
+  "beslenen_slaytlar": [
+    "slide.xml"
+  ],
+  "girdi_notu": "Oran BU slaytlar uzerinde olculdu. Havuz degisirse oran ayni kalsa bile taban ayni sey hakkinda konusmuyor olabilir; `beslenen_slaytlar` kosuda add_slide ile uretilenler, fikstur slaydi degil.",
   "not": "silhouette KONUMSAL; renk/punto/harf araligi bu sayida yok"
 }

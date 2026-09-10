@@ -80,6 +80,15 @@ ADIMLAR = [
     # ustune compose kapisini da ucdan uca sinar.
     ("red mesaji",      [PY, "tools/red_mesaji.py"],
      True,  False, "gercek istemci + stdio; 3 = KOSAMADI (mcp istemcisi yok)"),
+    # PUANLANABILIRLIK KAPISI. `ogretim` gibi URETICIYI DEGIL OLCUYU
+    # koruyor. Iki kusur sinifi da "arac basariyla dondu" halinde dogar:
+    # cevaplanamaz soru (aralik disi `correct`, tohum kolu denetimden
+    # once donuyordu) ve bos quiz kaydi (51 kursun 24'unde quizLst tek ve
+    # BOS -- kurs LMS'e hicbir puan raporlayamaz). Dort ayak: cipa,
+    # ekili kusur, KAPSAM (surukle-birak cevapsiz sayilmamali) ve yazma
+    # kapisi. Ucuncusu olmadan ilk ikisi kor bir olcuyle de gecilir.
+    ("puanlanabilirlik", [PY, "tools/puanlanabilirlik.py"],
+     True,  False, "URETIR: _canary/puanlanabilirlik*.story; 3 = fikstur yok"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
     # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine

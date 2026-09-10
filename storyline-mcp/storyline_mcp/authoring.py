@@ -1917,6 +1917,37 @@ def add_question(
     prompt = " ".join(prompt.split())
     choices = [" ".join(c.split()) for c in choices]
 
+    # ARALIK DENETIMI DALDAN ONCE -- VE BU BIR DUZELTME (2026-09-10).
+    #
+    # Denetim asagida ZATEN vardi ("correct degerleri 0..n araliginda
+    # olmali") ama `bundled:` kolu ondan ONCE donuyordu, yani tohumdan
+    # uretilen her soru denetimsiz geciyordu. Ve kacan kol tam olarak
+    # AJANIN kullandigi kol: panel promptu "template parametresini
+    # VERME" diyor, dolayisiyla ajanin sorulari her zaman `_pick_template`
+    # -> tohum yolundan gidiyor.
+    #
+    # Kacisin bedeli olculdu (4 secenekli soru, tohum yolu):
+    #     correct=[9]  -> KABUL, hicbir secenek dogru isaretli degil
+    #     correct=[-1] -> KABUL, hicbir secenek dogru isaretli degil
+    #     correct=[]   -> KABUL, ayni
+    # `-1` Python indeksleme ile son secenegi ISARETLEMIYOR: yazan dongu
+    # `i in correct_set` diye bakiyor ve `i` her zaman 0..n-1.
+    #
+    # Uretilen sey "biraz yanlis" bir soru degil, CEVAPLANAMAZ bir soru:
+    # ogrenci hangi secenegi isaretlerse isaretlesin yanlis alir, ve arac
+    # basariyla doner. Zaten var olan dosyalar icin ayni kusuru
+    # `puanlama.cevaplanamaz` sayiyor; bu satir yenilerini engelliyor.
+    #
+    # `len(choices)` uzerinden bakiliyor cunku iki kol da zaten secenek
+    # sayisinin sablonunkiyle ESIT olmasini sart kosuyor -- yani bu
+    # kontrol asagidakinin kapsamini daraltmiyor, once kosuyor.
+    if not correct or any(i < 0 or i >= len(choices) for i in correct):
+        raise StoryError(
+            f"correct degerleri 0..{len(choices) - 1} araliginda olmali; "
+            f"{list(correct)} verildi. Aralik disindaki deger sessizce "
+            f"duser ve HICBIR secenegi dogru isaretlenmemis, yani "
+            f"cevaplanamaz bir soru uretir.")
+
     if template is None:
         template = _pick_template(pkg, len(choices))
 
