@@ -307,6 +307,13 @@ def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
     KAYDEDILMIS HALE ESIT OLDUGU AN cagrilmali (yazmadan hemen sonra):
     `izleme` story.xml'i okuyor ve bellekteki agac ancak o noktada
     dosyayla ayni.
+
+    BU UYARI KALICI, md. 3 gelse bile. Kapanis adimi KABLOLAMA yapacak
+    (quiz kaydi, quizG, lmsResultSlideG) ama SONUC SLAYDINI yoktan var
+    ETMEYECEK -- karar ve gerekcesi `tools/ajan_yolu.py` basliginda.
+    Dolayisiyla "sonuc slaydi hic yok" hali otomatik kapanmayacak ve bu
+    cumle onu soylemeye devam edecek: olculdu (51 kurs), zinciri kirik
+    34 kursun 14'u tam olarak bu halde.
     """
     kirik = zincir(pkg)
     if not kirik:

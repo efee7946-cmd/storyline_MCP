@@ -59,6 +59,11 @@ except ImportError as _eksik:                                 # pragma: no cover
 else:
     ISTEMCI_YOK = ""
 
+# Bkz. ajan_yolu.ACILMADI: sunucu acilmazsa kapi HUKUM VERMEZ, KOSAMADI
+# doner. Yoksa "sunucu acilmadi"nin turettigi bulgular bagimsiz
+# kusurlarmis gibi siralanir.
+ACILMADI = "SUNUCU ACILMADI"
+
 BLANK = ROOT.parent / "test" / "bos.story"
 
 
@@ -83,16 +88,39 @@ async def kosu() -> list[str]:
         args=["-c", "from storyline_mcp.server import main; main()"],
         env=None,
     )
-    # ALT SURECIN STDERR'I YUTULUYOR. Sunucu kalibrasyon
-    # uyarilari basiyor ve suit "son satir" sutununda kapinin
-    # HUKMU yerine o uyari goruunuyordu -- kapi yesil ama satiri
-    # okunamaz. Gercek hatalar zaten arac donusunde (`is_error`)
-    # geliyor, stderr'de degil.
-    import os
-    with open(os.devnull, "w") as _sessiz:
-        async with stdio_client(params, errlog=_sessiz) as (r, w):
+    # ALT SURECIN STDERR'I TAMPONLANIYOR -- YUTULMUYOR.
+    #
+    # Ilk surum `os.devnull` yaziyordu ve kararli durumda dogruydu:
+    # sunucu kalibrasyon uyarilari basiyor ve suit'in "son satir"
+    # sutununda kapinin HUKMU yerine o uyari goruunuyordu. Ama kosulsuz
+    # yutmak, sunucu HIC ACILMAZSA (import hatasi, eksik bagimlilik,
+    # sozdizimi kusuru) traceback'i de yutuyor ve elde yalnizca
+    # "oturum baslatilamadi" kaliyor.
+    #
+    # Bu tam olarak bu deponun ayirdigi hal: KOSAMADI ile KOSTU-VE-DUSTU.
+    # Tampon ikisini birden veriyor: basarida dusuyor, el sikisma
+    # duserse geri sarilip BASILIYOR. Bir kez ve en kotu anda isiracak
+    # turden bir kusurdu.
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8",
+                                errors="replace") as _tampon:
+        async with stdio_client(params, errlog=_tampon) as (r, w):
             async with ClientSession(r, w) as s:
-                await s.initialize()
+                try:
+                    await s.initialize()
+                except BaseException as _acilis:
+                    # KOSAMADI, KOSTU-VE-DUSTU DEGIL. Sunucu acilmadiysa
+                    # sebep alt surecin stderr'inde duruyor; tampon tam
+                    # bunun icin var.
+                    _tampon.seek(0)
+                    _ciktisi = (_tampon.read() or "").strip()
+                    print("SUNUCU ACILMADI (%s). Alt surecin stderr'i:"
+                          % type(_acilis).__name__)
+                    print(_ciktisi[-1500:] if _ciktisi else "  (stderr BOS)")
+                    kusur.append(
+                        "SUNUCU ACILMADI: %s -- red metni OLCULEMEDI "
+                        "(stderr yukarida)" % type(_acilis).__name__)
+                    return kusur
                 araclar = await s.list_tools()
                 print(f"el sikisti: {len(araclar.tools)} arac bildirildi")
                 if len(araclar.tools) < 54:
@@ -208,7 +236,13 @@ def main() -> int:
         print(f"KOSAMADI: mcp istemcisi yok ({ISTEMCI_YOK}). Reddin metni "
               f"olculemedi -- bu 'gecti' DEGIL, 'bakilmadi'.")
         return KOSAMADI
-    kusur = asyncio.run(kosu()) + yerel_ayrim()
+    stdio_kusuru = asyncio.run(kosu())
+    if any(k.startswith(ACILMADI) for k in stdio_kusuru):
+        print("")
+        print("KOSAMADI: sunucu acilmadi (sebep yukarida). Reddin metni "
+              "olculemedi -- bu 'gecti' DEGIL, 'bakilmadi'.")
+        return KOSAMADI
+    kusur = stdio_kusuru + yerel_ayrim()
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:

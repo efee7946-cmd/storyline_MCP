@@ -46,6 +46,37 @@ KIRMIZIYA dondugunu gormek. Uc ekim:
 
 Ucu de kirmiziya donmezse bu kapi KOR demektir ve sifirlari okunmamali.
 
+KANARYALARIN OMRU: MD. 3 LANDIGINDA NE OLACAK.
+Ekilen bir kusuru, sonraki bir duzeltme MESRU olarak onarabilir; o gun
+kanarya kirmizidan yesile doner ve okuyan kisi bunu GATE REGRESYONU
+sanir. Bu yuzden karar simdi veriliyor, kapiyi sonradan yorumlamak
+yerine (2026-09-11):
+
+    MD. 3 KABLOLAMA YAPAR, GORUNUR ICERIK URETMEZ.
+
+Yani kapanis adimi quiz kaydini, `quizG`yi ve `lmsResultSlideG`yi
+tamamlar; SONUC SLAYDINI YOKTAN VAR ETMEZ. Gerekce iki tane:
+
+  * Gorunur icerik uretmek, kullanicinin istemedigi bir TASARIM karari.
+    Kablolama gorunmez tesisat -- tamamlamanin bir bedeli yok.
+  * "Ara hal kusur degildir" ilkesiyle tutarli: yapim ortasinda sonuc
+    slaydi olmamasi normaldir, ve o hali "duzelten" bir adim kullanicinin
+    kursuna slayt ekler.
+
+Olculdu (2026-09-11, diskteki 51 kurs): zinciri kirik 34 kursun 20'si
+YALNIZCA kablolama eksigi -- md. 3 bunlari kapatir. Kalan 14'unde sonuc
+slaydi HIC yok; onlar uyariya kaliyor (`puanlama.eksik_sonuc_uyarisi`).
+
+BUNUN KANARYALARA SONUCU:
+  (a) sonuc slaydi yok      -> KIRMIZI KALIR. Md. 3 onu uretmeyecek.
+  (b) questionIdLst bos     -> KIRMIZI KALIR. Kusur artefakta ekiliyor ve
+                               ardindan arac cagrisi yok; kablolama
+                               calismiyor.
+Yani md. 3 landiginda bu kapida hicbir kanarya yon degistirmemeli. Biri
+degistirirse ya md. 3 gorunur icerik uretiyordur (karar degismis) ya da
+kanarya kendi olcugunu kaybetmistir; ikisi de ARASTIRILMALI, sessizce
+yesile alinmamali.
+
     python tools/ajan_yolu.py
 """
 
@@ -74,6 +105,13 @@ else:
 
 from storyline_mcp.package import StoryPackage      # noqa: E402
 from storyline_mcp import model, oturum, puanlama   # noqa: E402
+
+# SUNUCU ACILMAZSA KAPI HUKUM VERMEZ. Asagidaki dizi bir ISARET:
+# `akis` onu dondururse ortada olculmus bir sey yok ve kapi KOSAMADI (3)
+# doner. Yoksa cikis 1 olur ve "sunucu acilmadi"nin TURETTIGI bulgular
+# (ayak izi bos, kanarya kacti) bagimsiz kusurlarmis gibi siralanir --
+# okuyan kisi olmayan uc kusur arar.
+ACILMADI = "SUNUCU ACILMADI"
 
 BLANK = ROOT.parent / "test" / "bos.story"
 CANARY = ROOT.parent / "test" / "_canary"
@@ -104,16 +142,39 @@ async def akis(yol: pathlib.Path, *, sonuc_slaydi: bool = True) -> list[str]:
     params = StdioServerParameters(
         command=sys.executable,
         args=["-c", "from storyline_mcp.server import main; main()"], env=None)
-    # ALT SURECIN STDERR'I YUTULUYOR. Sunucu kalibrasyon
-    # uyarilari basiyor ve suit "son satir" sutununda kapinin
-    # HUKMU yerine o uyari goruunuyordu -- kapi yesil ama satiri
-    # okunamaz. Gercek hatalar zaten arac donusunde (`is_error`)
-    # geliyor, stderr'de degil.
-    import os
-    with open(os.devnull, "w") as _sessiz:
-        async with stdio_client(params, errlog=_sessiz) as (r, w):
+    # ALT SURECIN STDERR'I TAMPONLANIYOR -- YUTULMUYOR.
+    #
+    # Ilk surum `os.devnull` yaziyordu ve kararli durumda dogruydu:
+    # sunucu kalibrasyon uyarilari basiyor ve suit'in "son satir"
+    # sutununda kapinin HUKMU yerine o uyari goruunuyordu. Ama kosulsuz
+    # yutmak, sunucu HIC ACILMAZSA (import hatasi, eksik bagimlilik,
+    # sozdizimi kusuru) traceback'i de yutuyor ve elde yalnizca
+    # "oturum baslatilamadi" kaliyor.
+    #
+    # Bu tam olarak bu deponun ayirdigi hal: KOSAMADI ile KOSTU-VE-DUSTU.
+    # Tampon ikisini birden veriyor: basarida dusuyor, el sikisma
+    # duserse geri sarilip BASILIYOR. Bir kez ve en kotu anda isiracak
+    # turden bir kusurdu.
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8",
+                                errors="replace") as _tampon:
+        async with stdio_client(params, errlog=_tampon) as (r, w):
             async with ClientSession(r, w) as s:
-                await s.initialize()
+                try:
+                    await s.initialize()
+                except BaseException as _acilis:
+                    # KOSAMADI, KOSTU-VE-DUSTU DEGIL. Sunucu acilmadiysa
+                    # sebep alt surecin stderr'inde duruyor; tampon tam
+                    # bunun icin var.
+                    _tampon.seek(0)
+                    _ciktisi = (_tampon.read() or "").strip()
+                    print("SUNUCU ACILMADI (%s). Alt surecin stderr'i:"
+                          % type(_acilis).__name__)
+                    print(_ciktisi[-1500:] if _ciktisi else "  (stderr BOS)")
+                    hatalar.append(
+                        "SUNUCU ACILMADI: %s -- ajan yolu OLCULEMEDI "
+                        "(stderr yukarida)" % type(_acilis).__name__)
+                    return hatalar
 
                 async def cagir(ad, **kw):
                     res = await s.call_tool(ad, {"path": str(yol), "in_place": True,
@@ -223,6 +284,9 @@ def kos() -> list[str]:
     # --- ANA KOSU
     yol = _hazirla("ajan_yolu.story")
     arac_hatalari = asyncio.run(akis(yol))
+    if any(h.startswith(ACILMADI) for h in arac_hatalari):
+        # Turetilmis bulgulari SIRALAMA: hicbiri olculmedi.
+        return [ACILMADI]
     if arac_hatalari:
         kusur.append(f"{len(arac_hatalari)} arac cagrisi HATA dondu: "
                      f"{arac_hatalari[0]}")
@@ -312,6 +376,11 @@ def main() -> int:
         print(f"KOSAMADI: fikstur yok ({BLANK}).")
         return KOSAMADI
     kusur = kos()
+    if kusur == [ACILMADI]:
+        print("")
+        print("KOSAMADI: sunucu acilmadi (sebep yukarida). Ajan yolu olculemedi "
+              "-- bu 'gecti' DEGIL, 'bakilmadi'.")
+        return KOSAMADI
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:
