@@ -69,6 +69,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from storyline_mcp import compose, model, shapes
+from storyline_mcp import emniyet as emn
 from storyline_mcp.package import StoryPackage
 
 BLANK = ROOT.parent / "test" / "bos.story"
@@ -90,6 +91,26 @@ def _butonsu(root, el) -> bool:
     """
     metin = (model.shape_text(root, el.get("g") or "") or "").strip()
     return bool(metin) and metin == (el.get("name") or "").strip()
+
+
+def _temiz_slaytlar(pkg: StoryPackage) -> list[str]:
+    """Şablonun KENDİ kalıntısını taşımayan slaytlar.
+
+    `bos.story`nin slideb.xml'i iki katman ve iki ADSIZ tetikleyici
+    tasiyor. Prob oraya `image_area=True` ile bestelemeye kalkinca
+    `compose_slide` -- dogru olarak -- REDDETTI: o slayt gercekten kirli.
+    Yani bu arac kendi kurdugu kurala carpti, ve carpmasi kuralin
+    calistiginin kaniti.
+
+    Prob artik temiz slayt seciyor. Bu ayni zamanda tetikleyici
+    kesisiminin ikinci guvencesi: kalinti kaynakta eleniyor.
+    """
+    out = []
+    for ref in model.slide_index(pkg).values():
+        root = pkg.parse(pkg.slide_part_for(ref.basename))
+        if not emn.yeniden_beste_engelleri(root):
+            out.append(ref.basename)
+    return out
 
 
 def sozluk() -> tuple[set[str], set[str], set[str]]:
@@ -143,8 +164,7 @@ def sozluk() -> tuple[set[str], set[str], set[str]]:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 pkg = StoryPackage(WORK)
-                slaytlar = [r.basename
-                            for r in model.slide_index(pkg).values()][:len(parti)]
+                slaytlar = _temiz_slaytlar(pkg)[:len(parti)]
                 for slayt, (layout, variant) in zip(slaytlar, parti):
                     compose.compose_slide(pkg, slayt, layout, variant=variant,
                                           style=style, identity="sozluk",
@@ -170,8 +190,7 @@ def sozluk() -> tuple[set[str], set[str], set[str]]:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 pkg = StoryPackage(WORK)
-                slaytlar = [r.basename for r in
-                            model.slide_index(pkg).values()][:len(compose.LAYOUTS)]
+                slaytlar = _temiz_slaytlar(pkg)[:len(compose.LAYOUTS)]
                 for slayt, layout in zip(slaytlar, compose.LAYOUTS):
                     compose.compose_slide(pkg, slayt, layout, style=style,
                                           identity="sozluk", image_area=True,
@@ -191,6 +210,10 @@ def emniyet(pkg: StoryPackage, slayt: str, adlar: set[str],
             tetikler: set[str], rezervasyon: set[str]) -> dict:
     """Bu slayt yeniden bestelenmeyi kaldırır mı, ve kaldırmıyorsa neden."""
     root = pkg.parse(pkg.slide_part_for(slayt))
+    # KURAL URETIMDEN OKUNUR, BURADA IKINCI KEZ YAZILMAZ. Bu aracin kendi
+    # kopyasi olsaydi `compose_slide`in reddettigi ile bu aracin
+    # "acilabilir" dedigi ayrisirdi -- ve ayrisma sessiz olurdu.
+    engeller = emn.yeniden_beste_engelleri(root)
     yabanci = sorted({
         (el.get("name") or "?") for el in list(root.find("shapeLst") or [])
         if not _butonsu(root, el) and (el.get("name") or "") not in adlar})
@@ -202,11 +225,10 @@ def emniyet(pkg: StoryPackage, slayt: str, adlar: set[str],
     # Alan ZATEN ayrilmis mi. Sinif TURETILIYOR (bkz. sozluk); elle
     # yazilan bir liste `Ton`/`Ortu`yu kacirmisti ve hero kapak yanlis
     # sinifa dusmustu.
-    ayrilmis = any((el.get("name") or "") in rezervasyon
-                   for el in list(root.find("shapeLst") or []))
+    ayrilmis = emn.alan_ayrilmis(root)
     return {"slayt": slayt, "yabanci": yabanci, "fazla_tetik": fazla,
             "katman": katman_n, "ayrilmis": ayrilmis,
-            "gecer": not yabanci and not fazla and not katman_n}
+            "engeller": engeller, "gecer": not engeller}
 
 
 def kanarya(adlar: set[str], tetikler: set[str],
@@ -290,8 +312,46 @@ def kanarya(adlar: set[str], tetikler: set[str],
         kusur.append("olcu KOR: hero kapagin alani ayrilmis sayilmiyor — "
                      "rezervasyon sinifi eksik")
 
-    # 4. KATMANLI SLAYT KALMALI. bos.story'nin slideb'i iki katman tasiyor.
+    # 4c. RED KURUCU YOLUNU ISIRMAMALI. `add_slide`in taze slaydina
+    # image_area=True ile gelmek KABUL edilmeli; olcut "compose'un
+    # koymadigi bir sey var mi" oldugu icin kapsam kendini sinirliyor,
+    # ama bu bir IDDIA ve iddia kosulmadan durmaz.
+    from storyline_mcp import authoring
+    from storyline_mcp.package import StoryError
+    yol3 = ROOT.parent / "test" / "_canary" / "yeniden_beste_taze.story"
+    shutil.copy2(BLANK, yol3)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pk3 = StoryPackage(yol3)
+        ilk = [r.basename for r in model.slide_index(pk3).values()][0]
+        eklendi = authoring.add_slide(pk3, ilk)
+        try:
+            compose.compose_slide(pk3, eklendi["new_slide"], "content",
+                                  title="T", body="B", identity="kan",
+                                  image_area=True, image_style="bleed")
+            print("kanarya kurucu: taze slayt image_area ile KABUL (dogru)")
+        except StoryError as exc:
+            print(f"kanarya kurucu: taze slayt REDDEDILDI -> {str(exc)[:90]}")
+            kusur.append(f"RED KURUCU YOLUNU ISIRIYOR: taze slayt "
+                         f"image_area ile reddediliyor ({str(exc)[:70]})")
+
+    # 4d. RED GERCEKTEN KOSUYOR MU. Katmanli slayda image_area ile gelmek
+    # REDDEDILMELI; olcu yesil olup red hic kosmasaydi bu arac yine
+    # "acilabilir" sayar ve kusur sinifi acik kalirdi.
+    pk4 = StoryPackage(yol)
     katmanli = [a for a in adaylar if a.startswith("slideb")]
+    if katmanli:
+        try:
+            compose.compose_slide(pk4, katmanli[0], "content", title="T",
+                                  body="B", identity="kan",
+                                  image_area=True, image_style="bleed")
+            print("kanarya red: katmanli slayt KABUL EDILDI (YANLIS)")
+            kusur.append("RED KOSMUYOR: katmanli slayda image_area ile "
+                         "gelinebiliyor — katmanlar sessizce silinir")
+        except StoryError:
+            print("kanarya red: katmanli slayt image_area ile REDDEDILDI (dogru)")
+
+    # 4. KATMANLI SLAYT KALMALI. bos.story'nin slideb'i iki katman tasiyor.
     if katmanli:
         r3 = emniyet(p1, katmanli[0], adlar, tetikler, rezervasyon)
         print(f"kanarya katman: katmanli slayt "
@@ -320,6 +380,32 @@ def main() -> int:
     if len(adlar) < 8 or not tetikler:
         print("SOZLUK BOS CALISTI: olcu kurulamadi, sayilar okunmamali.")
         return 1
+    # KAYMA DENETIMI, IKI YONLU. `storyline_mcp/emniyet.py` sabitleri
+    # DONDURULMUS (turetme 180 kurulum, ~30s; her compose_slide cagrisinda
+    # kosamaz). Kayma riskini bu kapi ustleniyor: burada yeniden turetilip
+    # uretimdekiyle karsilastiriliyor. Sabit elle tutulan bir kopya degil,
+    # olculmus bir deger ve onu dogrulayan bir kapi.
+    sapma = []
+    for ad, olculen, donmus in (
+            ("sekil sozlugu", adlar, set(emn.SEKIL_SOZLUGU)),
+            ("standart tetikleyici", tetikler, set(emn.STANDART_TETIKLEYICILER)),
+            ("rezervasyon sekli", rezervasyon, set(emn.REZERVASYON_SEKILLERI))):
+        if olculen - donmus:
+            sapma.append(f"{ad}: compose {sorted(olculen - donmus)} uretiyor "
+                         f"ama emniyet.py bilmiyor — dolu slaytlar YANLISLIKLA "
+                         f"reddedilir")
+        if donmus - olculen:
+            sapma.append(f"{ad}: emniyet.py {sorted(donmus - olculen)} sayiyor "
+                         f"ama compose artik uretmiyor — yabanci icerik "
+                         f"SESSIZCE gecer")
+    print(f"kayma denetimi: emniyet.py sabitleri "
+          f"{'TUTUYOR' if not sapma else 'AYRISMIS'}")
+    if sapma:
+        print("\nSABITLER AYRISMIS. Asagidaki sayilar okunmamali:")
+        for x in sapma:
+            print(f"  - {x}")
+        return 1
+
     kusur = kanarya(adlar, tetikler, rezervasyon)
     if kusur:
         print("\nKANARYA KALDI. Asagidaki sayilar okunmamali:")

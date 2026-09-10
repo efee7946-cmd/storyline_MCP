@@ -40,6 +40,7 @@ from .authoring import (ChoiceLabelsTooLong, _apply_text,
                         _choice_shape_guids, _ovali_kapsullestir)
 from .edits import set_shape_text
 from .package import StoryPackage, StoryError
+from . import emniyet
 
 # Type scale in points against the 720-unit design width, the basis Storyline
 # uses. Ratios rather than round numbers: each step is about 1.25x the last,
@@ -3582,6 +3583,31 @@ def compose_slide(
         palette = {k: v for k, v in theme_palette(theme).items()
                    if not k.startswith("_")}
     colors = _palette(palette)
+
+    # YIKICI YENIDEN BESTELEMEYI TEMIZLEMEDEN ONCE REDDET.
+    #
+    # `image_area=True` ile DOLU bir slayda gelmek "bu slayda gorsel icin
+    # yer ac" demektir, ve yer acmanin yolu slaydi bastan cizmek. Slaytta
+    # compose'un koymadigi bir sey varsa -- elle eklenmis sekil, soru
+    # tetikleyicisi, geri bildirim katmani -- bu islem onlari GOTURUR ve
+    # cikti "basarili" doner.
+    #
+    # KONTROL BURADA, cunku prompt'a yazilan bir kontrol atlanabilir ve
+    # atlandiginda sessizdir. Burada atlanamaz. Bkz. emniyet.py.
+    #
+    # KURUCU YOLU ISIRILMAZ: `add_slide` taze slaydi sekilsiz, katmansiz
+    # ve yalnizca standart tetikleyicilerle birakiyor (olculdu), yani
+    # kosul kendiliginden saglaniyor. `clear=False` ise cagiran zaten
+    # yikici olmadigini soyluyor.
+    if image_area and clear:
+        engeller = emniyet.yeniden_beste_engelleri(root)
+        if engeller:
+            raise StoryError(
+                f"{slide}: gorsel icin yer acmak slaydi bastan cizer, ama bu "
+                f"slaytta kaybolacak icerik var -- " + "; ".join(engeller)
+                + ". Alani ayrilmis baska bir slayt secin ya da gorseli bu "
+                  "slaydin ustune add_image ile koyun.")
+
     removed = clear_slide(root) if clear else 0
     # Tohumdan devralinan OLU gonder tetikleyicisi. Sekiller silinince
     # tetikleyici de anlamsiz kaliyor ama trigLst'te duruyordu ve editorde
