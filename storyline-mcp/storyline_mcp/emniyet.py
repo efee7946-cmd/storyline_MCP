@@ -84,11 +84,22 @@ def yeniden_beste_engelleri(root) -> list[str]:
             f"standart gezinme disinda {len(fazla)} tetikleyici var "
             f"({', '.join(fazla[:4])}) -- soru ya da katman baglantisi kirilir")
 
+    # KATMAN GITMEZ, SAHIPSIZ KALIR -- VE MESAJ BUNU BOYLE SOYLEMELI
+    # (olculdu 2026-09-10, bos.story + add_question, yeniden beste sonrasi):
+    #     katman            3 -> 3      katman ici sekil  6 -> 6
+    #     slayt sekli       9 -> 4      intrProps         1 -> 0
+    #     tetikleyici       1 -> 0      (SubmitInteraction silindi)
+    # Yani asil kayip KATMAN degil ETKILESIM: soru soru olmaktan cikar,
+    # katmanlar dosyada durur ama onlari acacak hicbir sey kalmaz. Mesaj
+    # "katmanlari goturur" diyordu; bunu okuyan ajan katmanlari yedekleyip
+    # devam etmeyi cozum sanabilirdi.
     katman = root.find("sldLayerLst")
     if katman is not None and len(katman):
         engeller.append(
             f"{len(katman)} geri bildirim katmani var -- yeniden besteleme "
-            f"onlari goturur")
+            f"katmanlari dosyada birakir ama onlari ACAN her seyi siler "
+            f"(soru tetikleyicisi ve etkilesim tanimi dahil): katmanlar "
+            f"sahipsiz kalir")
 
     return engeller
 

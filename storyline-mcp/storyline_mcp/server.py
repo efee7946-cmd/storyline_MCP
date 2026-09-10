@@ -8,12 +8,14 @@ overwrite anything changed behind its back.
 
 from __future__ import annotations
 
+import functools
 import re
 import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from . import (anim, authoring, compose, jscat, jscheck, logic, media, medya,
                model, pedagogy, settings)
@@ -22,6 +24,61 @@ from .edits import Edit, apply_text_edits
 from .package import STORY_PART, StoryPackage, StoryError, lock_state
 
 mcp = MCPServer("storyline")
+
+# REDDIN GEREKCESI AJANA ULASMALI -- VE ULASMIYORDU (olculdu 2026-09-10).
+#
+# mcp 2.x'in kurali: arac `ToolError` firlatirsa mesaji istemciye GECER,
+# baska her istisna `UnexpectedToolError`a sarilir ve metni MASKELENIR.
+# `StoryError` duz bir RuntimeError oldugu icin ikinci gruba dusuyordu.
+# Gercek bir istemciyle, stdio uzerinden olculdu (yani panelin ajaninin
+# kullandigi yolun aynisi):
+#
+#     compose_slide(<soru slaydi>, layout="content")
+#       -> isError: True
+#       -> "Error executing tool compose_slide"        <- gordugu HER SEY
+#
+# Yani `compose.py`nin "MESAJ NIYETI DE TASIR" diye ozenle yazdigi metin
+# -- hangi icerigin kaybolacagi, hangi aracin yerine kullanilacagi --
+# ajana HIC varmiyordu. Ajanin gordugu sey "arac bozuk"tu, ve dogru
+# tepki (baska slayt sec, add_image kullan) o cumleden uretilemez.
+# Reddeden bir kapi, sebebini soylemiyorsa yalnizca bir engeldir.
+#
+# STORYERROR'I TOOLERROR'DAN TURETMEK daha kisa olurdu ve ELENDI, bedeli
+# olculdugu icin: `storyline_mcp.package` tek basina 39 ms yukleniyor,
+# mcp istisnalarini import etmek +865 ms getiriyor. O bedeli panelin
+# kurucu yolu (builder -> package) da oderdi ve karsiliginda hicbir sey
+# kazanmazdi -- orada ortada bir protokol yok. Donusum bu yuzden
+# SINIRDA duruyor: yalnizca arac yuzeyi oduyor.
+#
+# YAMA KAYIT NOKTASINDA, ARAC BASINA DEGIL. 51 dekoratoru tek tek sarmak
+# 52.'yi yazan kisinin unutabilecegi bir kural olur; burada unutulacak
+# bir sey yok, cunku `@mcp.tool()`un kendisi sariyor. Yamanin durdugunu
+# `tools/red_mesaji.py` her kosuda gercek bir istemciyle dogruluyor.
+_ham_tool = mcp.tool
+
+
+def _reddi_gecir(fn):
+    """StoryError = KASITLI red; metni istemciye aynen gitsin.
+
+    Gercek kusurlar (TypeError, KeyError, ...) bilerek disarida: onlar
+    maskelenmeye devam eder, cunku ic ayrintilari ajana yaymak ne
+    guvenli ne de yararli. Ayrim tam olarak "bu mesaj kime yazildi"dir.
+    """
+    @functools.wraps(fn)
+    def kabuk(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except StoryError as red:
+            raise ToolError(str(red)) from red
+    return kabuk
+
+
+def _tool(*args, **kwargs):
+    kayit = _ham_tool(*args, **kwargs)
+    return lambda fn: kayit(_reddi_gecir(fn))
+
+
+mcp.tool = _tool
 
 MAX_RUNS = 400
 NAVIGATING_ACTIONS = {
@@ -776,7 +833,19 @@ def compose_slide(
       vurgulu - yazi da kayar; yogun slaytta cok olur
     Kart ve adim yiginlari TEK VURUS sayilir: bes kart, on bes parca degil
     bes adim halinde acilir. BIR KURSTAKI TUM SLAYTLARDA AYNI motion'i
-    kullanin. Sonradan degistirmek/kaldirmak icin animate_slide."""
+    kullanin. Sonradan degistirmek/kaldirmak icin animate_slide.
+
+    DOLU SLAYT REDDEDILIR (clear=True, yani varsayilan). Bu arac slaydi
+    TEMIZLEYIP bastan cizer. Slaytta compose'un koymadigi bir sey varsa --
+    elle eklenmis sekil, soru tetikleyicisi, geri bildirim katmani --
+    cagri hata firlatir ve hangi icerigin kaybolacagini yazar. Ne yapilir:
+      * yeni bir slayt kurun (add_slide) ve onu besteleyin, ya da
+      * metni degistirmek yetiyorsa update_text / restyle_text kullanin,
+      * ustune sekil/gorsel koymak yetiyorsa add_image / add_shape.
+    Bir slaydin bunu KALDIRIP kaldirmadigini onceden ogrenmek icin
+    slide_layout cagirin: `yeniden_bestelenebilir` ve, hayirsa,
+    `yeniden_beste_engelleri` doner. Engelleri KALDIRARAK gecmeyin --
+    silinmesi engellenen sey tam olarak korunmak istenen icerik."""
     _guard(path)
     pkg = StoryPackage(path)
     if palette is None and brand:
@@ -1563,6 +1632,9 @@ def build_course(
       {"op": "add_question",    "template": "slide.xml",  "scene": "01_Giris",
                                 "prompt": "...", "choices": ["a","b","c","d"],
                                 "correct": [1], "points": 20}
+      {"op": "compose_slide",   "slide": "slide3.xml", "layout": "content",
+                                "title": "...", "body": "...",
+                                "theme": "gece"}
       {"op": "duplicate_slide", "slide": "slide3.xml"}
       {"op": "update_text",     "edits": [{"addr": "...", "new_text": "..."}]}
       {"op": "set_background",  "slide": "slidef.xml", "color": "#0A2240"}

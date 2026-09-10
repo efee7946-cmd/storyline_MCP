@@ -351,6 +351,33 @@ def kanarya(adlar: set[str], tetikler: set[str],
         except StoryError:
             print("kanarya red: katmanli slayt image_area ile REDDEDILDI (dogru)")
 
+    # 4e. GORSEL ISTEMEDEN DE REDDEDILMELI -- VE BU KANARYA BIR KUSURDAN
+    # DOGDU (2026-09-10). Kapinin kosulu `image_area and clear` yazilmisti,
+    # yani YIKICI olan parametreyi degil ona ESLIK EDEN parametreyi
+    # kolluyordu. `compose_slide(slide=<soru slaydi>, layout="content")`
+    # -- gorsel istemeden, varsayilan clear=True ile -- geciyor ve
+    # BASARILI donuyordu. Olculen hasar (bos.story + add_question):
+    #     slayt sekli 9 -> 4, intrProps 1 -> 0, SubmitInteraction silindi,
+    #     katmanlar 3 -> 3 ama onlari acacak hicbir sey kalmadi.
+    #
+    # 4d BUNU GOREMEZDI cunku o da image_area=True ile cagiriyor: kapinin
+    # dogru YARISINI sinayan bir kanarya, yanlis yarisini yesil gosterir.
+    # Yukaridaki 1-4 kanaryalari ise `emniyet()` YARDIMCISINI cagiriyor,
+    # kapiyi degil -- ve kusur tam o boslukta yasiyordu: yuklem dogru,
+    # kapinin kosulu yanlis. Bu yuzden burada `compose_slide` cagriliyor.
+    if katmanli:
+        pk5 = StoryPackage(yol)
+        try:
+            compose.compose_slide(pk5, katmanli[0], "content", title="T",
+                                  body="B", identity="kan")
+            print("kanarya red (gorselsiz): katmanli slayt KABUL EDILDI (YANLIS)")
+            kusur.append("RED GORSEL YOLUNA OZGU: image_area verilmeden "
+                         "katmanli slayt yeniden bestelenebiliyor — soru "
+                         "etkilesimi (intrProps + SubmitInteraction) sessizce "
+                         "silinir, kapi 'image_area and clear' diye daralmis")
+        except StoryError:
+            print("kanarya red (gorselsiz): katmanli slayt REDDEDILDI (dogru)")
+
     # 4. KATMANLI SLAYT KALMALI. bos.story'nin slideb'i iki katman tasiyor.
     if katmanli:
         r3 = emniyet(p1, katmanli[0], adlar, tetikler, rezervasyon)

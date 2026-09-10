@@ -3607,15 +3607,47 @@ def compose_slide(
     # ve yalnizca standart tetikleyicilerle birakiyor (olculdu), yani
     # kosul kendiliginden saglaniyor. `clear=False` ise cagiran zaten
     # yikici olmadigini soyluyor.
-    if image_area and clear:
+    #
+    # KOSUL `clear`, `image_area` DEGIL -- VE BU BIR DUZELTME (2026-09-10).
+    # Kapi once `image_area and clear` diye yazilmisti, yani yikici olan
+    # parametreyi degil ONA ESLIK EDEN parametreyi kolluyordu. Delik
+    # olculdu: `compose_slide(slide=<soru slaydi>, layout="content")` --
+    # gorsel istemeden, varsayilan `clear=True` ile -- katmanlari ve
+    # gonder tetikleyicisini goturuyor ve BASARILI donuyordu. Kapinin
+    # kendi gerekcesi ("dolu slayti bastan cizmek icerigi yok eder")
+    # gorsel yoluna hic ozgu degildi; kapsam iddiadan dardi.
+    #
+    # Yukaridaki "silme araci olmadigi icin kismen KAZAEN guvenli" notu da
+    # bu delik icin gecerli DEGILDI: silme araci gerekmiyordu, `clear`
+    # tek basina yetiyordu.
+    #
+    # GENISLETMENIN BEDELI OLCULDU, tahmin edilmedi (test/bos.story):
+    #   add_slide + 6 icerik sablonu      -> 6/6 engel YOK  (kurucu yol)
+    #   duplicate_slide + 3 sablon        -> 3/3 engel YOK
+    #   taze -> compose -> yeniden beste  -> engel YOK
+    #   ustune animate (choreograph)      -> engel YOK
+    # Yani mesru sira reddedilmiyor; reddedilen tam olarak ustune elle
+    # icerik konmus slayt.
+    if clear:
         engeller = emniyet.yeniden_beste_engelleri(root)
         if engeller:
+            # MESAJ NIYETI TASIR ve GIRISI CAGIRIYA GORE DEGISIR: gorsel
+            # icin gelen ile slaydi bastan kurmak icin gelen ayni tavsiyeyi
+            # almamali. Ikisi de "once icerigi kaldir" TARIFI vermez.
+            giris = (
+                "gorsel icin yer acmak slaydi bastan cizer" if image_area
+                else "bu slaydi yeniden bestelemek onu bastan cizer")
+            cikis = (
+                "gorseli bu slaydin ustune add_image ile koyun."
+                if image_area else
+                "metni degistirmek istiyorsaniz update_text/restyle_text "
+                "kullanin ya da yeni bir slayt kurun (add_slide).")
             raise StoryError(
-                f"{slide}: gorsel icin yer acmak slaydi bastan cizer, ama bu "
-                f"slaytta kaybolacak icerik var -- " + "; ".join(engeller)
+                f"{slide}: {giris}, ama bu slaytta kaybolacak icerik var -- "
+                + "; ".join(engeller)
                 + ". BU ICERIK KALDIRILARAK GECILMEMELI -- baska bir slayt "
                   "secin (slide_layout `yeniden_bestelenebilir` doner) ya da "
-                  "gorseli bu slaydin ustune add_image ile koyun.")
+                + cikis)
 
     removed = clear_slide(root) if clear else 0
     # Tohumdan devralinan OLU gonder tetikleyicisi. Sekiller silinince
