@@ -3595,6 +3595,14 @@ def compose_slide(
     # KONTROL BURADA, cunku prompt'a yazilan bir kontrol atlanabilir ve
     # atlandiginda sessizdir. Burada atlanamaz. Bkz. emniyet.py.
     #
+    # MESAJ NIYETI DE TASIR, yalnizca olguyu degil. "2 katman var" bir
+    # OLGUDUR ve silme araci olan bir ajan onu TARIFE diye okuyabilir:
+    # "katmanlari kaldir, sonra beste". O yol "basarili" olur ve tam
+    # olarak korunmak istenen icerigi yok eder. Bugun ajanin silme araci
+    # yok (delete_layer / delete_trigger MCP yuzeyinde degil), yani red
+    # kismen KAZAEN guvenli; o eksik kapandiginda mesaj geriye donup
+    # duzeltilmez. O yuzden simdi yaziliyor.
+    #
     # KURUCU YOLU ISIRILMAZ: `add_slide` taze slaydi sekilsiz, katmansiz
     # ve yalnizca standart tetikleyicilerle birakiyor (olculdu), yani
     # kosul kendiliginden saglaniyor. `clear=False` ise cagiran zaten
@@ -3605,8 +3613,9 @@ def compose_slide(
             raise StoryError(
                 f"{slide}: gorsel icin yer acmak slaydi bastan cizer, ama bu "
                 f"slaytta kaybolacak icerik var -- " + "; ".join(engeller)
-                + ". Alani ayrilmis baska bir slayt secin ya da gorseli bu "
-                  "slaydin ustune add_image ile koyun.")
+                + ". BU ICERIK KALDIRILARAK GECILMEMELI -- baska bir slayt "
+                  "secin (slide_layout `yeniden_bestelenebilir` doner) ya da "
+                  "gorseli bu slaydin ustune add_image ile koyun.")
 
     removed = clear_slide(root) if clear else 0
     # Tohumdan devralinan OLU gonder tetikleyicisi. Sekiller silinince

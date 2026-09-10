@@ -1057,8 +1057,27 @@ def slide_layout(path: str, slide: str) -> dict:
         cursor = max(cursor, bottom)
     if 100 - cursor > 8:
         free.append({"y": round(cursor, 1), "h": round(100 - cursor, 1)})
+    # GORSEL ICIN YER ACILABILIR MI, ve ACILAMIYORSA NICIN.
+    #
+    # Bu alan PLANLAMA icin: ajan uygun slaytlar arasindan SECSIN diye.
+    # Zorunluluk degil -- zorunluluk `compose_slide`in kendi icinde, ve
+    # orada atlanamaz.
+    #
+    # NICIN SIMDIDEN, bugun gereksiz gorunuyorken: reddin bugun guvenli
+    # olmasinin bir kismi KAZA. Ajanin silme araci yok (delete_trigger,
+    # delete_layer, update_trigger MCP yuzeyinde degil). O eksik
+    # kapandigi gun red mesaji bir engel tarifinden TARIFE doner --
+    # "katmanlari kaldir, sonra beste" diye okunabilir, o yol "basarili"
+    # olur ve tam olarak korunmak istenen icerigi yok eder. Ayni kayip,
+    # farkli kapidan. Secim cercevesi bunu bastan kapatir: ajan ENGELI
+    # ASMAZ, uygun olani SECER.
+    from . import emniyet as _emn
+    engeller = _emn.yeniden_beste_engelleri(root)
     return {"slide": slide, "slide_size": [int(width), int(height)],
-            "shapes": items, "free_bands": free}
+            "shapes": items, "free_bands": free,
+            "yeniden_bestelenebilir": not engeller,
+            "yeniden_beste_engelleri": engeller,
+            "gorsel_alani_ayrilmis": _emn.alan_ayrilmis(root)}
 
 
 @mcp.tool()
