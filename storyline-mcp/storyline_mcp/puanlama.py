@@ -204,6 +204,58 @@ def zincir(pkg: StoryPackage) -> list[str]:
         kirik.append("%d puanli slayt quiz'e kayitli degil (%s): puanlari "
                      "toplama girmez" % (len(kayitsiz), ", ".join(kayitsiz[:4])))
 
+    # 3b -- AYNASI. 3. kosul TEK YONLUYDU: "questionIdLst puanli her slaydi
+    # KAPSAYACAK". Tersi yazili degildi -- listede olup artik puanli
+    # etkilesim TASIMAYAN bir slayt.
+    #
+    # NICIN SIMDI: o hal `delete_shape` gelene kadar ULASILAMAZDI (olculdu
+    # 2026-09-11, diskteki 51 kursta 0 ornek). Silme araci kapiyi acti:
+    # bir sorunun secenekleri ya da etkilesimi kaldirilirsa slayt durur,
+    # kaydi durur, ama puanlanacak bir sey kalmaz. Storyline o kaydi
+    # cozer ve toplama SIFIR puanli bir soru girer.
+    #
+    # AYRICA UZLASTIRICI ICIN GEREKLI: kablolama yalnizca EKLERSE bir ust
+    # kumeye yakinsar (bayat kayit hic dusmez) ve bu kosul olmadan o
+    # yakinsama olculemez. Ayna once yazildi, uzlastirici sonra.
+    # 3c -- COZULEMEYEN KAYIT. `izleme` bunu zaten sayiyordu ve `zincir`
+    # HIC bildirmiyordu: quiz bir guid'e kayit tutuyor, o guid hicbir
+    # slayda cozulmuyor. `bos.story`nin kendi quiz'inde ALTI tane var.
+    # Uzlastirici bunlari SILMIYOR (soru bankasi sorulari da boyle
+    # gorunur -- bkz. `kablola`); ispatsiz bir silme yerine bildirim.
+    # KAPSAM, VE OLCULEMEDIGI ICIN YAZILIYOR (2026-09-11). Bu kosulun
+    # cozunurlugu `izleme.by_guid`den geliyor ve o `model.slide_index`
+    # uzerine kurulu -- yani `sceneLst`teki slaytlar. SORU BANKASI
+    # sorulari bankanin KENDI sahnesinde yasiyor
+    # (`quizMgr/bankLst/scene/sldIdLst`) ve o sahne `sceneLst`te DEGIL.
+    #
+    # Dolayisiyla banka DOLU bir projede, bankadan gelen kayitlar burada
+    # "cozulemeyen" gorunebilir ve bu kosul HER KOSUDA konusur --
+    # kullanicinin kapatamayacagi bir uyari. Yanlis uyari zamanla butun
+    # uyarilari degersizlestirir (ayni gerekce compose.py'de yazili).
+    #
+    # BUGUN OLCULEMIYOR, ve bu saklanmiyor: korpustaki 52 kursun 52'sinde
+    # `bankLst` VAR ama hepsi BOS; donors/ havuzundaki 9 projede de banka
+    # slaydi 0. Yani elde banka dolu tek bir fikstur yok.
+    #
+    # ACIK SORU, ve bir gercek proje tek acista cevaplar: Storyline banka
+    # sorularini `questionIdLst`e HIC kaydediyor mu, yoksa yalnizca
+    # CEKILEN slaytlari mi kaydediyor? Cevap "hic" ise buradaki risk
+    # yoktur ve bu not bir cumleye iner. Cevap "kaydediyor" ise
+    # cozunurluk `bankLst/scene/sldIdLst` uyelerini de kapsamali.
+    cozulemeyen = sorted({g for q in _iz["quizzes"] for g in q["cozulemeyen"]})
+    if cozulemeyen:
+        kirik.append("%d quiz kaydi hicbir slayda cozulmuyor (%s): ya silinmis "
+                     "bir slayda ya da soru bankasina isaret ediyor -- arac "
+                     "bunlari SILMEZ, once neyi gosterdigi bilinmeli"
+                     % (len(cozulemeyen),
+                        ", ".join(g[:8] for g in cozulemeyen[:4])))
+
+    bayat = [b for b in kayitli if b not in set(puanli)]
+    if bayat:
+        kirik.append("%d slayt quiz'e KAYITLI ama puanli etkilesim tasimiyor "
+                     "(%s): toplama sifir puanli soru girer"
+                     % (len(bayat), ", ".join(sorted(bayat)[:4])))
+
     # 4 -- LMS hedefi sonuc slaydi mi
     if _iz["lms_bos"]:
         kirik.append("quizMgr.lmsResultSlideG BOS: LMS okuyacagi slaydi "
@@ -321,3 +373,121 @@ def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
     if len(kirik) == 1:
         return kirik[0]
     return "%s (+%d kirik daha; tamami icin audit)" % (kirik[0], len(kirik) - 1)
+
+
+def kablola(pkg: StoryPackage) -> dict:
+    """Quiz kaydını dosyadakiyle UZLAŞTIR. Değişmez, adım değil.
+
+    NICIN HER YAZMADA. Kablolama TURETILMIS: hangi slaytlarin puanli
+    etkilesim tasidigi ve hangisinde sonuc slaydi oldugu dosyada zaten
+    yazili; icinde kullanici girdisi YOK. Turetilmis bir sey adim degil
+    DEGISMEZDIR -- adim atlanabilir, degismez atlanamaz. Sohbet yolunun
+    "bitti" ani olmadigi icin bir kapanis ADIMI kurulamiyordu; degismez
+    o soruyu cozmuyor, ORTADAN KALDIRIYOR.
+
+    GORUNUR ICERIK URETMEZ (md. 3 karari, bkz. tools/ajan_yolu.py):
+    sonuc slaydi yoksa baglanacak bir sey de yoktur ve bu fonksiyon
+    HICBIR SEY yapmaz. Yapim ortasindaki mesru ara hal -- soru var,
+    sonuc slaydi henuz yok -- boylece kusur sayilmiyor. Yazma anindaki
+    bir REDDIN yapamadigi sey buydu.
+
+    UZLASTIRIR, EKLEMEZ. Yalnizca ekleyen bir surum bir UST KUMEYE
+    yakinsardi: `delete_shape` ile etkilesimi kaldirilan bir sorunun
+    kaydi listede kalir ve Storyline toplama sifir puanli bir soru
+    katardi. Ucu birden yapiliyor ve ucu de ayri raporlaniyor.
+
+    STORYLINE'IN OKUDUGU QUIZ'E yazar. `authoring.register_question`
+    `story.iter("quiz")` kullaniyor ve iter ATILAN quizLst'in icine de
+    iniyor; gorunmeyen bir quiz'e kayit yapmak hicbir sey yapmamakla
+    ayni sey. Ayrimi `izleme` tutuyor, bu fonksiyon da ondan okuyor.
+
+    DEGISIKLIK YOKSA DOSYAYA DOKUNMAZ (`degisti: False`). Kararli
+    durumda maliyeti bir karsilastirma; olculdu (tools/kablolama_kapi.py):
+    temiz bir kursta arac cagrilari 0 yazma uretiyor.
+    """
+    import xml.etree.ElementTree as ET
+
+    index = model.slide_index(pkg)
+    # `dusen_cozulemeyen` DUSURULMEZ, yalnizca BILDIRILIR: adi mirastir,
+    # anlami asagida yazili (kanitlayabildigimiz kadarini sil).
+    rapor = {"eklenen": [], "dusen_bayat": [], "dusen_cozulemeyen": [],
+             "lms_yazildi": False, "degisti": False, "neden": ""}
+
+    story = pkg.parse("story/story.xml")
+    manager = story.find("quizMgr")
+    if manager is None:
+        rapor["neden"] = "quizMgr yok"
+        return rapor
+    listeler = manager.findall("quizLst")
+    quiz = next(iter(listeler[0]), None) if listeler else None
+    if quiz is None:
+        # Sonuc slaydi (ve dolayisiyla quiz) henuz kurulmamis olabilir:
+        # bu ARA HAL, kusur degil.
+        rapor["neden"] = "Storyline'in okudugu quizLst'te quiz yok"
+        return rapor
+
+    guid_ile = {ref.guid: ref.basename for ref in index.values()}
+    ad_ile = {ref.basename: ref.guid for ref in index.values()}
+    puanli = set(puanli_slaytlar(pkg, index))
+
+    id_list = quiz.find("questionIdLst")
+    if id_list is None:
+        id_list = ET.Element("questionIdLst")
+        quiz.insert(0, id_list)
+
+    mevcut = {}
+    for el in list(id_list):
+        g = (el.text or "").strip()
+        mevcut.setdefault(g, []).append(el)
+
+    # 1. BAYAT kayitlari dusur -- COZULEMEYENLERE DOKUNMA.
+    #
+    # KANITLAYABILDIGIMIZ KADARINI SIL. Bayat kayit ispatli: slayt
+    # DURUYOR ve puanli etkilesim tasimiyor. Cozulemeyen kayit ise
+    # ispatsiz -- guid'in neyi gosterdigini bilmiyoruz.
+    #
+    # VE BILMEMEK BURADA SOMUT BIR RISK (olculdu 2026-09-11): soru
+    # bankasi sorulari SLAYT olarak yasiyor ama bankanin kendi
+    # sahnesinde (`quizMgr/bankLst/scene/sldIdLst`), ve o sahne
+    # `sceneLst`te DEGIL -- yani `model.slide_index`e girmiyorlar ve
+    # buradan "cozulemeyen" gorunurler. Korpustaki 52 kursun 52'sinde
+    # bankLst VAR (hepsi bugun bos, ama kullanicinin projesi bos olmak
+    # zorunda degil). Onlari silmek, kullanicinin soru bankasi
+    # kayitlarini sessizce yok etmek olurdu.
+    #
+    # Cozulemeyen kayit SILINMIYOR ama SAKLANMIYOR da: `zincir` onu
+    # ayri bir kirik olarak bildiriyor. Rapor ve tamir ayri seyler.
+    for g, ogeler in mevcut.items():
+        basename = guid_ile.get(g)
+        if basename is None:
+            rapor["dusen_cozulemeyen"].append(g[:8])   # yalnizca BILDIRIM
+        elif basename not in puanli:
+            for el in ogeler:
+                id_list.remove(el)
+            rapor["dusen_bayat"].append(basename)
+
+    # 2. EKSIK kayitlari ekle.
+    kalan = {(el.text or "").strip() for el in list(id_list)}
+    for basename in sorted(puanli):
+        g = ad_ile.get(basename)
+        if g and g not in kalan:
+            oge = ET.SubElement(id_list, "item")
+            oge.text = g
+            rapor["eklenen"].append(basename)
+
+    # 3. LMS hedefi -- deger ICAT EDILMIYOR, quiz kendi sonuc slaydini
+    #    zaten biliyor.
+    lms = manager.get("lmsResultSlideG") or ""
+    hedef = quiz.get("resultSldG") or ""
+    if (not lms or lms.startswith("00000000")) and hedef \
+            and not hedef.startswith("00000000"):
+        manager.set("lmsResultSlideG", hedef)
+        manager.set("trackMode", "result")
+        rapor["lms_yazildi"] = True
+
+    # `dusen_cozulemeyen` DEGISIKLIK SAYILMAZ: dosyaya dokunulmadi.
+    rapor["degisti"] = bool(rapor["eklenen"] or rapor["dusen_bayat"]
+                            or rapor["lms_yazildi"])
+    if rapor["degisti"]:
+        pkg.replace_xml("story/story.xml", story)
+    return rapor

@@ -250,12 +250,26 @@ def update_text(
 
 
 def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool) -> dict:
+    """Her yazma buradan geciyor -- ve kablolama DEGISMEZI burada korunuyor.
+
+    NICIN ARAC BASINA DEGIL. `StoryError -> ToolError` donusumu icin
+    verilen gerekcenin aynisi: 54 cagriya tek tek konan bir kural,
+    55.'yi yazan kisinin unutabilecegi bir kural olur. Burasi girisin
+    kaydedildigi yer; yeni arac degismezi bedavaya alir.
+    """
     source = Path(path)
     if in_place:
         target = source
     else:
         target = Path(output_path) if output_path else source.with_suffix(".edited.story")
-    return pkg.save(target, backup=True)
+    # KABLOLAMA, KAYDETMEDEN ONCE. Turetilmis oldugu icin bir ADIM degil
+    # DEGISMEZ; gorunur icerik uretmez, ve degisiklik yoksa dosyaya
+    # dokunmaz (`degisti: False`). Gerekcesi puanlama.kablola'da.
+    kablo = puanlama.kablola(pkg)
+    yazma = pkg.save(target, backup=True)
+    # Sessiz kalmiyor: kayit gercekten degistiyse cagirana SOYLENIYOR.
+    # Sessizce dogru olan bir sey, sonradan sessizce yanlis olabilir.
+    return {**yazma, **({"kablolama": kablo} if kablo["degisti"] else {})}
 
 
 def _apply_op(pkg: StoryPackage, op: dict) -> dict:

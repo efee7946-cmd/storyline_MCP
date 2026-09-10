@@ -195,6 +195,20 @@ ADIMLAR = [
     # degil YOL. Iddia kumesi kurucuya ESIT DEGIL (Ilerleme, medya plani
     # ve sonuc kilidi disarida) -- esitlik iddia eden bir kapi yol
     # haritasinin 3. maddesi acilana kadar INSA GEREGI kirmizi kalirdi.
+    # KABLOLAMA DEGISMEZI (md. 3'un yazma tarafi). Kablolama TURETILMIS
+    # -- quiz kaydi, quizG ve lmsResultSlideG dosyada zaten var olandan
+    # cikiyor -- ve turetilmis bir sey adim degil DEGISMEZDIR. Adim
+    # atlanabilir, degismez atlanamaz: sohbet yolunun "bitti" ani
+    # olmadigi icin kapanis ADIMI kurulamiyordu, degismez o soruyu
+    # ortadan kaldiriyor. `server._write` icinde, arac basina DEGIL.
+    #
+    # Alti ayak; ikisi ozellikle: COGALTMAZ (temiz kursta 20 yazma
+    # cagrisi -> 0 degisiklik; olculen sey sure degil "kac cagrida
+    # gercekten yaziyor") ve ISPATSIZ SILMEZ (soru bankasi sorulari
+    # slide_index'e girmez ve "cozulemeyen" gorunur -- korpusun 52
+    # kursunun 52'sinde bankLst var).
+    ("kablolama",       [PY, "tools/kablolama_kapi.py"],
+     True,  False, "URETIR: _canary/kablolama_*.story; 3 = mcp istemcisi yok"),
     ("ajan yolu",       [PY, "tools/ajan_yolu.py"],
      True,  False, "URETIR: _canary/ajan_yolu*.story; 3 = mcp istemcisi yok"),
     # MEDYA YERI. `produced`tan SONRA, cunku taze uretilmis kursu okuyor.
