@@ -29,15 +29,44 @@ Sonda kendi kendine hukum vermez, OLCER ve neyi gorduguunu yazar:
 bankadaki slayt guid'leri, quiz kayitlarindaki guid'ler, ve ikisinin
 KESISIMI. Kesisim bos degilse cevap "kaydediyor"dur.
 
-FIKSTUR NASIL URETILIR (Storyline'da, bir kez):
-  1 Yeni ya da var olan bir projede Slides > Question Bank > yeni banka
-  2 Bankaya EN AZ BIR soru ekle
-  3 Kurs icine "Draw from Question Bank" ile o soruyu cek
-  4 Kaydet
+FIKSTUR BU MAKINEDE YOK, ve arandi (2026-09-12): Desktop, Documents ve
+Downloads altinda 480 `.story` tarandi; banka DOLU tek dosya bu ipligin
+kendi urettigi sentetik deneydi. Storyline kurulumu da orneklerle
+gelmiyor (`Program Files\Articulate` altinda .story yok). Yani soruyu
+bugun cevaplayacak bir dosya YOK.
 
-Ucuncu adim onemli: yalnizca banka kurup CEKMEMEK, sorunun yarisini
-olcer. Iki hali de gormek icin ideal olan, cekilmis ve cekilmemis birer
-soru tasiyan bir banka.
+OTURUMUN GECERLILIK KOSULU -- ve ilk sondanin hatasi tam buradaydi.
+Sonda ilk kosusunda "Storyline KAYDEDIYOR" dedi; oysa kaydi BIZ
+yazmistik. Dairesel bir cevapti. Oturum su ucu tasimazsa ayni tuzaga
+duser:
+
+  1 KAYDI HICBIR ASAMADA BIZ YAZMAYACAGIZ. Baslangic dosyasinda quiz
+    kaydi BULUNMAYACAK (`questionIdLst` bos). Kayit dosyaya elle
+    girdiyse "kimin yazdigi" sorusu yine cevapsiz kalir.
+  2 HER ADIM STORYLINE'IN ARAYUZUNDEN GECECEK: soru bankasi olustur ->
+    bankaya bir soru ekle -> kursa "Draw from Question Bank" ile cekme
+    yerlestir -> kaydet.
+  3 SONRA TEK SORU: `story.xml`deki `questionIdLst` ne iceriyor?
+
+UC SONUC, UCU DE AYRI TASARIM SONUCU VERIYOR:
+
+    banka sorusunun guid'i -> Storyline banka sorusunu DOGRUDAN
+                              kaydediyor
+    cekme slaydinin guid'i -> kaydedilen sey CEKME, soru degil;
+                              `puanlama.kablola`nin hedefi de o olmali
+    bos                    -> Storyline bankayi `questionIdLst`
+                              uzerinden HIC raporlamiyor; yol haritasi
+                              6'nin banka kismi baska bir mekanizma
+                              arayacak
+
+Ucu de tek acista gorunuyor, ve o dosya ayni zamanda 6'nin banka
+kisminin FIKSTURU oluyor -- gecerli olmasinin sarti da bu: uctan uca
+Storyline'in yazmis olmasi.
+
+BU ARAC O OTURUMU KOSAMAZ. Storyline'i baslatip kaydettirebiliyoruz
+(`tools/tur_testi.py` oyle yapiyor) ama ARAYUZUNDEN banka kuramayiz:
+menuye tiklamak ne elimizde var ne de bu deponun kabul ettigi bir yol
+("arayuz taklidi yok" -- bkz. depo kokundeki README).
 """
 
 from __future__ import annotations
