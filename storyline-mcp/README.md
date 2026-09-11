@@ -865,10 +865,15 @@ durumda: SYSTEM_PROMPT'a öğretim bölümü eklendikten sonra aynı ölçü tek
 koşulmadan, değişikliğin davranışı gerçekten değiştirdiği değil yalnızca
 kelime sayısını artırdığı da mümkün kalır. İyileşme varsayılmaz, ölçülür.
 
-## Ölçü yazmanın kuralı: içe aktar, ayrıştırma
+## Ölçü yazmanın kuralları
 
-Bu depodaki kapılar aynı kusur sınıfına **yedi kereden fazla** düştü ve
-hepsinin tek bir cümlesi var: *hayal edilen bir biçime yazılmış yüklem.*
+> **Bu bölümün alıcısı belli:** yeni bir kapı ayağı ya da tohum yazan
+> kişi. `tools/ayirt_kapi.py` bugün **9/35 ayağı** tohumluyor; kalan 26'yı
+> tohumlayacak olan, aşağıdaki dört kuralı tam o anda yazacak.
+
+Depodaki kapılar aynı kusur sınıfına **dokuz kez** düştü — dördü
+kullanıcının ölçümlerinde, beşi üretici tarafta — ve hepsinin tek bir
+cümlesi var: *hayal edilen bir biçime yazılmış yüklem.*
 Örnekler ölçülmüş hâlleriyle:
 
 | yüklem | ne oldu |
@@ -880,6 +885,21 @@ hepsinin tek bir cümlesi var: *hayal edilen bir biçime yazılmış yüklem.*
 | `"(-" in n` | biçimlendirici işareti paranteze koyduğu için çalışıyordu |
 | `"bulunamadi" in metin` | mesaj yeniden yazılınca metin **vardığı hâlde** "maskelendi" dedi |
 | `"kaybolacak icerik" in m2` | mesaj yeniden yazılmıştı; ifade **tesadüfen** hayatta kalmıştı |
+| `tamlık = questionIdLst dolu` | tanım dosyada **dört koşul** olarak numaralı duruyordu; biri alınıp tamlık sanıldı |
+| `banka soruları slide_index'e girmez` | `slide_index` sahnesiz slayt parçalarını da indeksliyor; kaygının **mekanizması** yanlıştı |
+
+### Alt türler
+
+Üçü de aynı cümlenin farklı yüzü, ve ayırt etmek gerekiyor çünkü
+çareleri farklı:
+
+| alt tür | ne hayal edilmişti | örnek |
+|---|---|---|
+| **eleman adı** | XML'de duran adın kendisi | `<questionId[ >/]` — gerçek ad `questionIdLst` |
+| **biçim** | insan-okur bir satırın şekli | `"-" in n` oku yakaladı; `"(-" in n` yalnızca parantez sayesinde çalışıyordu |
+| **tanım/koşul** | dosyada numaralanmış duran tanım | "tamlık = `questionIdLst` dolu" — oysa dosyada dört koşul yazılı; `slide_index`in sahnesiz parçaları da indekslediğini okumadan yazmak |
+
+### Çare
 
 Çarenin en geniş hâli: **yüklemi zaten hesaplanmış olana bağla.** `oturum.fark`
 insan-okur bir satır yerine `{"alan","once","sonra","delta"}` döndürüyor ve kapı
@@ -902,6 +922,45 @@ Bunun altyapısı `tools/ayak.py` (`Defter`): ayak beyanı **tek değer**, ve
 satırlar ondan basılıyor. İki kayma yönü de kapalı — beyansız ad basılamaz
 (`SystemExit`), beyanlı ama basılmayan ayak kusur olarak bildirilir. Kapsam
 sayısını `tools/ayirt_kapi.py` bu beyandan okur, docstring'den değil.
+
+### Dairesellik ayrı bir sınıftır
+
+Yukarıdaki dokuz örnekte yüklem hayal edilen bir biçime yazılmıştı.
+Bundan farklı bir hâl var ve savunması da farklı: **ölçümün konusu
+ölçeni tarafından sağlanmışsa** sonuç dairesel olur.
+
+Ölçüldü: `tools/banka_sorusu.py` ilk koşusunda *"Storyline banka
+sorularını kaydediyor"* dedi — ama o kaydı **biz** yazmıştık. Sonda
+doğru çalışıyordu; soru yanlıştı.
+
+> **Çare "hesaplanmış olana bağla" değil.** Konunun ölçenin denetimi
+> **dışından** gelmesi gerekiyor.
+
+Pratik sonucu: Storyline'ın bankadan çekilen soruyu `questionIdLst`'e
+kendisinin yazıp yazmadığı, elle kurulan bir fikstürle **cevaplanamaz**.
+Kullanıcının Storyline'da bankadan soru çektiği gerçek bir proje
+gerekiyor. Sondanın hükmü o yüzden dar tutuldu: *"kaydı kimin yazdığı
+buradan görünmez."*
+
+### Pahalı kanıtı ucuza almak: etkiyi değil argüman kurulumunu sına
+
+Bir iddianın kanıtı pahalı bir eylemden geçiyorsa (Storyline'ı açmak,
+model çağırmak), çoğu zaman asıl soru o eylemin **etkisi** değil, ona
+giden **çağrının kurulumu**dur.
+
+İki örnek, ikisi de ölçüldü:
+
+- `launch` göreli yolu mutlaklaştırıyor mu? Storyline **hiç
+  başlatılmadan** ölçüldü: `subprocess.Popen` değiştirildi ve argümanın
+  mutlak olduğu görüldü.
+- `tools/ajan_yolu.py` "ajan doğru araçları seçiyor mu" diye sormuyor —
+  o soru model çağırır. "Bu araçlardan geçen bir kurulum sağlam kurs
+  üretiyor mu" diye soruyor: **planlayıcı değil yol**. Böylece kapı
+  varsayılan suit'te 22 saniyede koşuyor.
+
+Pahalı yol yine de gerekli olduğunda (`tools/tur_testi.py`) `--tam`
+tarafında durur ve açılmazsa **çıkış 3** döner: ölçülmemiş bir şeyi
+"kapı kaldı" diye bildirmek, ürüne ait olmayan bir kusur uydurur.
 
 ### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
 
