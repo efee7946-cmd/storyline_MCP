@@ -130,7 +130,21 @@ async def kosu() -> list[str]:
                 # 1. KASITLI RED: metni GECMELI. Fikstur gerekmez.
                 res = await s.call_tool("list_slides", {"path": "Z:/yok/olmayan.story"})
                 metin = _metin(res)
-                gecti = "bulunamadi" in metin.lower()
+                # YAPISAL, KELIMEYE BAGLI DEGIL -- VE BU BIR DUZELTME.
+                #
+                # Eski hali `"bulunamadi" in metin.lower()` idi ve
+                # `package.py` o cumleyi yeniden yazdigi gun ayak
+                # kirmiziya donerdi -- maskeleme hic geri gelmemis olsa
+                # bile. (Olculdu: mesaj "Boyle bir dosya yok" diye
+                # degistirildi, metin ISTEMCIYE VARDI ve ayak yine de
+                # "MASKELENDI" dedi.)
+                #
+                # Olculen sey aslinda kelime GEREKTIRMIYOR: mcp 2.x
+                # maskelerken TAM olarak "Error executing tool <ad>"
+                # basiyor, gecirdiginde ustune ": <sebep>" ekliyor. Soru
+                # su: genel kalibin DISINDA bir sey var mi.
+                maske_kalibi = "Error executing tool list_slides"
+                gecti = bool(metin.strip()) and metin.strip() != maske_kalibi
                 print(f"kasitli red  : {'METIN GECTI' if gecti else 'MASKELENDI'} "
                       f"-> {metin[:90]}")
                 if not gecti:
@@ -161,8 +175,28 @@ async def kosu() -> list[str]:
                         "title": "Uzerine yaz", "body": "...", "in_place": True})
                     m2 = _metin(res2)
                     reddedildi = bool(getattr(res2, "is_error", False))
-                    sebepli = ("kaybolacak icerik" in m2) and (
-                        "katman" in m2 or "tetikleyici" in m2)
+                    # IFADE DEGIL OZELLIK -- VE BU AYAK SANSLA AYAKTAYDI.
+                    #
+                    # Eski hali `"kaybolacak icerik" in m2 and ("katman" in
+                    # m2 or "tetikleyici" in m2)` idi. O metin iki tur once
+                    # BILEREK yeniden yazildi (katmanlar gitmiyor, SAHIPSIZ
+                    # kaliyor); yeniden yazma girisi degistirdi, sondaki
+                    # cumlecige dokunmadi ve ifade TESADUFEN hayatta kaldi.
+                    # Bunu guvence altina alan hicbir sey yoktu.
+                    #
+                    # Buradaki soru semantik -- "red sebebini TASIYOR mu" --
+                    # ve yapisal bir karsiligi yok (`neler` duzeltmesindeki
+                    # gibi hesaplanmis bir sayi yok). O yuzden ifade yerine
+                    # OZELLIK iddia ediliyor:
+                    #   (a) mesaj genel maske kalibindan belirgin uzun
+                    #   (b) kaybi adlandiran KUMEden en az biri geciyor
+                    # Basarisizlik kipi boylece "yeniden yazildi -> yanlis
+                    # kirmizi"dan "ici bosaltildi -> dogru kirmizi"ya kayiyor.
+                    maske2 = "Error executing tool compose_slide"
+                    kayip_adlari = ("katman", "tetikleyici", "sekil", "soru",
+                                    "icerik")
+                    sebepli = (len(m2.strip()) > len(maske2) + 40
+                               and any(k in m2.lower() for k in kayip_adlari))
                     print(f"compose kapisi: {'REDDETTI' if reddedildi else 'KABUL ETTI'}, "
                           f"{'sebep VAR' if sebepli else 'sebep YOK'}")
                     if not reddedildi:

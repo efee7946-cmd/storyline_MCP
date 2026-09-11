@@ -1445,6 +1445,8 @@ def main() -> int:
         return _son[0]["text"] if _son else ""
 
     _sohbet35 = _son_metin35(_yol35)
+    # KAYNAK NOT, o andaki dosyadan: final metniyle karsilastirilacak.
+    _sohbet_notu35 = _il35.sohbet_yolu_notu(StoryPackage(_yol35))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         _p35 = StoryPackage(_yol35)
@@ -1456,6 +1458,7 @@ def main() -> int:
         _il35.kur(_p35, [_sahne35])
         _p35.save(_yol35, backup=False)
     _kurucu35 = _son_metin35(_yol35)
+    _kurucu_notu35 = _il35.sohbet_yolu_notu(StoryPackage(_yol35))
     # DEDEKTOR COMPOSE'A BAGLANIR. `ilerleme.GORSEL_ALANI` compose'un
     # string literal'ini TEKRARLIYOR (compose disari vermiyor) ve tekrarlanan
     # sabit sessizce ayrisir: compose sekli yeniden adlandirdiginda dedektor
@@ -1503,10 +1506,29 @@ def main() -> int:
             _sorun35.append(
                 "%s: compose ayirdi=%s ama dedektor gordu=%s (%s)"
                 % (_ad36, _compose_ayirdi, _dedektor_gordu, _dosya36))
-    if "sohbet yolundan" not in _sohbet35:
-        _sorun35.append("sohbet yolunda not CIKMADI: %r" % _sohbet35[:80])
-    if "sohbet yolundan" in _kurucu35:
-        _sorun35.append("kurucu yolda yanlis alarm: %r" % _kurucu35[:80])
+    # IDDIA HESAPLANANA BAGLI, HAYAL EDILENE DEGIL -- VE BU BIR DUZELTME.
+    #
+    # Eski hali `"sohbet yolundan" not in _sohbet35` diye yaziyordu: notun
+    # METNINDEN bir parca, elle. O ifade `ilerleme.sohbet_yolu_notu`
+    # yeniden yazildigi gun sessizce kayardi -- davranis bozulmadan kapi
+    # kirmiziya, ya da (daha kotusu) not olmedigi halde ayak yesile.
+    # Ayni sinif bu iplikte yedi kez isirdi.
+    #
+    # Notun kendisi ZATEN hesaplaniyor. Ayak artik iki sey soruyor:
+    #   KAYNAK  sohbet yolunda not dolu, kurucu yolda BOS
+    #   VARIS   o metin final olaya GERCEKTEN ulasmis (23. sinifin
+    #           kusuru tam buydu: uyari yalnizca kurucu yolda vardi)
+    _not_sohbet = _sohbet_notu35
+    if not _not_sohbet.strip():
+        _sorun35.append("sohbet yolunda not KAYNAKTA bos: sohbet_yolu_notu "
+                        "hicbir sey dondurmedi")
+    elif _not_sohbet.strip() not in _sohbet35:
+        _sorun35.append("not final olaya ULASMADI: kaynak %r uretti ama "
+                        "bitis metninde yok (%r)"
+                        % (_not_sohbet.strip()[:60], _sohbet35[:80]))
+    if _kurucu_notu35.strip():
+        _sorun35.append("kurucu yolda yanlis alarm: sohbet_yolu_notu %r "
+                        "dondurdu" % _kurucu_notu35.strip()[:60])
     if "okunamadi" in _sohbet35:
         # Teshis alinamadigini SOYLEMESI dogru, ama kanaryada bu
         # "not calisiyor" diye okunmamali.

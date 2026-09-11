@@ -169,6 +169,20 @@ def kosuyu_yap(ad, brief, ek, sonuclar):
 
     sonuclar.append({
         "kosu": ad, "hata": hata, "sure_s": round(time.time() - t0, 1),
+        # VEKIL OLARAK DUZYAZI -- BILINEREK BIRAKILDI, ve sinirin adi
+        # yaziliyor. Bu sayi akis satirlarinda bir IFADE ariyor
+        # ("yeniden isteniyor"); builder o cumleyi yeniden yazdigi gun
+        # sayac sessizce SIFIRA duser ve kimse bagirmaz. Ayni sinif bu
+        # depoda yedi kez isirdi.
+        #
+        # Neden simdi duzeltilmedi: yapisal karsiligi builder'da bir
+        # SAYAC ister (celiski duzeltmesi kac kez tetiklendi) ve o,
+        # uretim kodunu bu olcum icin degistirmek demek. `varyans.py`
+        # suit'te DEGIL ve cikti bir ARSIV (bkz. varyans_sonuc.json
+        # zarfi), yani yanlis sayinin bir kapiyi yesile boyama riski
+        # yok -- riski, arsivde sessizce yanlis bir sayi durmasi.
+        # Duzeltilirse: builder `_ayrac_yamasi` yaninda bir sayac
+        # dondursun, bu satir onu okusun.
         "yeniden_isteme": sum(1 for x in akis if "yeniden isteniyor" in x),
         "yama_cagrisi": cagri["yama"], "ayrac_kararlari": kararlar,
         "duzen_dagilimi": cagri["duzen"],
