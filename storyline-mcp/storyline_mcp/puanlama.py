@@ -222,26 +222,31 @@ def zincir(pkg: StoryPackage) -> list[str]:
     # slayda cozulmuyor. `bos.story`nin kendi quiz'inde ALTI tane var.
     # Uzlastirici bunlari SILMIYOR (soru bankasi sorulari da boyle
     # gorunur -- bkz. `kablola`); ispatsiz bir silme yerine bildirim.
-    # KAPSAM, VE OLCULEMEDIGI ICIN YAZILIYOR (2026-09-11). Bu kosulun
-    # cozunurlugu `izleme.by_guid`den geliyor ve o `model.slide_index`
-    # uzerine kurulu -- yani `sceneLst`teki slaytlar. SORU BANKASI
-    # sorulari bankanin KENDI sahnesinde yasiyor
-    # (`quizMgr/bankLst/scene/sldIdLst`) ve o sahne `sceneLst`te DEGIL.
+    # BANKA KAYGISI OLCULDU VE DUSTU (2026-09-11). Bu not once soyle
+    # yaziyordu: "soru bankasi sorulari `slide_index`e girmiyor, o yuzden
+    # banka dolu bir projede bu kosul kalici olarak konusur." MEKANIZMA
+    # YANLISTI.
     #
-    # Dolayisiyla banka DOLU bir projede, bankadan gelen kayitlar burada
-    # "cozulemeyen" gorunebilir ve bu kosul HER KOSUDA konusur --
-    # kullanicinin kapatamayacagi bir uyari. Yanlis uyari zamanla butun
-    # uyarilari degersizlestirir (ayni gerekce compose.py'de yazili).
+    # `model.slide_index` sahneleri gezdikten SONRA su dongusu kosuyor:
+    #     for part in pkg.slide_parts:
+    #         if part not in index:
+    #             index[part] = make(part, "(sahnesiz)", "", 0)
+    # Yani hicbir sahnenin gostermedigi slayt parcalari da indekse
+    # giriyor -- banka slaytlari dahil. Kayitlari COZULUYOR ve bu kosul
+    # onlar icin HIC atesLENMIYOR.
     #
-    # BUGUN OLCULEMIYOR, ve bu saklanmiyor: korpustaki 52 kursun 52'sinde
-    # `bankLst` VAR ama hepsi BOS; donors/ havuzundaki 9 projede de banka
-    # slaydi 0. Yani elde banka dolu tek bir fikstur yok.
+    # Olculdu, sentetik ama Storyline'in KABUL ETTIGI bir dosyayla:
+    # banka sahnesine tasinmis bir soru slaydi, quiz'e kayitli. Banka
+    # slaydi indekse `scene_name="(sahnesiz)"` olarak girdi, `izleme`nin
+    # `cozulemeyen` listesi BOS kaldi, `zincir` TEMIZ dondu. Dosya
+    # Storyline'da acilip kaydedildi ve yapi birebir korundu (banka 1
+    # slayt, kayit 2, tek quizLst) -- yani Storyline boyle bir kaydi
+    # ATMIYOR.
     #
-    # ACIK SORU, ve bir gercek proje tek acista cevaplar: Storyline banka
-    # sorularini `questionIdLst`e HIC kaydediyor mu, yoksa yalnizca
-    # CEKILEN slaytlari mi kaydediyor? Cevap "hic" ise buradaki risk
-    # yoktur ve bu not bir cumleye iner. Cevap "kaydediyor" ise
-    # cozunurluk `bankLst/scene/sldIdLst` uyelerini de kapsamali.
+    # GERIYE KALAN, ve bu kosulu ILGILENDIRMIYOR: Storyline kullanici
+    # bankadan soru CEKTIGINDE kaydi kendisi yazar mi? Sentetik dosya
+    # "koruyor"u gosterdi, "yaziyor"u gostermez. O soru yol haritasi 6
+    # icin duruyor; 3c'nin riski ise yok.
     cozulemeyen = sorted({g for q in _iz["quizzes"] for g in q["cozulemeyen"]})
     if cozulemeyen:
         # BELIRSIZLIK YALNIZCA BANKA DOLUYKEN GERCEK. Bos bir `bankLst`te

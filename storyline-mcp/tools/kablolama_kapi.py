@@ -19,12 +19,15 @@ ALTI AYAK:
                  md. 3'un "gorunur icerik uretme" karari bunu guvenli
                  kilan seyin ta kendisi.
   5 ISPATSIZ SILMEZ  hicbir slayda cozulmeyen kayit SILINMEZ, bildirilir.
-                 Soru bankasi sorulari SLAYT olarak yasiyor ama bankanin
-                 kendi sahnesinde (`quizMgr/bankLst/scene/sldIdLst`) ve o
-                 sahne `sceneLst`te DEGIL -- yani `slide_index`e girmez
-                 ve buradan "cozulemeyen" gorunur. Korpusun 52 kursunun
-                 52'sinde bankLst VAR. Silmek, kullanicinin bankasini
-                 sessizce yok etmek olurdu.
+                 GEREKCE 2026-09-11'DE DARALDI: once "banka sorulari
+                 `slide_index`e girmez, cozulemeyen gorunur" diye
+                 yaziyordu ve bu YANLISTI -- `slide_index` sahnesiz slayt
+                 parcalarini da indeksliyor, yani banka kayitlari
+                 COZULUYOR (olculdu). Ayak yine de dogru: guid'in neyi
+                 gosterdigini bilmeden silmek, ispatsiz bir silmedir.
+                 Bugun bilinen tek ispatsiz hal, hicbir PARCAYA
+                 cozulmeyen kayit -- silinmis bir slayt ya da bu paketin
+                 disindan gelen bir referans.
   6 KAYIT NOKTASINDA  soruyla ILGISIZ bir arac (`set_theme_font`) da
                  degismezi korur. Bu ayak, kuralin arac basina degil
                  `_write`ta durdugunu KANITLAR; 55. araci yazan kisi onu

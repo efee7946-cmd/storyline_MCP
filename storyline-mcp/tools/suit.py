@@ -237,6 +237,20 @@ ADIMLAR = [
     # duzeltmesi story.xml'e yaziyor -- paketin en hassas parcasi -- ve onu
     # Storyline'in gercekten kabul ettigini yalnizca bu adim gosterir.
     # `produced` daha once kostugu icin dosya taze.
+    # TUR TESTI: "aciliyor mu"nun USTUNDEKI soru -- Storyline bizim
+    # yazdigimizi KORUYOR mu. `open_test` yalnizca acilmayi soruyor ve
+    # acilmak dusuk bir esik: Storyline sevmedigi seyi sessizce yeniden
+    # yazip kaydedebilir. Depo bundan bir kez isirildi ve kesif KAZAYDI
+    # (yks.story: ikinci quizLst'teki Quiz_Result silinmis, yerine bos
+    # bir Quiz1 konmustu). Uclu artik elimizde: anlik goruntu -> ac ve
+    # kaydet -> fark.
+    #
+    # KAPI ZINCIRI savunuyor (kayit kaybi, ikinci quizLst, tur oncesi
+    # temiz zincirin bozulmasi); yapisal fark RAPOR kalir, cunku
+    # Storyline'in mesru normallestirmelerini kusur saymak kapiyi
+    # kalici kirmiziya boyardi.
+    ("tur testi",       [PY, "tools/tur_testi.py", URETILMIS],
+     True,  True,  "URETILMIS'i Storyline'da ac/kaydet/karsilastir"),
     ("open_test",       [PY, "tools/open_test.py", URETILMIS, "donors"],
      True,  True,  "Storyline acar: URETILEN kurs + donor havuzu"),
 ]

@@ -64,17 +64,40 @@ def olc(yol: str) -> dict:
     story = pkg.parse("story/story.xml")
     index = model.slide_index(pkg)
 
+    # KISA KIMLIK -> PARCA -> GUID. VE BU BIR DUZELTME (2026-09-11):
+    # ilk surum `sldIdLst`in cocuklarini dogrudan guid sanip
+    # `questionIdLst` ile karsilastiriyordu. `sldIdLst` KISA KIMLIK
+    # tutuyor (`R6jC59AwwCRj`), `questionIdLst` ise GUID -- yani kesisim
+    # HER ZAMAN bos cikardi ve sonda "kaydetmiyor" diye KENDINDEN EMIN
+    # YANLIS bir cevap verirdi. Tam olarak bu ipligin kurali: olcunun
+    # kendisi once sinanmali.
+    #
+    # Zincir `model.slide_index`in kullandiginin aynisi: kisa kimlik
+    # `_rel_map`ten parcaya, parcanin kokundeki `g` de guid'e.
+    rels = model._rel_map(pkg)
     bankalar = []
     banka_guidleri: set[str] = set()
+    cozulemeyen_kisa: list[str] = []
     bank_lst = story.find("quizMgr/bankLst")
     for sahne in (bank_lst if bank_lst is not None else []):
         sld = sahne.find("sldIdLst")
-        guidler = [(el.text or el.get("g") or "").strip()
+        kisalar = [(el.text or "").strip()
                    for el in (sld if sld is not None else [])]
-        guidler = [g for g in guidler if g]
+        kisalar = [k for k in kisalar if k]
+        guidler = []
+        for kisa in kisalar:
+            parca = rels.get(kisa)
+            if parca and parca in pkg._parts:
+                g = (pkg.parse(parca).get("g") or "").strip()
+                if g:
+                    guidler.append(g)
+                    continue
+            cozulemeyen_kisa.append(kisa)
         banka_guidleri |= set(guidler)
-        bankalar.append({"ad": sahne.get("name") or "(isimsiz)",
-                         "slayt": len(guidler), "guidler": guidler})
+        bankalar.append({"ad": sahne.get("desc") or sahne.get("name")
+                         or "(isimsiz)",
+                         "slayt": len(kisalar), "cozulen": len(guidler),
+                         "guidler": guidler})
 
     kayitlar: list[str] = []
     for quiz in story.iter("quiz"):
@@ -87,13 +110,18 @@ def olc(yol: str) -> dict:
     return {
         "dosya": pathlib.Path(yol).name,
         "bankalar": bankalar,
-        "banka_slaydi": len(banka_guidleri),
+        "banka_slaydi": sum(b["slayt"] for b in bankalar),
+        "banka_cozulen": len(banka_guidleri),
+        "cozulemeyen_kisa": cozulemeyen_kisa,
         "quiz_kaydi": len(kayitlar),
         # ASIL SORU: bankadaki bir slayt quiz'e kayitli mi.
         "kesisim": sorted(banka_guidleri & set(kayitlar)),
-        # Kayitlarin kaci NORMAL sahnelerden geliyor (karsilastirma icin)
-        "sahneden_kayit": sorted(set(kayitlar) & sahne_guidleri),
+        # INDEKSTEN cozulen kayitlar. "sahneden" DEGIL: slide_index
+        # sahnesiz slayt parcalarini da indeksliyor, yani banka
+        # slaytlari da buraya girer (olculdu 2026-09-11).
+        "indeksten_cozulen": sorted(set(kayitlar) & sahne_guidleri),
         # Ne bankada ne sahnede: 3c'nin bugun "cozulemeyen" dedigi kume
+        # Hicbir PARCAYA cozulmeyen: 3c bugun yalnizca bunlari sayar.
         "hicbiri": sorted(set(kayitlar) - banka_guidleri - sahne_guidleri),
         "zincir": puanlama.zincir(pkg),
     }
@@ -111,15 +139,20 @@ def main() -> int:
     r = olc(args.kurs)
     print(f"{r['dosya']}")
     for b in r["bankalar"]:
-        print(f"  banka {b['ad']!r}: {b['slayt']} slayt")
+        print(f"  banka {b['ad']!r}: {b['slayt']} slayt, "
+              f"{b['cozulen']}'i guid'e cozuldu")
     print(f"  quiz kaydi          : {r['quiz_kaydi']}")
     print(f"  bankadan kayitli    : {len(r['kesisim'])} {r['kesisim'][:3]}")
-    print(f"  sahneden kayitli    : {len(r['sahneden_kayit'])}")
+    print(f"  indeksten cozulen   : {len(r['indeksten_cozulen'])}")
     print(f"  ne banka ne sahne   : {len(r['hicbiri'])} {r['hicbiri'][:3]}")
     print("  zincir:")
     for k in r["zincir"] or ["    (temiz)"]:
         print(f"    {k[:100]}")
 
+    if r["cozulemeyen_kisa"]:
+        print(f"  UYARI: {len(r['cozulemeyen_kisa'])} banka kimligi parcaya "
+              f"cozulmedi ({r['cozulemeyen_kisa'][:3]}) -- kesisim EKSIK "
+              f"olcuulmus olabilir")
     if r["banka_slaydi"] == 0:
         print()
         print("KOSAMADI: bu projede soru bankasi BOS (banka slaydi 0). "
@@ -128,18 +161,26 @@ def main() -> int:
         return KOSAMADI
 
     print()
+    # HUKUM DAR TUTULUYOR. Sonda "kayit VAR MI" gorur; kaydi KIMIN
+    # yazdigini goremez. Sentetik bir dosyada kaydi biz yazmis olabiliriz
+    # (ilk kosumda tam oyle oldu ve cikti "Storyline KAYDEDIYOR" diyordu
+    # -- dairesel bir cevap).
     if r["kesisim"]:
-        print(f"CEVAP: Storyline banka sorularini questionIdLst'e KAYDEDIYOR "
-              f"({len(r['kesisim'])} guid hem bankada hem kayitta).")
-        print("SONUCU: `puanlama.zincir` 3c'nin cozunurlugu bankLst uyelerini "
-              "de KAPSAMALI; yoksa banka dolu her projede 3c kalici olarak "
-              "konusur ve kullanici onu kapatamaz.")
+        print(f"GORULEN: bankadaki {len(r['kesisim'])} slayt quiz'e KAYITLI.")
+        print("  Kaydi KIMIN yazdigi buradan GORUNMEZ. Dosya Storyline'da")
+        print("  yazildiysa cevap 'Storyline kaydediyor'dur; sentetik olarak")
+        print("  kurulduysa yalnizca 'Storyline boyle bir kaydi KORUYOR'")
+        print("  denebilir (olculdu: acilip kaydedildi, yapi birebir korundu).")
     else:
-        print("CEVAP: bu projede bankadaki hicbir slayt quiz'e kayitli DEGIL.")
-        print("SONUCU: 3c'nin riski bu proje icin YOK. Ama kapsam iki sarta "
-              "bagli -- bankadan soru CEKILMIS mi (baslik, 3. adim) ve "
-              "cekilen soru kursa kopyalanip normal bir sahneye mi giriyor. "
-              "Ikisi de dogruysa cevap 'kaydetmiyor' olarak genellenebilir.")
+        print("GORULEN: bankadaki hicbir slayt quiz'e kayitli degil.")
+        print("  Bankadan soru CEKILMEMIS olabilir (baslik, 3. adim).")
+    print()
+    print("3c ICIN SONUC -- VE BU ARTIK OLCULDU: banka slaytlari")
+    print("`model.slide_index`e SAHNESIZ olarak giriyor (indeks, hicbir")
+    print("sahnenin gostermedigi slayt parcalarini da ekliyor), yani quiz")
+    print("kayitlari COZULUYOR ve 3c onlar icin HIC atesLENMIYOR. Once")
+    print("yazili olan 'banka dolu projede 3c kalici kirmizi' kaygisi")
+    print("MEKANIZMA OLARAK YANLISTI ve geri cekildi.")
     return 0
 
 
