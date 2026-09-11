@@ -72,10 +72,26 @@ EXE = storyline_exe()
 
 
 def launch(path: Path) -> None:
+    """Storyline'i bu dosyayla baslat. YOL MUTLAKLASTIRILIR.
+
+    GEREKSINIM CAGIRANDAN KALKIYOR, ve gerekcesi olculdu (2026-09-12).
+    Storyline ALT SUREC olarak baslatiliyor; goreli bir yol o surecin
+    KENDI calisma dizinine gore cozulur, dosya bulunmaz ve Storyline
+    BOS acilir. Cagiran bunu "acilmadi" diye okur -- yani urune ait
+    olmayan bir kusur bildirir. Olculdu: ayni dosya mutlak yolla 15
+    saniyede aciliyor, goreli yolla HIC acilmiyordu.
+
+    Duzeltmeyi cagirma yerine koymak `tur_testi`yi kapatir ve OTEKI IKI
+    cagirani (`event_probe`, `js_probe`) acik birakirdi. Bu depoda
+    ucuncu kez ayni hamle: `StoryError -> ToolError` sarmalayicisi ve
+    `_write` kablolama degismezi de "kural hatirlanmasi gereken yerde
+    durmasin" diye kayit noktasina konmustu.
+    """
+    hedef = str(Path(path).resolve())
     if EXE:
-        subprocess.Popen([EXE, str(path)])
+        subprocess.Popen([EXE, hedef])
     else:
-        subprocess.Popen(["cmd", "/c", "start", "", str(path)], shell=False)
+        subprocess.Popen(["cmd", "/c", "start", "", hedef], shell=False)
 
 
 def force_close(*, nazik_sure: float = 12.0) -> dict:

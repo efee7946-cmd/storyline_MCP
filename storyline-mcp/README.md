@@ -903,6 +903,33 @@ satırlar ondan basılıyor. İki kayma yönü de kapalı — beyansız ad bası
 (`SystemExit`), beyanlı ama basılmayan ayak kusur olarak bildirilir. Kapsam
 sayısını `tools/ayirt_kapi.py` bu beyandan okur, docstring'den değil.
 
+### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
+
+Bir kırmızıyı "çevresel" diye okumak ucuzdur ve çoğu zaman doğrudur —
+ama "çevresel", aralıklı görünen her şeyi soğuran bir kategori olabilir.
+İki hal ölçüldü ve ayrımı incedir:
+
+**Gerçek çevresel sebep vardı ve ikinci kırmızıyı emdi.** `suit12`
+gerçekten fikstür yarışıydı (suit koşarken aynı kapı elle koşuldu);
+`suit14` ise değildi — sebebi bir mesaj değişikliğiydi. Çevresel
+açıklama elde olduğu için ikincisi de ona yazıldı. Yığma.
+
+**Çevresel sebep hiç yoktu.** `tur_testi` üç kez "Storyline açmadı"
+dedi. İki düzeltme yapıldı — süreç gerçekten kaybolana kadar bekleme,
+ve bir kez tekrar deneme — ikisi de *çevresel* sınıftan, ve **belirti
+hiç kımıldamadı**. Sebep çağrıdaydı: göreli yol. `launch` Storyline'ı
+alt süreç olarak başlatıyor ve göreli yolu o süreç kendi dizinine göre
+çözüyor; dosya bulunmuyor, Storyline boş açılıyor.
+
+Ayıran işaret ucuz ve makine istemiyor:
+
+> **Doğru sınıftaki bir düzeltme belirtiyi oynatır.** Aynı sınıfta iki
+> düzeltme üst üste belirtiyi hiç kımıldatmadıysa, düzeltmeyi bırak ve
+> sebebi yeniden türet.
+
+İki başarısız düzeltme, tek bir gözlemden güçlü bir kanıttır. Yetersiz
+oldukları için silinmediler — yanlış değillerdi, yalnızca yetmiyorlardı.
+
 ## Doğrulama
 
 Yazma işlemleri kendini şöyle denetler:
