@@ -24,6 +24,20 @@ ayak, kapsam sayisini SISIRIR ve "olculuyor" sanilir.
 GOC BLOKLAMADAN: beyani olmayan kapilar `ayirt_kapi` tarafindan
 "beyansiz" diye raporlanir ve BOLENE GIRMEZ. Kapsam bugunden durust
 kalir, gecis asamali olur, ve eksik kume her kosuda gorunur.
+
+KURALIN EN DAR HALI, ve bu modul onun altyapisi:
+
+    Olctugun sey deponun SAHIP OLDUGU kodsa, ICE AKTAR -- ayristirma.
+
+Beyan zaten bir Python nesnesi; icerine metin olarak bakmak, hesaplanmis
+bir sayiyi f-string'e gomup geri aramakla ayni hamle. Bu modulun goc
+turunda iki hata da tam olarak oydu: bir desen kaynaktaki `print`
+satirlarini cevirirken HUKUM satirlarini da "ayak" sandi, ve bir analiz
+betigi `uyari(a)` adindaki parantezde erken kapanip beyani yanlis okudu.
+Ikincisi `AYAKLAR.adlar` okunarak duzeldi.
+
+Gerekcenin tamami ve yedi olculmus ornek: `storyline-mcp/README.md`,
+"Olcu yazmanin kurali: ice aktar, ayristirma".
 """
 
 from __future__ import annotations

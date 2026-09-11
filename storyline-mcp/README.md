@@ -865,6 +865,44 @@ durumda: SYSTEM_PROMPT'a öğretim bölümü eklendikten sonra aynı ölçü tek
 koşulmadan, değişikliğin davranışı gerçekten değiştirdiği değil yalnızca
 kelime sayısını artırdığı da mümkün kalır. İyileşme varsayılmaz, ölçülür.
 
+## Ölçü yazmanın kuralı: içe aktar, ayrıştırma
+
+Bu depodaki kapılar aynı kusur sınıfına **yedi kereden fazla** düştü ve
+hepsinin tek bir cümlesi var: *hayal edilen bir biçime yazılmış yüklem.*
+Örnekler ölçülmüş hâlleriyle:
+
+| yüklem | ne oldu |
+|---|---|
+| `<questionId[ >/]` | eleman adı `questionIdLst`; desen hiç tutmadı, sıfırlar artefakttı |
+| `<quizLst[ >]` | `<quizLst />` de eşleşti; tek eleman **iki kez** sayıldı |
+| `"choices" taşıyan her etkileşim` | `dragDropIntr` de taşıyor; 51 kursun 18'inde birer yanlış pozitif |
+| `"-" in n` | `"sekil 0->4"` içindeki **oku** yakaladı; ayak her koşulda yeşildi |
+| `"(-" in n` | biçimlendirici işareti paranteze koyduğu için çalışıyordu |
+| `"bulunamadi" in metin` | mesaj yeniden yazılınca metin **vardığı hâlde** "maskelendi" dedi |
+| `"kaybolacak icerik" in m2` | mesaj yeniden yazılmıştı; ifade **tesadüfen** hayatta kalmıştı |
+
+Çarenin en geniş hâli: **yüklemi zaten hesaplanmış olana bağla.** `oturum.fark`
+insan-okur bir satır yerine `{"alan","once","sonra","delta"}` döndürüyor ve kapı
+`delta < 0` soruyor; bir görüntüleme değişikliği bu soruyu yanlış cevaplayamaz.
+İnsanın okuduğu satır ayrıca üretiliyor (`ozet`) — iki tüketici var ve aynı şeyi
+istemiyorlar.
+
+Ama en **dar ve en kullanışlı** hâli şu, ve iki hata birden bunu gösterdi:
+
+> **Ölçtüğün şey deponun sahip olduğu kodsa, içe aktar — ayrıştırma.**
+
+İkisi de aynı turda çıktı: bir desen `print` satırlarını çevirirken *hüküm*
+satırlarını da "ayak" sandı (kaynağa bakan desen), ve bir analiz betiği
+`uyari(a)` adındaki parantezde erken kapanıp beyanı **yanlış okudu**. İkincisinin
+çaresi bir adım ötedeydi: `AYAKLAR.adlar`. Beyan zaten bir Python nesnesi; içe
+aktarılabilecek bir şeyi ayrıştırmak, hesaplanmış bir sayıyı f-string'e gömüp
+geri aramakla aynı hamle.
+
+Bunun altyapısı `tools/ayak.py` (`Defter`): ayak beyanı **tek değer**, ve
+satırlar ondan basılıyor. İki kayma yönü de kapalı — beyansız ad basılamaz
+(`SystemExit`), beyanlı ama basılmayan ayak kusur olarak bildirilir. Kapsam
+sayısını `tools/ayirt_kapi.py` bu beyandan okur, docstring'den değil.
+
 ## Doğrulama
 
 Yazma işlemleri kendini şöyle denetler:
