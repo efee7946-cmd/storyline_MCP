@@ -1,16 +1,8 @@
 {
-  "zaman": "2026-09-11T22:55:49",
-  "commit": "5e81367",
-  "commit_temsil_ediyor_mu": false,
-  "islenmemis_dosyalar": [
-    "storyline-mcp/tools/ayirt_kapi.py",
-    "storyline-mcp/tools/duzenle_kapi.py",
-    "storyline-mcp/tools/kablolama_kapi.py",
-    "storyline-mcp/tools/oturum_kapi.py",
-    "storyline-mcp/tools/puanlanabilirlik.py",
-    "storyline-mcp/tools/red_mesaji.py",
-    "storyline-mcp/tools/ayirt_sonuc.json"
-  ],
+  "zaman": "2026-09-11T22:57:45",
+  "commit": "61cac42",
+  "commit_temsil_ediyor_mu": true,
+  "islenmemis_dosyalar": [],
   "kirli_hedef_dosya": false,
   "sinamalar": [
     {
