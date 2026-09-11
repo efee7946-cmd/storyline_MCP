@@ -1,0 +1,122 @@
+{
+  "zaman": "2026-09-11T22:55:49",
+  "commit": "5e81367",
+  "commit_temsil_ediyor_mu": false,
+  "islenmemis_dosyalar": [
+    "storyline-mcp/tools/ayirt_kapi.py",
+    "storyline-mcp/tools/duzenle_kapi.py",
+    "storyline-mcp/tools/kablolama_kapi.py",
+    "storyline-mcp/tools/oturum_kapi.py",
+    "storyline-mcp/tools/puanlanabilirlik.py",
+    "storyline-mcp/tools/red_mesaji.py",
+    "storyline-mcp/tools/ayirt_sonuc.json"
+  ],
+  "kirli_hedef_dosya": false,
+  "sinamalar": [
+    {
+      "ad": "oturum/kimlik",
+      "ayak": "4 KIMLIK",
+      "kapi": "oturum_kapi.py",
+      "taklit": "fark KONUMA bakan bir uygulama (guid yerine sira)",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "oturum/geri-alma-yedegi",
+      "ayak": "6 GERI ALMA",
+      "kapi": "oturum_kapi.py",
+      "taklit": "geri alma simdiki hali saklamadan uzerine yaziyor",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "puanlanabilirlik/kapsam",
+      "ayak": "3 KAPSAM",
+      "kapi": "puanlanabilirlik.py",
+      "taklit": "olcu 'choices tasiyan her etkilesim' diyor (ilk surum)",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "puanlanabilirlik/yazma-kapisi",
+      "ayak": "4 YAZMA KAPISI",
+      "kapi": "puanlanabilirlik.py",
+      "taklit": "aralik denetimi tohum kolundan SONRA duruyor",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "duzenle/durum-govdesi",
+      "ayak": "2 DURUM GOVDESI",
+      "kapi": "duzenle_kapi.py",
+      "taklit": "tasima yalnizca dis kutuyu yaziyor, govdeleri birakiyor",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "kablolama/degismez",
+      "ayak": "1 EKLER + 6 KAYIT NOKTASI",
+      "kapi": "kablolama_kapi.py",
+      "taklit": "kablolama `_write`tan kaldirilmis (arac basina kural)",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "red_mesaji/donusum",
+      "ayak": "1 KASITLI RED",
+      "kapi": "red_mesaji.py",
+      "taklit": "StoryError -> ToolError donusumu dusmus (maskeleme geri)",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    }
+  ],
+  "kapsam": {
+    "tohumlanan": 9,
+    "toplam": 34,
+    "kapsanmayan": {
+      "duzenle_kapi.py": [
+        "tasima",
+        "silme",
+        "silme reddi",
+        "belirsizlik",
+        "cozucu"
+      ],
+      "kablolama_kapi.py": [
+        "dusurur",
+        "cogaltmaz",
+        "ara hal",
+        "ispatsiz"
+      ],
+      "oturum_kapi.py": [
+        "bilgisizlik",
+        "cipa",
+        "sabitlik",
+        "ekleme",
+        "yerinde",
+        "silme"
+      ],
+      "puanlanabilirlik.py": [
+        "cipa",
+        "ekili kusur",
+        "sessizlik(a)",
+        "sessizlik(b)",
+        "uyari(a)",
+        "uyari(b)",
+        "uyari(c)",
+        "uyari(d)"
+      ],
+      "red_mesaji.py": [
+        "el sikisti",
+        "ayrim (in-process)"
+      ]
+    }
+  },
+  "not": "Bu kayit ELLE uretiliyor: arac suit'te degil, cunku urun kaynagini gecici degistiriyor. 'zaman' ve 'commit' eskiyse kapsanmayan ayaklar buyumus olabilir."
+}

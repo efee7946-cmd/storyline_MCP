@@ -49,6 +49,23 @@ BLANK = ROOT.parent / "test" / "bos.story"
 CANARY = ROOT.parent / "test" / "_canary"
 KOSAMADI = 3
 
+# AYAKLAR BEYAN EDILIYOR, SAYILMIYOR. `tools/ayirt_kapi.py` kac ayagin
+# tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
+# okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
+# sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
+AYAKLAR = (
+    "bilgisizlik",
+    "cipa",
+    "sabitlik",
+    "ekleme",
+    "kimlik",
+    "yerinde",
+    "silme",
+    "geri alma",
+)
+
+
+
 
 def kanarya() -> list[str]:
     kusur: list[str] = []

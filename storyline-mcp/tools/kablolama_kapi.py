@@ -67,6 +67,21 @@ sys.path.insert(0, str(ROOT))
 warnings.simplefilter("ignore")
 
 KOSAMADI = 3
+
+# AYAKLAR BEYAN EDILIYOR, SAYILMIYOR. `tools/ayirt_kapi.py` kac ayagin
+# tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
+# okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
+# sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
+AYAKLAR = (
+    "ekler",
+    "kayit nokta.",
+    "dusurur",
+    "cogaltmaz",
+    "ara hal",
+    "ispatsiz",
+)
+
+
 ACILMADI = "SUNUCU ACILMADI"
 try:
     from mcp import ClientSession, StdioServerParameters

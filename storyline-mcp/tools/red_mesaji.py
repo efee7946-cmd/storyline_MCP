@@ -51,6 +51,19 @@ warnings.simplefilter("ignore")
 # sey olculmemisken bir kusur bildirilmis olurdu. Tersi de kotu:
 # sessizce 0 donmek, bakilmamis bir seyi temiz gostermek.
 KOSAMADI = 3
+
+# AYAKLAR BEYAN EDILIYOR, SAYILMIYOR. `tools/ayirt_kapi.py` kac ayagin
+# tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
+# okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
+# sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
+AYAKLAR = (
+    "el sikisti",
+    "kasitli red",
+    "compose kapisi",
+    "ayrim (in-process)",
+)
+
+
 try:
     from mcp import ClientSession, StdioServerParameters      # noqa: E402
     from mcp.client.stdio import stdio_client                 # noqa: E402

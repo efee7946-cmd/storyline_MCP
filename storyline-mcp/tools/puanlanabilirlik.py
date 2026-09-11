@@ -62,6 +62,25 @@ BLANK = ROOT.parent / "test" / "bos.story"
 CANARY = ROOT.parent / "test" / "_canary"
 KOSAMADI = 3
 
+# AYAKLAR BEYAN EDILIYOR, SAYILMIYOR. `tools/ayirt_kapi.py` kac ayagin
+# tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
+# okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
+# sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
+AYAKLAR = (
+    "cipa",
+    "ekili kusur",
+    "kapsam",
+    "yazma kapisi",
+    "sessizlik(a)",
+    "sessizlik(b)",
+    "uyari(a)",
+    "uyari(b)",
+    "uyari(c)",
+    "uyari(d)",
+)
+
+
+
 
 def _kok(pkg, slayt):
     for part in pkg._parts:
