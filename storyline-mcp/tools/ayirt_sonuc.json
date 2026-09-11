@@ -1,8 +1,16 @@
 {
-  "zaman": "2026-09-11T22:57:45",
-  "commit": "61cac42",
-  "commit_temsil_ediyor_mu": true,
-  "islenmemis_dosyalar": [],
+  "zaman": "2026-09-11T23:08:45",
+  "commit": "267875f",
+  "commit_temsil_ediyor_mu": false,
+  "islenmemis_dosyalar": [
+    "storyline-mcp/tools/ayirt_kapi.py",
+    "storyline-mcp/tools/duzenle_kapi.py",
+    "storyline-mcp/tools/kablolama_kapi.py",
+    "storyline-mcp/tools/oturum_kapi.py",
+    "storyline-mcp/tools/puanlanabilirlik.py",
+    "storyline-mcp/tools/red_mesaji.py",
+    "storyline-mcp/tools/ayak.py"
+  ],
   "kirli_hedef_dosya": false,
   "sinamalar": [
     {
@@ -71,7 +79,8 @@
   ],
   "kapsam": {
     "tohumlanan": 9,
-    "toplam": 34,
+    "toplam": 35,
+    "beyansiz_kapilar": [],
     "kapsanmayan": {
       "duzenle_kapi.py": [
         "tasima",
@@ -92,7 +101,8 @@
         "sabitlik",
         "ekleme",
         "yerinde",
-        "silme"
+        "silme",
+        "geri alma(-)"
       ],
       "puanlanabilirlik.py": [
         "cipa",

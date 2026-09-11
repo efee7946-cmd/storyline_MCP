@@ -168,7 +168,11 @@ def _roster() -> dict:
     out = {}
     for kapi in sorted({s["kapi"] for s in SINAMALAR}):
         mod = __import__(kapi[:-3])
-        out[kapi] = tuple(getattr(mod, "AYAKLAR", ()))
+        beyan = getattr(mod, "AYAKLAR", None)
+        # GOC BLOKLAMIYOR: beyani olmayan kapi "beyansiz" diye raporlanir
+        # ve BOLENE GIRMEZ. Kapsam bugunden durust kalir, gecis asamali
+        # olur, ve eksik kume her kosuda gorunur.
+        out[kapi] = tuple(beyan) if beyan is not None else None
     return out
 
 
@@ -263,9 +267,13 @@ def main() -> int:
     # sey ancak izlenen bir NICELIGE donusunce okunur olur -- bu ipliğin
     # en pahaliya ogrenilen kurali.
     roster = _roster()
+    beyansiz = [k for k, v in roster.items() if v is None]
+    roster = {k: v for k, v in roster.items() if v is not None}
     tohumlu: dict[str, set] = {k: set() for k in roster}
     defter = []
     for s in SINAMALAR:
+        if s["kapi"] in beyansiz:
+            continue
         for ayak in s["kapsadigi"]:
             if ayak not in roster[s["kapi"]]:
                 defter.append(f"{s['ad']}: '{ayak}' {s['kapi']}nin AYAKLAR "
@@ -278,6 +286,9 @@ def main() -> int:
     print()
     print(f"KAPSAM: {kapsanan}/{toplam} ayak tohumlandi "
           f"({len(roster)} kapi roster'da).")
+    if beyansiz:
+        print(f"  BEYANSIZ (bolene girmiyor): {', '.join(beyansiz)} -- "
+              f"ayak beyani yok, kapsami OLCULEMEZ")
     for kapi, ayaklar in roster.items():
         eksik = [a for a in ayaklar if a not in tohumlu[kapi]]
         if eksik:
@@ -287,6 +298,7 @@ def main() -> int:
           "mesaj hic degismemisti.")
 
     kapsam = {"tohumlanan": kapsanan, "toplam": toplam,
+              "beyansiz_kapilar": beyansiz,
               "kapsanmayan": {k: [a for a in v if a not in tohumlu[k]]
                               for k, v in roster.items()}}
     zarf = _zarf(sonuclar, kapsam, kirli)

@@ -59,6 +59,8 @@ import shutil
 import sys
 import tempfile
 import warnings
+
+import ayak
 import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -72,7 +74,7 @@ KOSAMADI = 3
 # tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
-AYAKLAR = (
+AYAKLAR = ayak.Defter(
     "ekler",
     "kayit nokta.",
     "dusurur",
@@ -173,7 +175,7 @@ def kanarya() -> list[str]:
     if hata == [ACILMADI]:
         return [ACILMADI]
     sonra = _kayitli(yol)
-    print(f"ekler       : kayit {len(once)} -> silindi -> {len(sonra)}")
+    AYAKLAR.yaz("ekler", f"kayit {len(once)} -> silindi -> {len(sonra)}")
     if sonra != once:
         kusur.append(f"DEGISMEZ EKLEMIYOR: kayitlar silindikten sonra bir "
                      f"yazma gecti ama {sorted(once - sonra)} geri gelmedi")
@@ -181,7 +183,7 @@ def kanarya() -> list[str]:
     # 6. KAYIT NOKTASINDA -- ayni kosu, SORUYLA ILGISIZ bir aracla yapildi.
     #    (1. ayak zaten `set_theme_font` kullaniyor; bu satir onu iddia
     #    olarak YAZIYOR ki kural arac basina tasinirsa ayak dussun.)
-    print(f"kayit nokta.: onarim `set_theme_font` cagrisindan gecti "
+    AYAKLAR.yaz("kayit nokta.", f"onarim `set_theme_font` cagrisindan gecti "
           f"({'EVET' if sonra == once else 'HAYIR'})")
 
     # 2. DUSURUR
@@ -200,7 +202,7 @@ def kanarya() -> list[str]:
     if hata2 == [ACILMADI]:
         return [ACILMADI]
     kalan = _kayitli(yol2)
-    print(f"dusurur     : {hedef} etkilesimsiz -> kayitli mi: "
+    AYAKLAR.yaz("dusurur", f"{hedef} etkilesimsiz -> kayitli mi: "
           f"{'EVET (YANLIS)' if hedef in kalan else 'hayir (dogru)'}")
     if hedef in kalan:
         kusur.append(f"DEGISMEZ DUSURMUYOR: {hedef} puanli etkilesim "
@@ -216,7 +218,7 @@ def kanarya() -> list[str]:
     if hata3 == [ACILMADI]:
         return [ACILMADI]
     yazan = [k for k in kablo3 if k]
-    print(f"cogaltmaz   : {len(kablo3)} yazma cagrisi -> {len(yazan)} "
+    AYAKLAR.yaz("cogaltmaz", f"{len(kablo3)} yazma cagrisi -> {len(yazan)} "
           f"kablolama degisikligi (0 olmali)")
     if yazan:
         kusur.append(f"YAZMA COGALMASI: temiz kursta {len(yazan)}/{len(kablo3)} "
@@ -232,7 +234,7 @@ def kanarya() -> list[str]:
                            feedback={"correct": "E", "incorrect": "H"})
     pk4.save(yol4, backup=False)
     r4 = puanlama.kablola(StoryPackage(yol4))
-    print(f"ara hal     : soru var, sonuc slaydi yok -> degisti="
+    AYAKLAR.yaz("ara hal", f"soru var, sonuc slaydi yok -> degisti="
           f"{r4['degisti']} ({r4['neden'] or '-'})")
     if r4["degisti"]:
         kusur.append(f"ARA HAL KUSUR SAYILIYOR: sonuc slaydi olmayan bir "
@@ -275,7 +277,7 @@ def kanarya() -> list[str]:
         _iz = puanlama.izleme(son, model.slide_index(son))
         yapisal = sum(len(q["cozulemeyen"]) for q in _iz["quizzes"])
         bildirdi = yapisal > 0 and bool(puanlama.zincir(son))
-        print(f"ispatsiz    : cozulemeyen kayit duruyor={duruyor}, "
+        AYAKLAR.yaz("ispatsiz", f"cozulemeyen kayit duruyor={duruyor}, "
               f"izleme sayiyor={yapisal}, zincir konusuyor={bildirdi}")
         if not duruyor:
             kusur.append(
@@ -297,6 +299,17 @@ def main() -> int:
         print(f"KOSAMADI: fikstur yok ({BLANK}).")
         return KOSAMADI
     kusur = kanarya()
+    # DEFTERIN IKINCI YONU: beyanli ama BASILMAYAN ayak. Ilk yon
+    # (`yaz` beyansiz adi reddediyor) kapiyi ayak kazandiginda korur;
+    # bu yon, ayak KALDIRILDIGINDA korur -- beyanda duran olu bir ayak
+    # `ayirt_kapi`nin bolenini sisirir ve kapsam OLDUGUNDAN KOTU
+    # gorunur. Ikisi birlikte beyani tek deger yapiyor.
+    _kosmayan = AYAKLAR.kosmayanlar()
+    if _kosmayan:
+        kusur.append("BEYANDA DURAN AMA KOSMAYAN AYAK: %s -- ya ayak "
+                     "kaldirildi ve beyan guncellenmedi (kapsam siser), "
+                     "ya da bir kosulun arkasinda kaldi ve kapi bunu "
+                     "'KOSMADI' diye yazmali" % ", ".join(_kosmayan))
     if kusur == [ACILMADI]:
         print("")
         print("KOSAMADI: sunucu acilmadi (sebep yukarida). Kablolama "

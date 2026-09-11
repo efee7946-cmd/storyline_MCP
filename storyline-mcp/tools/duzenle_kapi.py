@@ -32,6 +32,8 @@ import shutil
 import sys
 import warnings
 
+import ayak
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -48,7 +50,7 @@ KOSAMADI = 3
 # tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
-AYAKLAR = (
+AYAKLAR = ayak.Defter(
     "tasima",
     "durum govdesi",
     "silme",
@@ -77,7 +79,7 @@ def kanarya() -> list[str]:
 
     # 1. TASIMA
     r = duzenle.sekil_tasi(pkg, s, "Title", y=60, x=10)
-    print(f"tasima      : {r['onceki']} -> {r['yeni']}")
+    AYAKLAR.yaz("tasima", f"{r['onceki']} -> {r['yeni']}")
     if not (r["yeni"]["x"] == 10.0 and r["yeni"]["y"] == 60.0):
         kusur.append(f"TASIMA YANLIS: istenen x=10 y=60, yazilan {r['yeni']}")
     if r["yeni"]["w"] != r["onceki"]["w"] or r["yeni"]["h"] != r["onceki"]["h"]:
@@ -91,7 +93,7 @@ def kanarya() -> list[str]:
                     if e.find("stateLst") is not None
                     and len(e.find("stateLst"))), None)
     if durumlu is None:
-        print("durum govdesi: KOSMADI (bu slaytta durum tasiyan sekil yok)")
+        AYAKLAR.yaz("durum govdesi", "KOSMADI (bu slaytta durum tasiyan sekil yok)")
         kusur.append("AYAK KOSMADI: durum tasiyan sekil bulunamadi, "
                      "govdelerin tasinip tasinmadigi OLCULMEDI")
     else:
@@ -109,7 +111,7 @@ def kanarya() -> list[str]:
         uyan = [g for g in govdeler
                 if abs((g[2] - g[0]) - genislik) < 1
                 and abs((g[3] - g[1]) - yukseklik) < 1]
-        print(f"durum govdesi: {ad} -> {len(uyan)}/{len(govdeler)} govde "
+        AYAKLAR.yaz("durum govdesi", f"{ad} -> {len(uyan)}/{len(govdeler)} govde "
               f"dis kutuyla ayni olcude")
         if govdeler and len(uyan) != len(govdeler):
             kusur.append(
@@ -121,7 +123,7 @@ def kanarya() -> list[str]:
     once = [e.get("name") for e in _kok(pkg, s).find("shapeLst")]
     d = duzenle.sekil_sil(pkg, s, "Title")
     sonra = [e.get("name") for e in _kok(pkg, s).find("shapeLst")]
-    print(f"silme       : {d['silinen']} gitti | {len(once)} -> {len(sonra)}")
+    AYAKLAR.yaz("silme", f"{d['silinen']} gitti | {len(once)} -> {len(sonra)}")
     if "Title" in sonra or len(sonra) != len(once) - 1:
         kusur.append(f"SILME ETKISIZ: {once} -> {sonra}")
 
@@ -135,38 +137,38 @@ def kanarya() -> list[str]:
     kokq = _kok(pk2, q)
     secenek = next((e for e in kokq.find("shapeLst") if e.tag == "btn"), None)
     if secenek is None:
-        print("silme reddi : KOSMADI (secenek butonu bulunamadi)")
+        AYAKLAR.yaz("silme reddi", "KOSMADI (secenek butonu bulunamadi)")
         kusur.append("AYAK KOSMADI: soru secenegi bulunamadi, silme reddi "
                      "OLCULMEDI")
     else:
         try:
             duzenle.sekil_sil(pk2, q, secenek.get("g"))
-            print("silme reddi : secenek SILINDI (YANLIS)")
+            AYAKLAR.yaz("silme reddi", "secenek SILINDI (YANLIS)")
             kusur.append(
                 "REFERANS KIRILIYOR: soru secenegi silinebiliyor. "
                 "`intrFreeChoice shpG` o guid'e bakiyor; silinen secenek "
                 "soruyu sessizce bozar.")
         except StoryError as exc:
-            print(f"silme reddi : REDDEDILDI (dogru) -- {str(exc)[:60]}")
+            AYAKLAR.yaz("silme reddi", f"REDDEDILDI (dogru) -- {str(exc)[:60]}")
 
     # 5. BELIRSIZLIK -- ayni ad birden fazla sekilde
     kokq = _kok(pk2, q)
     adlar = [e.get("name") for e in kokq.find("shapeLst")]
     cift = next((a for a in adlar if a and adlar.count(a) > 1), None)
     if cift is None:
-        print("belirsizlik : KOSMADI (ayni adi tasiyan iki sekil yok)")
+        AYAKLAR.yaz("belirsizlik", "KOSMADI (ayni adi tasiyan iki sekil yok)")
         kusur.append("AYAK KOSMADI: tekrar eden ad bulunamadi, belirsizlik "
                      "reddi OLCULMEDI")
     else:
         try:
             duzenle.sekil_sil(pk2, q, cift)
-            print(f"belirsizlik : {cift!r} SESSIZCE secildi (YANLIS)")
+            AYAKLAR.yaz("belirsizlik", f"{cift!r} SESSIZCE secildi (YANLIS)")
             kusur.append(
                 f"BELIRSIZ SECIM: {cift!r} adini {adlar.count(cift)} sekil "
                 f"tasiyor ve arac birini sessizce secti -- ajan baska bir "
                 f"sekli sildigini fark etmez")
         except StoryError:
-            print(f"belirsizlik : {cift!r} icin REDDEDILDI (dogru)")
+            AYAKLAR.yaz("belirsizlik", f"{cift!r} icin REDDEDILDI (dogru)")
 
     # 6. COZUCU AYRIMI. `Title`in METNI "Baslik"; logic'in cozucusu ada
     # bakmadigi icin onu BULAMAZ. Iki cozucu ayrisirsa bu ayak duser.
@@ -179,7 +181,7 @@ def kanarya() -> list[str]:
     kok3 = _kok(pk3, s3)
     dar = logic._shape_by(kok3, "Title")
     genis = duzenle._sekil_bul(kok3, "Title")
-    print(f"cozucu      : logic {'buldu' if dar is not None else 'BULAMADI'}, "
+    AYAKLAR.yaz("cozucu", f"logic {'buldu' if dar is not None else 'BULAMADI'}, "
           f"duzenle {'buldu' if genis is not None else 'BULAMADI'}")
     if genis is None:
         kusur.append("COZUCU DAR: 'Title' adiyla bulunamiyor -- ajanin "
@@ -198,6 +200,17 @@ def main() -> int:
               f"-- 'gecti' DEGIL, 'bakilmadi'.")
         return KOSAMADI
     kusur = kanarya()
+    # DEFTERIN IKINCI YONU: beyanli ama BASILMAYAN ayak. Ilk yon
+    # (`yaz` beyansiz adi reddediyor) kapiyi ayak kazandiginda korur;
+    # bu yon, ayak KALDIRILDIGINDA korur -- beyanda duran olu bir ayak
+    # `ayirt_kapi`nin bolenini sisirir ve kapsam OLDUGUNDAN KOTU
+    # gorunur. Ikisi birlikte beyani tek deger yapiyor.
+    _kosmayan = AYAKLAR.kosmayanlar()
+    if _kosmayan:
+        kusur.append("BEYANDA DURAN AMA KOSMAYAN AYAK: %s -- ya ayak "
+                     "kaldirildi ve beyan guncellenmedi (kapsam siser), "
+                     "ya da bir kosulun arkasinda kaldi ve kapi bunu "
+                     "'KOSMADI' diye yazmali" % ", ".join(_kosmayan))
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:

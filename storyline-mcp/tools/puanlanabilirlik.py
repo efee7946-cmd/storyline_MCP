@@ -50,6 +50,8 @@ import shutil
 import sys
 import warnings
 
+import ayak
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -66,7 +68,7 @@ KOSAMADI = 3
 # tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
-AYAKLAR = (
+AYAKLAR = ayak.Defter(
     "cipa",
     "ekili kusur",
     "kapsam",
@@ -102,7 +104,7 @@ def kanarya() -> list[str]:
         pkg, None, "Saglam soru", ["a", "b", "c", "d"], [1],
         eyebrow="B", feedback={"correct": "E", "incorrect": "H"})["new_slide"]
     b = puanlama.cevaplanamaz(pkg, model.slide_index(pkg))
-    print(f"cipa        : saglam soru {'TEMIZ' if not b else 'ISARETLENDI'}")
+    AYAKLAR.yaz("cipa", f"saglam soru {'TEMIZ' if not b else 'ISARETLENDI'}")
     if b:
         kusur.append(f"YANLIS POZITIF: saglam soru cevapsiz sayiliyor ({b})")
 
@@ -124,7 +126,7 @@ def kanarya() -> list[str]:
         kusur.append("KANARYA KURULAMADI: silinecek dogru isareti bulunamadi "
                      "-- olcu bos bir dosyada kosuyor olabilir")
     b2 = puanlama.cevaplanamaz(pkg, model.slide_index(pkg))
-    print(f"ekili kusur : {'YAKALANDI' if b2 else 'KACTI'} "
+    AYAKLAR.yaz("ekili kusur", f"{'YAKALANDI' if b2 else 'KACTI'} "
           f"({silinen} isaret silindi)")
     if not b2:
         kusur.append("OLCU KOR: dogruluk isareti silinmis soru cevapsiz "
@@ -139,12 +141,12 @@ def kanarya() -> list[str]:
             pk2, "Surukle", {"A": ["x", "y"], "B": ["z"]},
             eyebrow="B", feedback={"correct": "E", "incorrect": "H"})
     except (StoryError, TypeError) as exc:
-        print(f"kapsam      : KURULAMADI ({str(exc)[:60]})")
+        AYAKLAR.yaz("kapsam", f"KURULAMADI ({str(exc)[:60]})")
         kusur.append(f"KANARYA KURULAMADI: surukle-birak sorusu kurulamadi "
                      f"({str(exc)[:60]}) -- kapsam ayagi olculmedi")
     else:
         b3 = puanlama.cevaplanamaz(pk2, model.slide_index(pk2))
-        print(f"kapsam      : surukle-birak {'TEMIZ' if not b3 else 'YANLIS ISARETLENDI'}")
+        AYAKLAR.yaz("kapsam", f"surukle-birak {'TEMIZ' if not b3 else 'YANLIS ISARETLENDI'}")
         if b3:
             kusur.append(
                 "KAPSAM KAYMASI: surukle-birak sorusu cevapsiz sayiliyor -- "
@@ -159,13 +161,13 @@ def kanarya() -> list[str]:
             authoring.add_question(
                 pk3, None, "S", ["a", "b", "c", "d"], deger,
                 eyebrow="B", feedback={"correct": "E", "incorrect": "H"})
-            print(f"yazma kapisi: {etiket} correct KABUL EDILDI (YANLIS)")
+            AYAKLAR.yaz("yazma kapisi", f"{etiket} correct KABUL EDILDI (YANLIS)")
             kusur.append(
                 f"YAZMA KAPISI ACIK: correct={deger} kabul ediliyor ve "
                 f"cevaplanamaz soru uretiyor. Denetim `bundled:` dalindan "
                 f"SONRA duruyor olabilir -- ajanin kolu o.")
         except StoryError:
-            print(f"yazma kapisi: {etiket} correct REDDEDILDI (dogru)")
+            AYAKLAR.yaz("yazma kapisi", f"{etiket} correct REDDEDILDI (dogru)")
     # 5. SESSIZLIK AYAGI. `zincir` sonuc slaydi yokken KOSULSUZ bos
     # donuyordu ve gerekcesi makuldu ("sonuc slaydi yoksa iddia da yok").
     # Olculdu 2026-09-10: uc puanli soru + sonuc slaydi YOK -> zincir bos,
@@ -179,7 +181,7 @@ def kanarya() -> list[str]:
     shutil.copy2(BLANK, yol4)
     pk4 = StoryPackage(yol4)
     bos_zincir = puanlama.zincir(pk4)
-    print(f"sessizlik(a): sorusuz kurs "
+    AYAKLAR.yaz("sessizlik(a)", f"sorusuz kurs "
           f"{'SESSIZ (dogru)' if not bos_zincir else 'KONUSUYOR: ' + str(bos_zincir[:1])}")
     if bos_zincir:
         kusur.append(f"GURULTU: puanli sorusu olmayan kurs icin zincir "
@@ -192,7 +194,7 @@ def kanarya() -> list[str]:
     # olcunun kendisi bir kez bellekte kosup yanlis sayi uretti.
     pk4.save(yol4, backup=False)
     sonucsuz = puanlama.zincir(StoryPackage(yol4))
-    print(f"sessizlik(b): sonuc slaydi olmayan puanli kurs "
+    AYAKLAR.yaz("sessizlik(b)", f"sonuc slaydi olmayan puanli kurs "
           f"{'BILDIRILDI' if sonucsuz else 'SESSIZ KALDI'}")
     if not sonucsuz:
         kusur.append(
@@ -210,7 +212,7 @@ def kanarya() -> list[str]:
     shutil.copy2(BLANK, yol5)
     pk5 = StoryPackage(yol5)
     bos_uyari = puanlama.eksik_sonuc_uyarisi(pk5)
-    print(f"uyari(a)    : sorusuz kurs "
+    AYAKLAR.yaz("uyari(a)", f"sorusuz kurs "
           f"{'SESSIZ (dogru)' if not bos_uyari else 'KONUSUYOR: ' + bos_uyari[:40]}")
     if bos_uyari:
         kusur.append(f"GURULTU: puanli sorusu olmayan kursta 'sonuc slaydi "
@@ -221,7 +223,7 @@ def kanarya() -> list[str]:
         feedback={"correct": "E", "incorrect": "H"})
     pk5.save(yol5, backup=False)
     var_uyari = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
-    print(f"uyari(b)    : puanli soru eklendi -> "
+    AYAKLAR.yaz("uyari(b)", f"puanli soru eklendi -> "
           f"{'UYARDI' if var_uyari else 'SESSIZ KALDI'}")
     if not var_uyari:
         kusur.append(
@@ -231,7 +233,7 @@ def kanarya() -> list[str]:
     authoring.add_results_slide(pk5)
     pk5.save(yol5, backup=False)
     kalan = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
-    print(f"uyari(c)    : sonuc slaydi eklendi -> "
+    AYAKLAR.yaz("uyari(c)", f"sonuc slaydi eklendi -> "
           f"{'SUSTU (dogru)' if not kalan else 'HALA UYARIYOR'}")
     if kalan:
         kusur.append(f"UYARI YAPISKAN: sonuc slaydi eklendigi halde uyari "
@@ -259,12 +261,12 @@ def kanarya() -> list[str]:
     pk5.replace_xml("story/story.xml", story)
     pk5.save(yol5, backup=False)
     if not bosaltilan:
-        print("uyari(d)    : KOSAMADI (questionIdLst zaten bostu)")
+        AYAKLAR.yaz("uyari(d)", "KOSAMADI (questionIdLst zaten bostu)")
         kusur.append("AYAK KOSAMADI: bosaltilacak questionIdLst kaydi yok -- "
                      "uyarinin kirik zincirde konusup konusmadigi OLCULMEDI")
     else:
         kirik_uyari = puanlama.eksik_sonuc_uyarisi(StoryPackage(yol5))
-        print(f"uyari(d)    : sonuc slaydi VAR, {bosaltilan} kayit silindi -> "
+        AYAKLAR.yaz("uyari(d)", f"sonuc slaydi VAR, {bosaltilan} kayit silindi -> "
               f"{'KONUSTU (dogru)' if kirik_uyari else 'SUSTU (YANLIS)'}")
         if not kirik_uyari:
             kusur.append(
@@ -280,6 +282,17 @@ def main() -> int:
               f"-- bu 'gecti' DEGIL, 'bakilmadi'.")
         return KOSAMADI
     kusur = kanarya()
+    # DEFTERIN IKINCI YONU: beyanli ama BASILMAYAN ayak. Ilk yon
+    # (`yaz` beyansiz adi reddediyor) kapiyi ayak kazandiginda korur;
+    # bu yon, ayak KALDIRILDIGINDA korur -- beyanda duran olu bir ayak
+    # `ayirt_kapi`nin bolenini sisirir ve kapsam OLDUGUNDAN KOTU
+    # gorunur. Ikisi birlikte beyani tek deger yapiyor.
+    _kosmayan = AYAKLAR.kosmayanlar()
+    if _kosmayan:
+        kusur.append("BEYANDA DURAN AMA KOSMAYAN AYAK: %s -- ya ayak "
+                     "kaldirildi ve beyan guncellenmedi (kapsam siser), "
+                     "ya da bir kosulun arkasinda kaldi ve kapi bunu "
+                     "'KOSMADI' diye yazmali" % ", ".join(_kosmayan))
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:

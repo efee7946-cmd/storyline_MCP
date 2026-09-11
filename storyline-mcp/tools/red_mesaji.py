@@ -40,6 +40,8 @@ import shutil
 import sys
 import warnings
 
+import ayak
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -56,7 +58,7 @@ KOSAMADI = 3
 # tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
-AYAKLAR = (
+AYAKLAR = ayak.Defter(
     "el sikisti",
     "kasitli red",
     "compose kapisi",
@@ -135,7 +137,7 @@ async def kosu() -> list[str]:
                         "(stderr yukarida)" % type(_acilis).__name__)
                     return kusur
                 araclar = await s.list_tools()
-                print(f"el sikisti: {len(araclar.tools)} arac bildirildi")
+                AYAKLAR.yaz("el sikisti", f"{len(araclar.tools)} arac bildirildi")
                 if len(araclar.tools) < 54:
                     kusur.append(f"arac sayisi dustu: {len(araclar.tools)} < 54 "
                                  f"-- kayit sarmalayicisi araclari yutuyor olabilir")
@@ -158,7 +160,7 @@ async def kosu() -> list[str]:
                 # su: genel kalibin DISINDA bir sey var mi.
                 maske_kalibi = "Error executing tool list_slides"
                 gecti = bool(metin.strip()) and metin.strip() != maske_kalibi
-                print(f"kasitli red  : {'METIN GECTI' if gecti else 'MASKELENDI'} "
+                AYAKLAR.yaz("kasitli red", f"{'METIN GECTI' if gecti else 'MASKELENDI'} "
                       f"-> {metin[:90]}")
                 if not gecti:
                     kusur.append(
@@ -169,7 +171,7 @@ async def kosu() -> list[str]:
 
                 # 2. COMPOSE KAPISI, ucdan uca -- FIKSTUR VARSA.
                 if not BLANK.exists():
-                    print(f"compose kapisi: KOSMADI (fikstur yok: {BLANK}) -- "
+                    AYAKLAR.yaz("compose kapisi", f"KOSMADI (fikstur yok: {BLANK}) -- "
                           f"bu bolumun sessizligi 'gecti' demek DEGIL")
                 else:
                     hedef = ROOT.parent / "test" / "_canary" / "red_mesaji.story"
@@ -210,7 +212,7 @@ async def kosu() -> list[str]:
                                     "icerik")
                     sebepli = (len(m2.strip()) > len(maske2) + 40
                                and any(k in m2.lower() for k in kayip_adlari))
-                    print(f"compose kapisi: {'REDDETTI' if reddedildi else 'KABUL ETTI'}, "
+                    AYAKLAR.yaz("compose kapisi", f"{'REDDETTI' if reddedildi else 'KABUL ETTI'}, "
                           f"{'sebep VAR' if sebepli else 'sebep YOK'}")
                     if not reddedildi:
                         kusur.append(
@@ -245,7 +247,7 @@ def yerel_ayrim() -> list[str]:
     # oldugunu sanir, oysa olcu tam da aradigi seyi bulmustur.
     sarmalayici = getattr(server, "_reddi_gecir", None)
     if sarmalayici is None:
-        print("ayrim (in-process): KOSAMADI -- server._reddi_gecir YOK")
+        AYAKLAR.yaz("ayrim (in-process)", "KOSAMADI -- server._reddi_gecir YOK")
         return ["DONUSUM HIC YOK: server.py'de `_reddi_gecir` bulunamadi, "
                 "yani kasitli redlerin metni maskeleniyor olmali"]
 
@@ -273,7 +275,7 @@ def yerel_ayrim() -> list[str]:
                      "cevriliyor -- ic ayrinti ajana sizar")
     except KeyError:
         pass
-    print("ayrim (in-process): kasitli red gecer, gercek kusur maskeli "
+    AYAKLAR.yaz("ayrim (in-process)", "kasitli red gecer, gercek kusur maskeli "
           f"{'-- TUTUYOR' if not kusur else '-- KIRIK'}")
     return kusur
 
@@ -290,6 +292,10 @@ def main() -> int:
               "olculemedi -- bu 'gecti' DEGIL, 'bakilmadi'.")
         return KOSAMADI
     kusur = stdio_kusuru + yerel_ayrim()
+    _kosmayan = AYAKLAR.kosmayanlar()
+    if _kosmayan:
+        kusur.append("BEYANDA DURAN AMA KOSMAYAN AYAK: %s"
+                     % ", ".join(_kosmayan))
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:

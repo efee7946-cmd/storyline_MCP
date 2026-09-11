@@ -37,6 +37,8 @@ import shutil
 import sys
 import warnings
 
+import ayak
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -53,7 +55,7 @@ KOSAMADI = 3
 # tohumlandigini bildiriyor ve boleni buradan okuyor; docstring'den
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
-AYAKLAR = (
+AYAKLAR = ayak.Defter(
     "bilgisizlik",
     "cipa",
     "sabitlik",
@@ -62,6 +64,7 @@ AYAKLAR = (
     "yerinde",
     "silme",
     "geri alma",
+    "geri alma(-)",
 )
 
 
@@ -77,7 +80,7 @@ def kanarya() -> list[str]:
 
     # 1. BILGISIZLIK
     f = oturum.fark(yol)
-    print(f"bilgisizlik : anlik yokken dokunulmadi={f['dokunulmadi']!r} "
+    AYAKLAR.yaz("bilgisizlik", f"anlik yokken dokunulmadi={f['dokunulmadi']!r} "
           f"(None olmali)")
     if f["anlik_goruntu"] or f["dokunulmadi"] is not None:
         kusur.append("SESSIZ BILGISIZLIK: anlik goruntu yokken fark "
@@ -89,7 +92,7 @@ def kanarya() -> list[str]:
     if not k.get("yeni"):
         kusur.append("KANARYA KURULAMADI: anlik goruntu yeni degil")
     f = oturum.fark(yol)
-    print(f"cipa        : dokunulmadan dokunulmadi={f['dokunulmadi']}")
+    AYAKLAR.yaz("cipa", f"dokunulmadan dokunulmadi={f['dokunulmadi']}")
     if not f["dokunulmadi"]:
         kusur.append(f"YANLIS POZITIF: hicbir sey yapilmadan degisiklik "
                      f"bildiriliyor ({f['degisen_slaytlar'][:2]})")
@@ -97,7 +100,7 @@ def kanarya() -> list[str]:
     # IKINCI CAGRI DOKUNMAMALI: kosu ortasinda anlik goruntu yenilenirse
     # geri donus noktasi kosuyla birlikte kayar.
     k2 = oturum.anlik_goruntu(yol)
-    print(f"sabitlik    : ikinci cagri yeni={k2.get('yeni')} (False olmali)")
+    AYAKLAR.yaz("sabitlik", f"ikinci cagri yeni={k2.get('yeni')} (False olmali)")
     if k2.get("yeni"):
         kusur.append("GERI DONUS NOKTASI KAYIYOR: ikinci cagri anlik "
                      "goruntuyu yeniliyor -- 'kosu basi' diye bir sey kalmaz")
@@ -113,7 +116,7 @@ def kanarya() -> list[str]:
 
     f = oturum.fark(yol)
     ekli = [e["slayt"] for e in f["eklenen_slaytlar"]]
-    print(f"ekleme      : slayt={ekli} degisken={f['eklenen_degiskenler']}")
+    AYAKLAR.yaz("ekleme", f"slayt={ekli} degisken={f['eklenen_degiskenler']}")
     if not ekli:
         kusur.append("OLCU KOR: eklenen slayt farkta gorunmuyor")
     if "KapiSayaci" not in f["eklenen_degiskenler"]:
@@ -121,7 +124,7 @@ def kanarya() -> list[str]:
 
     dokunulmamis_degisen = [d["slayt"] for d in f["degisen_slaytlar"]
                             if d["slayt"] in onceki]
-    print(f"kimlik      : dokunulmamis slaytlardan 'degisti' sayilan: "
+    AYAKLAR.yaz("kimlik", f"dokunulmamis slaytlardan 'degisti' sayilan: "
           f"{dokunulmamis_degisen or 'YOK'}")
     if dokunulmamis_degisen:
         kusur.append(
@@ -137,7 +140,7 @@ def kanarya() -> list[str]:
     pkg2.save(yol, backup=False)
     f2 = oturum.fark(yol)
     yerinde = [d for d in f2["degisen_slaytlar"] if d["slayt"] == hedef]
-    print(f"yerinde     : {hedef} -> "
+    AYAKLAR.yaz("yerinde", f"{hedef} -> "
           f"{yerinde[0]['ozet'] if yerinde else 'GORULMEDI'}")
     if not yerinde:
         kusur.append(f"OLCU KOR: {hedef} yerinde degistirildi ama farkta "
@@ -173,7 +176,7 @@ def kanarya() -> list[str]:
          if (e.get("name") or "")
          and not duzenle._guid_referanslari(kok4, e.get("g") or "", e)), None)
     if silinebilir is None:
-        print("silme       : KOSMADI (referanssiz sekil yok)")
+        AYAKLAR.yaz("silme", "KOSMADI (referanssiz sekil yok)")
         kusur.append("AYAK KOSMADI: silinecek referanssiz sekil bulunamadi, "
                      "silmenin farkta gorunmesi OLCULMEDI")
     else:
@@ -190,7 +193,7 @@ def kanarya() -> list[str]:
         # degisikligi bu soruyu yanlis cevaplayamaz.
         dusen = [n for n in neler
                  if n["alan"] == "sekil" and (n["delta"] or 0) < 0]
-        print(f"silme       : {silinebilir!r} silindi ({once_sayi} sekil "
+        AYAKLAR.yaz("silme", f"{silinebilir!r} silindi ({once_sayi} sekil "
               f"vardi) -> farkta "
               f"{dusen or [n['alan'] for n in neler] or 'GORULMEDI'}")
         if not dusen:
@@ -203,7 +206,7 @@ def kanarya() -> list[str]:
     g = oturum.geri_al(yol)
     yedek = pathlib.Path(g["onceki_hali"])
     f3 = oturum.fark(yol)
-    print(f"geri alma   : dokunulmadi={f3['dokunulmadi']} | "
+    AYAKLAR.yaz("geri alma", f"dokunulmadi={f3['dokunulmadi']} | "
           f"onceki hal saklandi={yedek.exists()}")
     if not f3["dokunulmadi"]:
         kusur.append(f"GERI ALMA EKSIK: kosu basina donuldu ama fark hala "
@@ -219,11 +222,11 @@ def kanarya() -> list[str]:
     shutil.copy2(BLANK, temiz)
     try:
         oturum.geri_al(temiz)
-        print("geri alma(-): anlik yokken KABUL EDILDI (YANLIS)")
+        AYAKLAR.yaz("geri alma(-)", "anlik yokken KABUL EDILDI (YANLIS)")
         kusur.append("SESSIZ BASARI: anlik goruntu yokken geri alma hata "
                      "vermiyor -- kullanici donuldugunu saniyor")
     except StoryError:
-        print("geri alma(-): anlik yokken REDDEDILDI (dogru)")
+        AYAKLAR.yaz("geri alma(-)", "anlik yokken REDDEDILDI (dogru)")
     return kusur
 
 
@@ -233,6 +236,17 @@ def main() -> int:
               f"sinanamadi -- 'gecti' DEGIL, 'bakilmadi'.")
         return KOSAMADI
     kusur = kanarya()
+    # DEFTERIN IKINCI YONU: beyanli ama BASILMAYAN ayak. Ilk yon
+    # (`yaz` beyansiz adi reddediyor) kapiyi ayak kazandiginda korur;
+    # bu yon, ayak KALDIRILDIGINDA korur -- beyanda duran olu bir ayak
+    # `ayirt_kapi`nin bolenini sisirir ve kapsam OLDUGUNDAN KOTU
+    # gorunur. Ikisi birlikte beyani tek deger yapiyor.
+    _kosmayan = AYAKLAR.kosmayanlar()
+    if _kosmayan:
+        kusur.append("BEYANDA DURAN AMA KOSMAYAN AYAK: %s -- ya ayak "
+                     "kaldirildi ve beyan guncellenmedi (kapsam siser), "
+                     "ya da bir kosulun arkasinda kaldi ve kapi bunu "
+                     "'KOSMADI' diye yazmali" % ", ".join(_kosmayan))
     if kusur:
         print("\nKAPI KALDI:")
         for k in kusur:
