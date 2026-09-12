@@ -868,7 +868,7 @@ kelime sayısını artırdığı da mümkün kalır. İyileşme varsayılmaz, ö
 ## Ölçü yazmanın kuralları
 
 > **Bu bölümün alıcısı belli:** yeni bir kapı ayağı ya da tohum yazan
-> kişi. `tools/ayirt_kapi.py` bugün **9/35 ayağı** tohumluyor; kalan 26'yı
+> kişi. `tools/ayirt_kapi.py` bugün **11/41 ayağı** tohumluyor; kalan 30'u
 > tohumlayacak olan, aşağıdaki dört kuralı tam o anda yazacak.
 
 Depodaki kapılar aynı kusur sınıfına **dokuz kez** düştü — dördü
@@ -1009,6 +1009,13 @@ sert: **kullanıcının 51 gerçek kursunun 51'i** temiz geçti. Yani kontrol
 hiçbir gerçek kursu yazılamaz kılmıyor; taşıyan iki dosya kendi test
 artefaktımız.
 
+**Bedeli ölçüldü, çünkü her yazmada koşuyor.** Eklenen geçiş paketin
+`.xml` parçalarını bir kez daha geziyor: `verify`in süresini kabaca iki
+katına çıkarıyor (%34–49'u artık bu geçiş) ama mutlak sayı küçük
+kalıyor — 2 MB'lık boş şablonda 0.03 s, 39 MB'lık gerçek kursta 0.18 s.
+Sürücü dosya boyutu değil **parça sayısı**: 24 MB'lık donör 0.04 s'de
+bitiyor.
+
 **Zararsız yön cezalandırılmıyor.** Ters durum — kayıt duruyor, ona
 bakan şekil yok — `sekil_sil`den sonra doğuyor ve *kusur sayılmıyor*.
 Gerekçe ölçüm: `test/bos.story` yedi referanssız kayıt taşıyor ve bu
@@ -1084,7 +1091,9 @@ yeniden bakılır.
 | slayt geçişi, hareket yolu | ölçülmedi; animasyon sözlüğü yalnızca donör havuzunda görülenlerle sınırlı |
 | yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
 | slayt silme / sıralama | çapraz referans taraması `story.xml`i de kapsamalı; `clone.py` bozuk atlama hedeflerini sessizce `actSubType="next"`e çeviriyor ve "Sınavı Yeniden Dene" için bu **anlamca yanlış** |
-| 26 tohumsuz ayak | `tools/ayirt_kapi.py` 9/35 tohumluyor; kapsam sayılı ve zarfta |
+| 30 tohumsuz ayak | `tools/ayirt_kapi.py` 11/41 tohumluyor; kapsam sayılı ve zarfta |
+| `coverage.ENVANTER` yedi kapıyı saymıyor | tablo "her kontrolün gerçekten koştuğu kesit" diyor ama yeni kapı ailesinin (`oturum`, `duzenle`, `puanlanabilirlik`, `kablolama`, `red_mesaji`, `tur_testi`, `medya`) hiçbirinin satırı yok. Yön **eksik iddia** — tablonun kendi uyardığı tehlikeli yönün tersi (var olmayan kontrole satır) — ama okuyan depoyu olduğundan az korunmuş sanır |
+| medya kaydını onaran araç yok | `assetG` çözülmezse `save` **reddediyor** ve ajanın elinde onarım yok: kaydın dıştaki listeden içtekine taşınması gerekiyor (üç satır). Yazılmadı, çünkü ihtiyaç **ölçülmüş sıfır** — gerçek 51 kursun 51'i temiz; taşıyan iki dosya kendi test artefaktımız. Böyle bir dosya gelirse red okunabilir ama **eylem önermiyor** |
 
 ### Tıkalı: soru bankası
 

@@ -1,15 +1,9 @@
 {
-  "zaman": "2026-09-11T23:08:45",
-  "commit": "267875f",
+  "zaman": "2026-09-12T16:18:10",
+  "commit": "20dbaf8",
   "commit_temsil_ediyor_mu": false,
   "islenmemis_dosyalar": [
-    "storyline-mcp/tools/ayirt_kapi.py",
-    "storyline-mcp/tools/duzenle_kapi.py",
-    "storyline-mcp/tools/kablolama_kapi.py",
-    "storyline-mcp/tools/oturum_kapi.py",
-    "storyline-mcp/tools/puanlanabilirlik.py",
-    "storyline-mcp/tools/red_mesaji.py",
-    "storyline-mcp/tools/ayak.py"
+    "storyline-mcp/README.md"
   ],
   "kirli_hedef_dosya": false,
   "sinamalar": [
@@ -68,6 +62,24 @@
       "durum": "kanitlandi"
     },
     {
+      "ad": "medya/liste-secimi",
+      "ayak": "2 DISTAKI",
+      "kapi": "medya_kapi.py",
+      "taklit": "kayit ICTEKI liste yerine DISTAKI listeye yaziliyor",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "medya/yazma-kapisi",
+      "ayak": "6 YAZMA KAPISI",
+      "kapi": "medya_kapi.py",
+      "taklit": "verify'in verdikti bir kapiya BAGLI DEGIL (rapor donuyor)",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
       "ad": "red_mesaji/donusum",
       "ayak": "1 KASITLI RED",
       "kapi": "red_mesaji.py",
@@ -78,8 +90,8 @@
     }
   ],
   "kapsam": {
-    "tohumlanan": 9,
-    "toplam": 35,
+    "tohumlanan": 11,
+    "toplam": 41,
     "beyansiz_kapilar": [],
     "kapsanmayan": {
       "duzenle_kapi.py": [
@@ -94,6 +106,12 @@
         "cogaltmaz",
         "ara hal",
         "ispatsiz"
+      ],
+      "medya_kapi.py": [
+        "cipa",
+        "kayitsiz",
+        "null asset",
+        "silme yetimi"
       ],
       "oturum_kapi.py": [
         "bilgisizlik",
