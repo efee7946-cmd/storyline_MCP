@@ -1345,11 +1345,13 @@ depoda kaç kez "hayal edilen bir biçime yazılmış yüklem"le uğraşıldığ
 düşünülünce, doğru cevabın çoğu zaman dosyada adıyla durduğu ayrı bir
 ders.
 
-**Bunun pratik sonucu, kalan işlerin dördü için doğrudan:** `add_audio`
-yok, geçiş ölçülmedi, yayınlama doğrulanmıyor, banka bilinmiyor.
-Dördünde de ilk hamle tasarım **değil** — bağışçı havuzunda o şeyi
-taşıyan bir dosya bulup Storyline'ın ne yazdığını okumak. Havuz elde ve
-bu oturumda dört kez doğru cevabı verdi.
+**Bunun pratik sonucu kalan işler için doğrudan** — ama kapsamı
+sayılmalı. `add_audio` yok, geçiş ölçülmedi: **ikisinde de** ilk hamle
+tasarım değil, havuzda o şeyi taşıyan bir dosyayı okumak. Yayınlama
+yarı yarıya girer (biçim havuzda, *paketin gerçekten rapor ettiği*
+çıktı artefaktında). Banka **hiç girmez**: havuzda böyle bir dosya yok
+ve arandı. Kuralı dört maddeye birden uygulamak, okuyanı var olmayan
+bir dosyayı aramaya gönderirdi.
 
 **Ve kategorinin bir de olumsuz yarısı var.** Aşağıdaki "ertelenmiş not"
 kuralının ölçümle yakalanamaması tesadüf değil: *kendi yazıp ertelediğin
@@ -1423,11 +1425,22 @@ ikincisi her turda "sıradaki iş" sanılıp yeniden bakılır.
 
 ### Sırada
 
-**Dördünün ilk hamlesi aynı ve tasarım değil:** bağışçı havuzunda o şeyi
+**Ses ve geçiş için ilk hamle tasarım değil:** bağışçı havuzunda o şeyi
 taşıyan bir dosya bulup Storyline'ın ne yazdığını okumak (bkz. *"Üçüncü
 kategori: zaten yazılmış olanı okumadık"* — havuz bu oturumda dört kez
-doğru cevabı verdi). Ses, geçiş, yayınlama ve banka için bilinmeyen şey
-tasarım değil, **biçim**.
+doğru cevabı verdi). İkisi için bilinmeyen şey tasarım değil, **biçim**.
+
+İki madde bu kalıba **girmiyor**, ve ikisi de ayrı sebepten:
+
+- **Yayınlama yarı yarıya biçim sorusu.** `trackMode`,
+  `lmsResultSlideG`, `playerProps` havuzda okunur — ama *yayınlanan
+  paketin gerçekten rapor edip etmediği* `.story`'de **değil**, çıktı
+  artefaktında. Havuzu okumak birinci yarıyı verir; ikinci yarısı ayrı
+  bir okuma.
+- **Banka havuzda yok.** Aşağıdaki "Tıkalı" bölümü onu ayrıca
+  anlatıyor: 480 `.story` tarandı, banka dolu tek dosya bu ipliğin
+  kendi sentetiğiydi. Başlığı ona uygulamak, okuyanı var olmayan bir
+  dosyayı aramaya gönderir.
 
 | iş | notu |
 |---|---|
