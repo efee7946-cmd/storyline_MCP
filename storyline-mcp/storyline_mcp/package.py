@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 import struct
 import zipfile
 import xml.etree.ElementTree as ET
@@ -285,7 +286,45 @@ class StoryPackage:
                 "Yazilan paket dogrulamayi gecemedi, dosyaya DOKUNULMADI: "
                 + "; ".join(report.get("problems", [])[:3])
             )
-        tmp.replace(out)
+        # PAYLASIM IHLALI GECICIDIR, HATA DEGIL -- ve bu bir OLCUMDEN
+        # cikti (2026-09-12). `tools/dusen_arguman.py` ayni yola 112 kez
+        # yaziyor (~5 yazma/sn) ve suit icinde -- yani onceki sekiz
+        # adimin `_canary`ye yuzlerce dosya yazmasinin ardindan -- iki
+        # kosuda da su hatayla dustu:
+        #
+        #     PermissionError: [WinError 5] Erisim engellendi:
+        #     'dusen_arguman_rail.story.tmp' -> 'dusen_arguman_rail.story'
+        #
+        # Tek basina kosunca HIC dusmuyordu. Windows'ta `os.replace`
+        # hedef dosya baska bir surec tarafindan aciksa WinError 5 verir
+        # ve o surec genelde virus tarayici / indeksleyicidir; dizin
+        # mesgulken olasilik artiyor.
+        #
+        # DUZELTME KAPIDA DEGIL BURADA, cunku kusur kapiya ozgu degil:
+        # kullanicinin kursunu tarayici bir an tuttugunda `save` hata
+        # firlatiyor ve ajan "basarisiz" diyor -- oysa bir sonraki an
+        # yazilabilir. Kisa, sinirli bir tekrar bunu kapatiyor.
+        #
+        # TEKRAR SONSUZ DEGIL: dosya GERCEKTEN kilitliyse (Storyline onu
+        # acmis, ya da salt-okunur) hata yine firlar ve sebebini yazar.
+        # Sessizce basarili donmek, duzeltmeye calistigi kayiptan kotu.
+        son_hata = None
+        for deneme in range(5):
+            try:
+                tmp.replace(out)
+                son_hata = None
+                break
+            except PermissionError as exc:
+                son_hata = exc
+                time.sleep(0.1 * (2 ** deneme))      # 0.1 .. 1.6 sn
+        if son_hata is not None:
+            tmp.unlink(missing_ok=True)
+            durum = lock_state(out)
+            raise StoryError(
+                f"{out.name} yazilamadi: dosyayi baska bir surec tutuyor "
+                f"(5 denemede acilmadi). Kilit durumu: {durum}. "
+                f"Storyline'da acik olabilir, ya da bir virus tarayici "
+                f"dosyayi tariyor olabilir. Ayrinti: {son_hata}")
 
         return {
             "written": str(out),

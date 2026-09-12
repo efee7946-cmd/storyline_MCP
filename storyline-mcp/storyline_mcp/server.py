@@ -1900,6 +1900,25 @@ def audit(path: str) -> dict:
     cevaplanamaz = puanlama.cevaplanamaz(pkg, idx)
     puanlama_zinciri = puanlama.zincir(pkg)
 
+    # SORU BANKASI SAYIMI -- ve nicin BURADA duruyor.
+    #
+    # Acik bir soru var: Storyline bankadan cekilen soruyu
+    # `questionIdLst`e KENDISI yaziyor mu? Cevap iki isi birden acar
+    # (yol haritasi 6'nin banka kismi, ve `zincir` 3c'nin kapsami) ama
+    # cevaplayacak dosya elimizde YOK: 480 `.story` tarandi (2026-09-12),
+    # banka DOLU tek dosya bu ipligin kendi sentetigiydi. Storyline
+    # kurulumu da ornek vermiyor.
+    #
+    # Tek ucuz yol, DISARIDAN gelen gercek bir proje -- savunma, tuzla ve
+    # yks oyle geldi. Onu "eline gecince bakmayi unutma" diye bir
+    # aliskanliga birakmak, bu deponun tam olarak kacindigi sey: kural
+    # hatirlanmasi gereken yerde durmasin. `audit` zaten panelden gecen
+    # her kursta kosuyor, yani sayim burada BEDAVA.
+    _bank = pkg.parse(STORY_PART).find("quizMgr/bankLst")
+    _banka_sahnesi = list(_bank) if _bank is not None else []
+    _banka_slaydi = sum(len(sc.find("sldIdLst") or [])
+                        for sc in _banka_sahnesi)
+
     # OGRETIM OLCUSU. Kursun NASIL GORUNDUGU degil, ogrenciye BIR SEY
     # YAPTIRIP yaptirmadigi. Ayri modulde cunku tek yerde hesaplanmali:
     # ikinci bir uygulama, ayni sayiyi baska bir kesitle uretirdi.
@@ -1933,6 +1952,18 @@ def audit(path: str) -> dict:
         "js_reference_scope": js_refs["scope"],
         "js_syntax_errors": bozuk_kod,
         "lossy_numbers": kayipli_sayilar,
+        "soru_bankasi": {
+            "banka": len(_banka_sahnesi),
+            "banka_slaydi": _banka_slaydi,
+            # DOLUYSA BU PROJE ACIK SORUYU CEVAPLAYABILIR.
+            "not": (
+                "Bu projede soru bankasi DOLU. Elimizde boyle bir dosya "
+                "YOKTU (480 kurs tarandi): `python tools/banka_sorusu.py "
+                "<bu dosya>` acik soruyu cevaplar -- Storyline bankadan "
+                "cekilen soruyu questionIdLst'e kendisi yaziyor mu."
+                if _banka_slaydi else
+                "Banka bos. Bu normaldir: taranan 480 kursun hepsinde "
+                "bankLst VAR ve hepsi bostu.")},
         "cevaplanamaz_sorular": cevaplanamaz,
         "cevaplanamaz_kapsam": (
             "Yalnizca TEK/COK SECMELI sorular (freePickOneIntr, "
@@ -1974,6 +2005,7 @@ def audit(path: str) -> dict:
                                  else None),
             "lossy_numbers": len(kayipli_sayilar),
             "cevaplanamaz_sorular": len(cevaplanamaz),
+            "banka_slaydi": _banka_slaydi,
             "puanlama_zinciri_kirik": len(puanlama_zinciri),
             # OGRETIM. Ozetteki digerleri "kac kusur" sayar; bunlar DURUM
             # sayar -- esigi cagiran koyar, arac yargilamaz.

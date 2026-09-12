@@ -989,6 +989,51 @@ Ayıran işaret ucuz ve makine istemiyor:
 İki başarısız düzeltme, tek bir gözlemden güçlü bir kanıttır. Yetersiz
 oldukları için silinmediler — yanlış değillerdi, yalnızca yetmiyorlardı.
 
+## Kalan işler: sırada / tıkalı
+
+Bu deponun her katmanında üç durum var -- geçti, kaldı, **koşamadı**:
+çıkış 3'te, ayak düzeyinde (`compose kapisi: KOSMADI`), `varyans`
+zarfında. Yol haritası düzeyinde de olmalı, çünkü **kimsenin
+başlamadığı bir iş** ile **girdisi kimsede olmayan bir iş** aynı listede
+durursa ikisi aynı görünür -- ve ikincisi her turda "sıradaki iş" sanılıp
+yeniden bakılır.
+
+### Sırada
+
+| iş | notu |
+|---|---|
+| ses, altyazı | araç yüzeyinde karşılığı yok (`add_audio` yazılmadı) |
+| slayt geçişi, hareket yolu | ölçülmedi; animasyon sözlüğü yalnızca donör havuzunda görülenlerle sınırlı |
+| yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
+| slayt silme / sıralama | çapraz referans taraması `story.xml`i de kapsamalı; `clone.py` bozuk atlama hedeflerini sessizce `actSubType="next"`e çeviriyor ve "Sınavı Yeniden Dene" için bu **anlamca yanlış** |
+| 26 tohumsuz ayak | `tools/ayirt_kapi.py` 9/35 tohumluyor; kapsam sayılı ve zarfta |
+
+### Tıkalı: soru bankası
+
+**Girdisi ikimizde de yok.** Storyline bankadan çekilen soruyu
+`questionIdLst`'e kendisi yazıyor mu -- cevap iki işi birden açıyor
+(yol haritasının banka kısmı, ve `zincir` 3c'nin kapsamı). Ama:
+
+- Diskte aranıp **bulunamadı**: 480 `.story` tarandı (2026-09-12),
+  banka dolu tek dosya bu ipliğin kendi sentetiğiydi.
+- Storyline kurulumu örnek proje ile gelmiyor.
+- Araçlar Storyline'ı **başlatıp kaydettirebiliyor** (`tools/tur_testi.py`)
+  ama **arayüzünden banka kuramıyor** -- menüye tıklamak ne elde var ne
+  de bu deponun kabul ettiği bir yol.
+- Sentetik olarak kurmak **dairesel** olur: ölçümün konusu ölçeni
+  tarafından sağlanmış olur (bkz. "Dairesellik ayrı bir sınıftır").
+
+**Açacak tek şey:** dışarıdan gelen, uçtan uca Storyline'ın yazdığı
+gerçek bir proje -- `savunma`, `tuzla` ve `yks` öyle geldi. Onu
+"eline geçince bakmayı unutma" diye bir alışkanlığa bırakmadık:
+`audit` artık her kursta bankayı sayıyor ve dolu olanı gördüğünde
+ne yapılacağını **kendisi yazıyor**. Geçerlilik koşulu ve üç sonucun
+anlamı `tools/banka_sorusu.py` başlığında.
+
+**Bu ayrımın kendisi bir iş:** aynı listede durdukları sürece dört
+madde birden bankanın cevabını bekliyor görünüyordu. Ses, geçiş ve
+yayınlama onu hiç beklemiyor.
+
 ## Doğrulama
 
 Yazma işlemleri kendini şöyle denetler:
