@@ -897,8 +897,34 @@ bilinmeyeni bilinene benzetiyor.** Ölçülmüş dört örnek:
 > güvence, kaldı'ya katmak yanlış alarm üretir — ikisi de sinyali
 > zamanla değersizleştirir.
 
-Bu sözleşmenin bir sonraki uygulaması **yeniden türetilmemeli, tanınmalı**:
-bir katmanda iki durum tek sayıya düşmüşse, üçüncüsü kaybolmuştur.
+### Durum nerede düştü: tasarımda mı, taşımada mı
+
+Yukarıdaki tablo durumların **nerede yaşadığını** söylüyor. Kaybın
+*nerede olduğu* ayrı bir soru, ve çareyi seçen o:
+
+| kayıp yeri | hâli | çare |
+|---|---|---|
+| **tasarım** | katman zaten iki durumlu | katmanı üç duruma çıkar |
+| **taşıma** | katman üç durumlu, okuma yüzeyi ikisini gösteriyor | sağ çıkan yüzeye sayımı koy |
+
+Dördün **üçü tasarım**, biri taşımaydı. Taşıma örneği en öğretici
+olanı: suit üç `KOSAMADI` kapı için doğru şekilde `1` dönüyordu — katman
+sözleşmeye uyuyordu. Boru, katmanın tasarımına hiç dokunmadan üçüncü
+durumu **okuyucuya giderken** düşürdü.
+
+Bu ayrım bir gerekçeyi de düzeltiyor. Son satır çözümü ilk yazışta
+*"kalıcı `3` sinyal üretmeyi bırakır"* diye savunulmuştu; o doğru ama
+**işleyen sebep değil.** İşleyen sebep daha basit ve daha sağlam:
+durumlar zaten vardı, onları okuma düşürüyordu — o yüzden çare kodu
+değiştirmek değil, kesilmeye dayanıklı yüzeye sayımı koymaktı.
+
+Sözleşmenin son satırı bu ayrımı zaten kapsıyor:
+
+> Bir katmanda iki durum tek sayıya düşmüşse, **üçüncüsü
+> kaybolmuştur.** Nerede düştüğünü sormak yalnızca hangi çareyi
+> seçeceğini söyler.
+
+Ve bir sonraki uygulaması **yeniden türetilmemeli, tanınmalı.**
 
 ## Ölçü yazmanın kuralları
 
