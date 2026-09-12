@@ -91,6 +91,20 @@ class StoryPackage:
                 f"{self.path.name} gecerli bir .story paketi degil (ZIP acilamadi)."
             ) from exc
         except PermissionError as exc:
+            # AYNI KISITIN ACMA UCU. Yazma ucu `save`de (bkz. oradaki
+            # "PAYLASIM IHLALI GECICIDIR" notu) ve aralarindaki fark
+            # 2026-09-12'ye kadar SURDU: burada kisit KODLANMISTI, orada
+            # yalnizca DUZYAZIYDI (`server.py` modul basligi: "Storyline
+            # must be closed while a project is rewritten"). Bilinen bir
+            # kisit dosya omrunun bir ucunda kodlanmissa, obur ucu
+            # ARANMALI -- yoksa kullanicinin kursunu vuran hali orada
+            # ham kalir.
+            #
+            # IKI UC AYNI SEYI YAPMIYOR ve yapmamali: okuma tarafinda
+            # tekrar YOK, cunku okunamayan dosya ya Storyline'da acik
+            # (kalici) ya da bir sonraki cagrida zaten okunur; yazma
+            # tarafinda tekrar VAR, cunku `os.replace` GECICI bir
+            # cekismede de dusuyor.
             raise StoryError(
                 f"{self.path.name} su anda kilitli, okunamiyor. Bu dosya "
                 f"Storyline'da acik olmali; kapatip tekrar deneyin. "

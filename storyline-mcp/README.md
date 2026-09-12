@@ -962,6 +962,28 @@ Pahalı yol yine de gerekli olduğunda (`tools/tur_testi.py`) `--tam`
 tarafında durur ve açılmazsa **çıkış 3** döner: ölçülmemiş bir şeyi
 "kapı kaldı" diye bildirmek, ürüne ait olmayan bir kusur uydurur.
 
+### Kısıt bir uçta kodlanmışsa öbür ucunu ara
+
+Bilinen bir kısıt, dosya ömrünün bir ucunda **kodlanmış** olup öbür
+ucunda yalnızca **düzyazı** kalabilir. Ölçüldü ve aradaki fark aylarca
+sürdü:
+
+| uç | hâli |
+|---|---|
+| **açma** (`StoryPackage.__init__`) | `PermissionError` yakalanıyor ve *"Storyline'da açık olmalı, kapatıp tekrar deneyin"* diye çevriliyor |
+| **yazma** (`save` → `os.replace`) | aynı hata **ham** fırlıyordu; `server.py` başlığı kısıtı yazıyordu ama kod yazmıyordu |
+
+Ve bu, kapıyı değil **kullanıcının kursunu** vuruyordu: tarayıcı dosyayı
+bir an tuttuğunda kayıt başarısız oluyor ve ajan "başarısız" diyordu.
+
+İki uç aynı şeyi yapmıyor ve yapmamalı: okuma tarafında tekrar **yok**
+(okunamayan dosya ya Storyline'da açıktır — kalıcı — ya da sonraki
+çağrıda okunur), yazma tarafında tekrar **var** (`os.replace` geçici bir
+çekişmede de düşer). Ayrım *geçici mi kalıcı mı* sorusunda.
+
+> Bir kısıt bir uçta kodlanmışsa, **öbür ucu aranmalı.** Düzyazıda duran
+> kısıt, o uçta korumasızdır.
+
 ### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
 
 Bir kırmızıyı "çevresel" diye okumak ucuzdur ve çoğu zaman doğrudur —
