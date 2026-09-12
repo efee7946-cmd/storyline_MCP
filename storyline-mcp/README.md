@@ -1324,6 +1324,58 @@ Ayıran işaret ucuz ve makine istemiyor:
 İki başarısız düzeltme, tek bir gözlemden güçlü bir kanıttır. Yetersiz
 oldukları için silinmediler — yanlış değillerdi, yalnızca yetmiyorlardı.
 
+### Ertelenmiş not, ön koşulu değiştiğinde yeniden okunur
+
+Bir işi *"ayrı ve daha büyük bir iş"* diye ertelemek doğru olabilir; ama
+erteleme bir **ön koşul** yazıyorsa, o koşul değiştiği gün not yeniden
+okunmalı. Yoksa iş, gerekçesi ortadan kalktıktan çok sonra da beklemeye
+devam eder.
+
+Ölçülmüş örnek (2026-09-12). `clone._kopuk_atlamalari_onar` kendi
+sınırını yazıyordu: `results.xml`in "Sınavı Yeniden Dene" düğmesi de
+kopuk-atlama onarımından geçiyor ve *"sonraki slayt"* onun için
+**anlamca yanlış** (yeniden denemek ileri gitmek değildir). Erteleme
+gerekçesi parantez içindeydi:
+
+> *"Doğrusu, sonuç slaydının gerçek bir quiz'e bağlanmasıdır; o ayrı ve
+> daha büyük bir iş **(sonuç slaydı bugün hiçbir quiz'e kayıtlı
+> değil)**."*
+
+O parantez, `puanlama.kablola` bir **değişmez** olarak kurulduğu gün
+geçersiz kaldı — kayıt artık çağıranın hatırlamasına bağlı değil. Yani
+notun beklediği "daha büyük iş" çoktan yapılmıştı ve kimse notu yeniden
+okumadı.
+
+Üç soru ölçümle cevaplandı:
+
+| soru | ölçüm |
+|---|---|
+| yeniden yazma sonuç slaydı yolunda hâlâ ateşleniyor mu | **evet** — taze kursta hedef `actSubType="next"`, `jumpG` sıfırlanmış |
+| hedef, kayıtlı quiz varken çözülüyor mu | **evet** — `questionIdLst`'in iki üyesi de slayda çözülüyor |
+| o zaman dal gereksiz mi | **evet, ve yanlış** — gereken bilgi yazma anında mevcut |
+
+Hedefi tahmin etmek de gerekmedi: tetikleyicinin **kendi etiketi**
+`gotoFirstInQuizTrig` — "quiz'in ilkine git". Biçim de üreticinin kendi
+çıktısından ölçüldü (gerçek kurslarda 48 örnek, hepsi
+`actSubType="spec"` + `<slide jumpG="…" showNav="false"/>`).
+
+Çare `kablola`'ya kondu, çünkü hedef **türetilmiş**: kaydın ilk üyesi.
+Sınır dar — yalnızca **çözülmeyen** hedef onarılır; çözülen bir hedef
+kasıtlı olabilir ve ezilmez. Kapısı `tools/kablolama_kapi.py`'nin
+"yeniden dene" ayağı: tohumun gerçekten hasarlı doğduğu, onarım,
+kararlılık (ikinci çağrı yazmamalı) ve sınır — dördü birlikte.
+
+**Yan ürün, ve kendi dersi var:** ayak eklenince `cogaltmaz` kırmızıya
+döndü — "temiz kursta 20 çağrı → 0 değişiklik" ölçüsü, bir kerelik
+uzlaştırmayı yazma çoğalmasından ayırt edemiyordu. Fikstür `authoring`i
+doğrudan çağırıp `_write`ı atladığı için kurs **kararlı durumda
+doğmuyordu**; gerçek ajan yolunda pencere yok. Düzeltme fikstürde:
+"temiz" artık *uzlaştırılmış* demek.
+
+> Ertelenmiş her notun ön koşulu, notun kendisi kadar önemlidir. Koşul
+> yazılmışsa iş **kapanabilir hâle gelmiştir** ve kimse bunu
+> kendiliğinden fark etmez.
+
 ## Kalan işler: sırada / tıkalı
 
 Bu, üç durum sözleşmesinin yol haritası katmanındaki hâli (sözleşmenin
@@ -1339,7 +1391,7 @@ ikincisi her turda "sıradaki iş" sanılıp yeniden bakılır.
 | ses, altyazı | araç yüzeyinde karşılığı yok (`add_audio` yazılmadı) |
 | slayt geçişi, hareket yolu | ölçülmedi; animasyon sözlüğü yalnızca donör havuzunda görülenlerle sınırlı |
 | yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
-| slayt silme / sıralama | çapraz referans taraması `story.xml`i de kapsamalı; `clone.py` bozuk atlama hedeflerini sessizce `actSubType="next"`e çeviriyor ve "Sınavı Yeniden Dene" için bu **anlamca yanlış** |
+| slayt silme / sıralama | araç yok; çapraz referans taraması `story.xml`i de kapsamalı (atlama hedefi, quiz kaydı, LMS hedefi). **Eksik yüzey** — bir şey bozmuyor, yalnızca yapılamıyor |
 | 41 tohumsuz ayak | `tools/ayirt_kapi.py` 11/52 tohumluyor; kapsam sayılı ve zarfta. Bölen 2026-09-12'de **41'den 52'ye** düzeltildi: `SINAMALAR`dan türetildiği için tohumu sıfır olan kapı (o gün `tur_testi` ve `son_satir_kapi`, 5+5 ayak) bölene hiç girmiyordu |
 | `ENVANTER`'in 12 satırsız kapısı | koşan 26 kapının 14'ü satırlı; kalan 12 **beyanlı** ve çırçır kapalı (beyansız yeni bir satırsız kapı kırmızı döner). Satır elle yazılır — fikstür ve eksen taşıyor; yokluğu hesaplı |
 | medya kaydını onaran araç yok | `assetG` çözülmezse `save` **reddediyor** ve ajanın elinde onarım yok: kaydın dıştaki listeden içtekine taşınması gerekiyor (üç satır). Yazılmadı, çünkü ihtiyaç **ölçülmüş sıfır** — gerçek 51 kursun 51'i temiz; taşıyan iki dosya kendi test artefaktımız. Böyle bir dosya gelirse red okunabilir ama **eylem önermiyor** |

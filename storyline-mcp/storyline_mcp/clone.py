@@ -118,12 +118,26 @@ def _kopuk_atlamalari_onar(raw: str, bilinen: set[str]) -> tuple[str, int]:
     Bu bicim HEDEF GUID'i ISTEMEZ, yani kursa ozgu hicbir sey tasimaz --
     tohumun tasiyabilecegi tek guvenli gezinme budur.
 
-    SINIR, ve saklanmiyor: `results.xml`in "Sinavi Yeniden Dene" dugmesi de
-    bu yoldan geciyor ve "sonraki slayt" onun icin ANLAMCA yanlis (yeniden
-    denemek ileri gitmek degildir). Yine de kirik biraktan iyidir: bugun
-    var olmayan bir slayda atliyor ve hicbir sey yapmiyor. Dogrusu, sonuc
-    slaydinin gercek bir quiz'e baglanmasidir; o ayri ve daha buyuk bir is
-    (sonuc slaydi bugun hicbir quiz'e kayitli degil).
+    SINIR VARDI VE KAPANDI (2026-09-12). `results.xml`in "Sinavi Yeniden
+    Dene" dugmesi de bu yoldan geciyor ve "sonraki slayt" onun icin
+    ANLAMCA yanlis (yeniden denemek ileri gitmek degildir). Buradaki not
+    onu "ayri ve daha buyuk bir is" diye erteliyordu, gerekcesi de
+    yaziliydi: *sonuc slaydi bugun hicbir quiz'e kayitli degil.*
+
+    O GEREKCE ARTIK GECERSIZ. `puanlama.kablola` bir DEGISMEZ ve her
+    yazmada kosuyor (`server._write`), yani kayit caginin hatirlamasina
+    bagli degil -- sonuc slaydi quiz'e kayitli, quiz'in `questionIdLst`i
+    dolu. Dolayisiyla hedef TURETILEBILIR: tetikleyicinin kendi etiketi
+    `gotoFirstInQuizTrig`, yani "quiz'in ilkine git", ve o ilk uye
+    kayitta duruyor.
+
+    BU FONKSIYON YINE DE DEGISMEDI, ve bilincli: burada proje hakkinda
+    hicbir sey bilinmiyor (elde yalnizca ham dize ve bilinen guid'ler
+    kumesi var). Kopuk hedefi "sonraki slayt"a cevirmek hala en guvenli
+    yerel hamle. ONARIM SONRA GELIYOR: `kablola` cozulmeyen bir
+    `gotoFirstInQuizTrig` hedefini ilk kayitli soruya baglar -- ve
+    yalnizca COZULMEYENI, cozulen bir hedef kasitli olabilir.
+    Kapisi: `tools/kablolama_kapi.py`, "yeniden dene" ayagi (dort yonlu).
     """
     sayac = 0
 

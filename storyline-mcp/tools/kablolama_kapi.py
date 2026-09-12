@@ -8,7 +8,15 @@ adim degil DEGISMEZDIR. Adim atlanabilir; degismez atlanamaz. Sohbet
 yolunun "bitti" ani olmadigi icin bir kapanis ADIMI kurulamiyordu;
 degismez o soruyu cozmuyor, ORTADAN KALDIRIYOR.
 
-ALTI AYAK:
+YEDI AYAK:
+  0 YENIDEN DENE sonuc slaydinin "Sinavi Yeniden Dene" hedefi ilk KAYITLI
+                 soruya baglanir. `clone`un yeniden yazma dali onu
+                 "sonraki slayt"a ceviriyordu ve kendi notu bunun ANLAMCA
+                 yanlis oldugunu yaziyordu; erteleme gerekcesi ("sonuc
+                 slaydi hicbir quiz'e kayitli degil") bu degismez
+                 kurulunca GECERSIZ kaldi. Ayak dort yonlu: tohumun
+                 gerceklen hasarli dogdugu, onarim, KARARLILIK (ikinci
+                 cagri yazmamali) ve SINIR (cozulen bir hedef ezilmemeli).
   1 EKLER        kaydi silinmis puanli slayt, ilk yazmada geri kayitlanir
   2 DUSURUR      etkilesimi kaldirilmis slaydin BAYAT kaydi dusurulur.
                  Yalnizca ekleyen bir surum bir UST KUMEYE yakinsardi.
@@ -78,6 +86,7 @@ KOSAMADI = 3
 # okusaydi sayi bir DUZYAZI VEKILI olurdu -- bu depoda yedi kez isiran
 # sinif. Adlar kapinin kendi bastigi etiketlerle ayni tutulmali.
 AYAKLAR = ayak.Defter(
+    "yeniden dene",
     "ekler",
     "kayit nokta.",
     "dusurur",
@@ -111,8 +120,23 @@ def _coz(res):
     return json.loads(icerik[0].text) if icerik else {}
 
 
-def _kurs(ad: str) -> pathlib.Path:
-    """Puanli soru + sonuc slaydi olan temiz bir kurs."""
+def _kurs(ad: str, *, kablola: bool = True) -> pathlib.Path:
+    """Puanli soru + sonuc slaydi olan temiz bir kurs.
+
+    "TEMIZ" = KARARLI DURUM, ve bunu tek tek saymak gerekiyor. Fikstur
+    `authoring`i DOGRUDAN cagiriyor, yani sunucunun `_write` sarmalayicisini
+    ATLIYOR -- oysa degismez orada kosuyor. `kablola` cagrilmazsa kurs bir
+    seyi turetilmemis halde dogar (bugun: yeniden dene hedefi) ve ILK arac
+    cagrisi onu onarir. O onarim CAGALMA DEGIL, bir kerelik uzlastirma --
+    ama "20 cagri -> 0 degisiklik" olcusu ikisini ayirt edemez ve
+    `cogaltmaz` ayagi bu yuzden bir kez kirmiziya dondu (olculdu
+    2026-09-12).
+    Gercek ajan yolunda pencere YOK: `add_results_slide` de `_write`ten
+    geciyor, yani uzlastirma ayni arac cagrisinda oluyor.
+
+    `kablola=False` ile hasarli hal KASITLI olarak korunur -- "yeniden
+    dene" ayagi tohumunu boyle kuruyor.
+    """
     CANARY.mkdir(parents=True, exist_ok=True)
     yol = CANARY / ad
     shutil.copy2(BLANK, yol)
@@ -122,6 +146,8 @@ def _kurs(ad: str) -> pathlib.Path:
                                eyebrow="B",
                                feedback={"correct": "E", "incorrect": "H"})
     authoring.add_results_slide(pkg)
+    if kablola:
+        puanlama.kablola(pkg)
     pkg.save(yol, backup=False)
     return yol
 
@@ -161,8 +187,98 @@ async def _kosu(yol: pathlib.Path, cagrilar: list[tuple[str, dict]]) -> tuple:
     return kablolamalar, hatalar
 
 
+def _yeniden_dene_hedefi(yol: pathlib.Path) -> list[tuple[str, str]]:
+    """Sonuc slaydindaki `gotoFirstInQuizTrig` hedefleri: (actSubType, ad)."""
+    pkg = StoryPackage(yol)
+    index = model.slide_index(pkg)
+    g2ad = {ref.guid: ad for ad, ref in index.items()}
+    out = []
+    for ad in index:
+        kok = pkg.parse(pkg.slide_part_for(ad))
+        for trig in kok.iter("gotoFirstInQuizTrig"):
+            veri = trig.find("data")
+            if veri is None:
+                continue
+            slayt = veri.find("slide")
+            g = (slayt.get("jumpG") or "").strip() if slayt is not None else ""
+            out.append((veri.get("actSubType") or "",
+                        g2ad.get(g, "COZULMEZ" if g else "YOK")))
+    return out
+
+
 def kanarya() -> list[str]:
     kusur: list[str] = []
+
+    # 0. YENIDEN DENE HEDEFI -- ertelenmis bir notun kapanisi.
+    #
+    # `clone._kopuk_atlamalari_onar` cozulmeyen her atlamayi "sonraki
+    # slayt"a ceviriyor ve kendi notu sinirini yaziyordu: yeniden dene
+    # dugmesi icin bu ANLAMCA yanlis. Erteleme gerekcesi "sonuc slaydi
+    # bugun hicbir quiz'e kayitli degil" idi -- `kablola` bir degismez
+    # oldugundan o gerekce artik gecersiz, ve hedef TURETILEBILIR.
+    #
+    # AYAK DORT YONLU, cunku ucu tek basina yetmiyor:
+    #   tohum   hasarli hal GERCEKTEN dogmus mu (yoksa ayak bos gecer)
+    #   onarim  hedef ilk KAYITLI soruya baglaniyor mu
+    #   kararli ikinci cagri DEGISIKLIK URETMEMELI (sifir yazma
+    #           ozelligini bozmak, "cogaltmaz" ayagini da yalanlardi)
+    #   sinir   COZULEN bir hedef EZILMEMELI -- kasitli olabilir
+    # TOHUM KASITLI: `kablola=False` ile hasarli hal korunuyor,
+    # yoksa fikstur onarilmis dogar ve ayak hicbir sey olcmez.
+    yol0 = _kurs("kablolama_yeniden_dene.story", kablola=False)
+    hasarli = _yeniden_dene_hedefi(yol0)
+    pkg0 = StoryPackage(yol0)
+    kablo0 = puanlama.kablola(pkg0)
+    pkg0.save(yol0, backup=False)
+    onarilmis = _yeniden_dene_hedefi(yol0)
+
+    pkg0b = StoryPackage(yol0)
+    kablo0b = puanlama.kablola(pkg0b)
+
+    # SINIR: hedefi COZULEN baska bir slayda cevir, kablola dokunmamali
+    pkg0c = StoryPackage(yol0)
+    index0 = model.slide_index(pkg0c)
+    baska = next((ref.guid for ad, ref in index0.items()
+                  if ad != "slide.xml"), "")
+    for ad in list(index0):
+        kok = pkg0c.parse(pkg0c.slide_part_for(ad))
+        degisti = False
+        for trig in kok.iter("gotoFirstInQuizTrig"):
+            veri = trig.find("data")
+            slayt = veri.find("slide") if veri is not None else None
+            if slayt is not None and baska:
+                slayt.set("jumpG", baska)
+                degisti = True
+        if degisti:
+            pkg0c.replace_xml(pkg0c.slide_part_for(ad), kok)
+    puanlama.kablola(pkg0c)
+    pkg0c.save(yol0, backup=False)
+    korundu = _yeniden_dene_hedefi(yol0)
+
+    AYAKLAR.yaz("yeniden dene",
+                f"hasarli={hasarli} -> onarilmis={onarilmis}; "
+                f"ikinci cagri degisti={kablo0b['degisti']}; "
+                f"cozulen hedef korundu={korundu}")
+
+    if not any(h[1] == "COZULMEZ" for h in hasarli):
+        kusur.append(
+            "TOHUM KOSMADI: kurulan kursta yeniden dene hedefi zaten "
+            "cozuluyor, yani bu ayak ONARIMI olcmuyor. `clone`un yeniden "
+            "yazma dali degismis olabilir -- once o olculmeli.")
+    elif not all(h[1] != "COZULMEZ" and h[0] == "spec" for h in onarilmis):
+        kusur.append(
+            f"ONARILMADI: hedef {onarilmis} -- ilk kayitli soruya "
+            f"baglanmasi gerekiyordu (tetikleyicinin adi "
+            f"`gotoFirstInQuizTrig`, yani hedef bir tercih degil).")
+    if kablo0b["degisti"]:
+        kusur.append(
+            "KARARLI DEGIL: ikinci `kablola` cagrisi yine yaziyor. Sifir "
+            "yazma ozelligi bozulursa her arac cagrisi dosyayi buyutur.")
+    if baska and not all(h[1] != "slide.xml" for h in korundu):
+        kusur.append(
+            "COZULEN HEDEF EZILDI: kablola, cozulen bir yeniden-dene "
+            "hedefini kendi turettigiyle degistirdi. Sinir dar olmaliydi: "
+            "yalnizca COZULMEYEN hedef onarilir.")
 
     # 1. EKLER
     yol = _kurs("kablolama_ekler.story")

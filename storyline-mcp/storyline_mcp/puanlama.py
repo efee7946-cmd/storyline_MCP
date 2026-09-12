@@ -509,9 +509,71 @@ def kablola(pkg: StoryPackage) -> dict:
         manager.set("trackMode", "result")
         rapor["lms_yazildi"] = True
 
+    # 4. "SINAVI YENIDEN DENE" HEDEFI -- ve bu, ertelenmis bir notun
+    #    on kosulu karsilandigi icin artik yapilabiliyor.
+    #
+    # `clone._kopuk_atlamalari_onar` hedefi cozulmeyen her atlamayi
+    # "sonraki slayt"a ceviriyor; kendi notu sinirini da yaziyordu:
+    # yeniden dene dugmesi icin "sonraki slayt" ANLAMCA yanlis (yeniden
+    # denemek ileri gitmek degildir). Notun ertelemesi soyleydi:
+    # "dogrusu sonuc slaydinin gercek bir quiz'e baglanmasidir; o ayri
+    # ve daha buyuk bir is (sonuc slaydi bugun hicbir quiz'e kayitli
+    # degil)". O parantez ARTIK YANLIS -- bu fonksiyon bir degismez ve
+    # kayit caginin hatirlamasina bagli degil. Yani hedef TURETILEBILIR
+    # hale geldi ve tureyecegi yer burasi.
+    #
+    # HEDEFI STORYLINE'IN KENDISI ADLANDIRIYOR: tetikleyicinin etiketi
+    # `gotoFirstInQuizTrig` -- "quiz'in ilkine git". Yani hedef bir
+    # tercih degil, kaydin ilk uyesi. Bicim de uydurulmadi, ureticinin
+    # kendi ciktisindan olculdu (gercek kurslarda 48 ornek, hepsi ayni):
+    #
+    #     action="jumpToSlide" actSubType="spec"
+    #     <slide jumpG="<hedef>" showNav="false" />
+    #
+    # SINIR DAR: onarim YALNIZCA hedef cozulmuyorsa yapiliyor (null
+    # guid, ya da projede olmayan bir guid). Cozulen bir hedef -- kasitli
+    # olabilir -- EZILMIYOR. Ateslenme kosulu boylece `_kopuk_atlamalari_onar`in
+    # kosuluyla ayni, ama caresi artik dogru olan.
+    rapor["yeniden_dene"] = []
+    sonuc_guid = (quiz.get("resultSldG") or "").strip()
+    ilk_soru = next(((el.text or "").strip() for el in list(id_list)
+                     if (el.text or "").strip() in guid_ile), "")
+    sonuc_part = None
+    for ref in index.values():
+        if ref.guid == sonuc_guid:
+            sonuc_part = ref.part if hasattr(ref, "part") else None
+            break
+    if sonuc_part is None and sonuc_guid:
+        sonuc_part = next((p for ad, ref in index.items()
+                           if ref.guid == sonuc_guid
+                           for p in [pkg.slide_part_for(ad)]), None)
+
+    if ilk_soru and sonuc_part:
+        kok = pkg.parse(sonuc_part)
+        bilinen = set(guid_ile)
+        onarilan = 0
+        for trig in kok.iter("gotoFirstInQuizTrig"):
+            veri = trig.find("data")
+            if veri is None:
+                continue
+            slayt = veri.find("slide")
+            mevcut_hedef = (slayt.get("jumpG") or "").strip() if slayt is not None else ""
+            if mevcut_hedef in bilinen:
+                continue                    # cozuluyor: DOKUNMA
+            if slayt is None:
+                slayt = ET.SubElement(veri, "slide")
+            slayt.set("jumpG", ilk_soru)
+            slayt.set("showNav", "false")
+            veri.set("action", "jumpToSlide")
+            veri.set("actSubType", "spec")
+            onarilan += 1
+        if onarilan:
+            pkg.replace_xml(sonuc_part, kok)
+            rapor["yeniden_dene"] = [guid_ile[ilk_soru]] * onarilan
+
     # `dusen_cozulemeyen` DEGISIKLIK SAYILMAZ: dosyaya dokunulmadi.
     rapor["degisti"] = bool(rapor["eklenen"] or rapor["dusen_bayat"]
-                            or rapor["lms_yazildi"])
-    if rapor["degisti"]:
+                            or rapor["lms_yazildi"] or rapor["yeniden_dene"])
+    if rapor["eklenen"] or rapor["dusen_bayat"] or rapor["lms_yazildi"]:
         pkg.replace_xml("story/story.xml", story)
     return rapor
