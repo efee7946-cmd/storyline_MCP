@@ -1324,6 +1324,43 @@ Ayıran işaret ucuz ve makine istemiyor:
 İki başarısız düzeltme, tek bir gözlemden güçlü bir kanıttır. Yetersiz
 oldukları için silinmediler — yanlış değillerdi, yalnızca yetmiyorlardı.
 
+### Üçüncü kategori: zaten yazılmış olanı okumadık
+
+Bu bölümdeki kuralların hepsi **kırılan** bir şeyden doğdu: yüklem hayal
+edilen biçime yazılmıştı, bölen ölçülen kümeden türemişti, sayı kesilmiş
+bir çıktıdan alınmıştı. Ayrı bir kategori daha var, ve o **işleyen** bir
+şeyden doğuyor: cevap zaten yazılmıştı, biz okumadık.
+
+Ölçülmüş dört örnek — dördünde de doğru cevap *çıkarsanmadı, okundu:*
+
+| ne | nerede yazılıydı |
+|---|---|
+| `useCnt` bir sayaç **değil** | Storyline'ın yazdığı 29 kaydın hepsi `0`, oysa gerçek referansları 1–8 |
+| kayıt `<item>` **metninde**, öznitelikte değil | `0_duz_kopya.story` |
+| banka şeması `bankLst/scene/sldIdLst` | dosyanın kendisi; şekil uydurulmadı |
+| yeniden dene hedefi = quiz'in **ilki** | tetikleyicinin adı: `gotoFirstInQuizTrig` |
+
+Sonuncusu en dikkat çekeni: üretici, niyeti **adın içine** yazmış. Bu
+depoda kaç kez "hayal edilen bir biçime yazılmış yüklem"le uğraşıldığı
+düşünülünce, doğru cevabın çoğu zaman dosyada adıyla durduğu ayrı bir
+ders.
+
+**Bunun pratik sonucu, kalan işlerin dördü için doğrudan:** `add_audio`
+yok, geçiş ölçülmedi, yayınlama doğrulanmıyor, banka bilinmiyor.
+Dördünde de ilk hamle tasarım **değil** — bağışçı havuzunda o şeyi
+taşıyan bir dosya bulup Storyline'ın ne yazdığını okumak. Havuz elde ve
+bu oturumda dört kez doğru cevabı verdi.
+
+**Ve kategorinin bir de olumsuz yarısı var.** Aşağıdaki "ertelenmiş not"
+kuralının ölçümle yakalanamaması tesadüf değil: *kendi yazıp ertelediğin
+bir not, kendi kapılarına görünmez.* Ölçü disiplini onu kapsamıyor,
+çünkü ölçü **kodun ne yaptığına** bakıyor, kodun **yanında ne yazdığına**
+değil.
+
+> Üçüncü kategori: *yanlış ölçtük* değil, *okuma aparatı düşürdü* de
+> değil — **zaten yazılmış olanı okumadık.** İlki üreticinin yazdığı,
+> ikincisi kendimizin yazdığı.
+
 ### Ertelenmiş not, ön koşulu değiştiğinde yeniden okunur
 
 Bir işi *"ayrı ve daha büyük bir iş"* diye ertelemek doğru olabilir; ama
@@ -1385,6 +1422,12 @@ kimsede olmayan bir iş** aynı listede durursa ikisi aynı görünür — ve
 ikincisi her turda "sıradaki iş" sanılıp yeniden bakılır.
 
 ### Sırada
+
+**Dördünün ilk hamlesi aynı ve tasarım değil:** bağışçı havuzunda o şeyi
+taşıyan bir dosya bulup Storyline'ın ne yazdığını okumak (bkz. *"Üçüncü
+kategori: zaten yazılmış olanı okumadık"* — havuz bu oturumda dört kez
+doğru cevabı verdi). Ses, geçiş, yayınlama ve banka için bilinmeyen şey
+tasarım değil, **biçim**.
 
 | iş | notu |
 |---|---|
