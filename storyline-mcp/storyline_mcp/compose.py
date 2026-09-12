@@ -39,7 +39,7 @@ from . import clone, model, preview as _preview, shapes
 from .authoring import (ChoiceLabelsTooLong, _apply_text,
                         _choice_shape_guids, _ovali_kapsullestir)
 from .edits import set_shape_text
-from .package import StoryPackage, StoryError
+from .package import NULL_GUID, StoryPackage, StoryError
 from . import emniyet
 
 # Type scale in points against the 720-unit design width, the basis Storyline
@@ -1474,7 +1474,6 @@ def compose_text_frame(pkg: StoryPackage, part: str, *,
             "entry_height_pct": round(kutu_h, 1)}
 
 
-NULL_GUID = "00000000-0000-0000-0000-000000000000"
 
 # Geri bildirim katmani tasiyan etkilesimler. intrProps HEPSINDE var.
 _INTR_ETIKETLERI = ("freePickOneIntr", "freePickManyIntr", "dragDropIntr",

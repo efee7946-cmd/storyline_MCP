@@ -45,16 +45,29 @@ def _video_cikar(hedef: Path) -> Path:
 
 
 def _kayitlar(path: Path) -> tuple[dict, dict]:
-    """story.xml'deki media ve video kayitlari: guid -> md5."""
+    """story.xml'deki media ve video kayitlari: guid -> md5.
+
+    ICTEKI LISTEDEN, `root.iter("mediaLst")`TEN DEGIL -- ve bu bir
+    duzeltme (2026-09-12). Onceki surum butun `mediaLst` ogelerini
+    geziyordu, yani DISTAKI listeye dusmus bir kayit da "kayitli"
+    sayiliyordu. Tam olarak bu modulun basliginin anlattigi kusur: kayit
+    yanlis listede oldugunda her bag izlenebilir kalir ve Storyline
+    gorseli gostermez. Yani medya baglarini olcmek icin yazilmis probe,
+    olctugu kusur sinifinin en pahali uyesine KORDU.
+    `media._media_list`in kendi basligi bunu zaten yaziyordu: "yapisal
+    probe'lar bag zincirini olcuyor, KAYDIN NEREDE DURDUGUNU olcmuyordu".
+
+    Olculdu: `test/hero_test.story` distaki listede 3, `cmp_new.story` 2
+    kayit tasiyor; eski yuklem ikisini de temiz gosterirdi.
+    """
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("story/story.xml"))
     resim, video = {}, {}
-    for liste in root.iter("mediaLst"):
-        for kayit in liste:
-            damga = kayit.find("md5Checksum/stream")
-            if damga is None:
-                continue
-            (resim if kayit.tag == "media" else video)[kayit.get("g")] = damga.text
+    for kayit in media._media_list(root):
+        damga = kayit.find("md5Checksum/stream")
+        if damga is None:
+            continue
+        (resim if kayit.tag == "media" else video)[kayit.get("g")] = damga.text
     return resim, video
 
 

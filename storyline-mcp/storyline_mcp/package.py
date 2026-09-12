@@ -35,6 +35,18 @@ STORY_RELS = "story/_rels/story.xml.rels"
 SLIDE_RE = re.compile(r"^story/slides/slide[^/]*\.xml$")
 
 
+# "GUID YOK" degeri. BES KOPYAYDI (clone, compose, donors, model ve
+# panel/dallanma) ve besi de ayni sabiti yaziyordu; `verify` altincisini
+# isteyince en alt katmana tasindi -- bir degeri bir yer tanimlar.
+#
+# SAYI IKI KEZ DUZELTILDI ve ikisi de ayni hata: ilk sayim UCU buldu, cunku
+# `grep`i `head -3` ile kesmistim -- kesilmis bir olcum TAM bir olcum gibi
+# gorunuyor. Ikinci sayim panel'i "import etmiyor" diye disarida birakti;
+# oysa `panel/dallanma.py` tam bu satiri import ediyordu. Ikincisi daha
+# kotusu: sayiyi olcmedim, GEREKCE UYDURDUM.
+NULL_GUID = "00000000-0000-0000-0000-000000000000"
+
+
 class StoryError(RuntimeError):
     pass
 
@@ -469,6 +481,61 @@ def verify(path: str | Path) -> dict:
                             problems.append(f"{name}: Gecerli olmayan layoutG ('{match.group(1)}')")
                     except Exception:
                         pass
+
+    # assetG COZULUYOR MU -- `layoutG` kontrolunun ESI.
+    #
+    # KISIT BIR UCTA KODLUYDU. Yukaridaki satirlar "var olmayan bir kaydi
+    # gosteren referans" sinifini layout icin kapatiyor. Ayni sinifin
+    # MEDYA ucu yalnizca duzyazida duruyordu (`media._media_list`in
+    # basligi): kayit yanlis listeye girdiginde paket GECERLI kaliyor,
+    # `verify` TEMIZ geciyor, bag zinciri md5'e kadar izlenebiliyor --
+    # ama Storyline gorseli hic gostermiyor ("The image can't be
+    # displayed"). Kullanici bunu IKI ayri kursta bildirdi; kapali olan
+    # uc layout'tu, isiran uc buydu.
+    #
+    # KAPSAM OLCULDU, HAYAL EDILMEDI (2026-09-12): alti bagisci projesi
+    # ve `test/bos.story`de medya kaydini gosteren 51 referansin 51'i
+    # `assetG`; etiketler `<pic>` (46) ve `<char>` (5). Yani kontrol
+    # etikete DEGIL oznitelik adina bakiyor -- `char` gibi bugun
+    # aklimiza gelmeyen bir etiket de kapsamda kalsin diye.
+    # `thumbG` (video afisi) DISARIDA: bagiscilarin hicbirinde video yok,
+    # yani o referansin kaydi gosterip gostermedigi OLCULMEDI.
+    #
+    # COZUCU YAZANIN COZUCUSU: kayitlarin hangi listede durdugunu
+    # `media._media_list` biliyor (`mediaLst > mediaLst`, dort gercek
+    # kursta olculmus). Burada ikinci bir kopya yazmak iki uygulamayi
+    # ayristirirdi. Bedeli bir KOR NOKTA: `_media_list` yanlis listeyi
+    # secseydi yazan da kontrol de birlikte yanilirdi -- o yuzden
+    # `tools/medya_probe.py` kaydi DISTAKI listeye tasiyip bu kontrolun
+    # kizardigini ayrica kanitliyor.
+    from .media import _media_list          # dairesel import: yerel kalmali
+
+    kayitli: set[str] = set()
+    try:
+        with zipfile.ZipFile(path) as z:
+            story = ET.fromstring(z.read("story/story.xml"))
+        kayitli = {(m.get("g") or "") for m in _media_list(story)}
+        kayitli.discard("")
+    except (KeyError, ET.ParseError, StoryError):
+        kayitli = set()                     # paketin baska bir kusuru var
+
+    if kayitli:
+        with zipfile.ZipFile(path) as z:
+            for name in names:
+                if not name.endswith(".xml"):
+                    continue
+                try:
+                    root = ET.fromstring(z.read(name))
+                except ET.ParseError:
+                    continue                # yukarida zaten raporlandi
+                for el in root.iter():
+                    asset = el.get("assetG")
+                    if not asset or asset == NULL_GUID or asset in kayitli:
+                        continue
+                    problems.append(
+                        f"{name}: <{el.tag}> assetG'si hicbir medya kaydina "
+                        f"cozulmuyor ('{asset}'). Paket gecerli kalir ama "
+                        f"Storyline gorseli gostermez.")
 
     # If the package overwhelmingly uses BOMs, the odd part without one is a
     # part we wrote and broke -- not a deck that never used them.

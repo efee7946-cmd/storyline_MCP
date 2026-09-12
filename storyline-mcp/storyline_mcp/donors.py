@@ -40,7 +40,7 @@ from pathlib import Path
 
 from .clone import _defined_guids, _remap_guids, new_guid
 from .model import slide_index
-from .package import StoryPackage, StoryError
+from .package import NULL_GUID, StoryPackage, StoryError
 
 SEED_DIR = Path(__file__).resolve().parent / "seeds"
 DEFAULT_POOL = Path(__file__).resolve().parents[1] / "donors"
@@ -121,7 +121,6 @@ def _clickable(shape: ET.Element) -> bool:
     return False
 
 
-NULL_GUID = "00000000-0000-0000-0000-000000000000"
 
 
 def _needs_media(shape: ET.Element) -> bool:

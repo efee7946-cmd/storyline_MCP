@@ -984,6 +984,62 @@ bir an tuttuğunda kayıt başarısız oluyor ve ajan "başarısız" diyordu.
 > Bir kısıt bir uçta kodlanmışsa, **öbür ucu aranmalı.** Düzyazıda duran
 > kısıt, o uçta korumasızdır.
 
+#### İkinci örnek: aynı referans sınıfının iki ucu
+
+Kural bir kez yazıldıktan sonra onunla **arandı**, ve ikinci örnek
+`package.verify`in içinde çıktı. Bu sefer iki uç aynı dosyanın iki
+satırı:
+
+| uç | hâli |
+|---|---|
+| **`layoutG`** | `verify` içinde **kodlu**: var olmayan bir layout'u gösteren slayt paketi reddettiriyor |
+| **`assetG`** | yalnızca **düzyazı**: `media._media_list` başlığında, ölçülmüş haliyle — kayıt yanlış listeye girdiğinde paket geçerli kalıyor, doğrulama temiz geçiyor, bağ zinciri md5'e kadar izlenebiliyor, **ama Storyline görseli hiç göstermiyor** |
+
+İkisi tek bir sınıfın üyesi: *bir referans, var olmayan bir kaydı
+gösteriyor.* Kodlu olan ucu kimse bildirmedi; **ısıran uç düzyazı
+olandı** ve kullanıcı onu iki ayrı kursta bildirdi.
+
+Kusur korpusta duruyor, sentetik değil: 85 test artefaktının **ikisi**
+çözülemeyen `assetG` taşıyor (`hero_test.story` 3, `cmp_new.story` 2) ve
+ikisinde de o kayıtlar dıştaki listede oturuyor. Kontrol grubu aynı
+klasörde: `cmp_old.story` temiz.
+
+Bedeli de ölçüldü, çünkü `verify`in bulgusu `save`i düşürüyor — kontrol
+sert: **kullanıcının 51 gerçek kursunun 51'i** temiz geçti. Yani kontrol
+hiçbir gerçek kursu yazılamaz kılmıyor; taşıyan iki dosya kendi test
+artefaktımız.
+
+**Zararsız yön cezalandırılmıyor.** Ters durum — kayıt duruyor, ona
+bakan şekil yok — `sekil_sil`den sonra doğuyor ve *kusur sayılmıyor*.
+Gerekçe ölçüm: `test/bos.story` yedi referanssız kayıt taşıyor ve bu
+deponun ürettiği her kurs ondan kopyalanıyor; hepsi açılıp
+kaydediliyor. Ayrıca yetim **bayt** Storyline'ın kendi yazdığı altı
+projenin altısında da var (1–12 parça). Ceza yalnızca bağın *kopuk*
+yönünde.
+
+**Bunu kim bıraktı, ölçüldü.** `tools/blank_temizle.py` slayt silerken
+"bir slayt **beş yerde** kayıtlıdır" diye titiz bir liste geziyor —
+parça, ilişki, story ilişkisi, `story.xml`, içerik türü. Medya kaydı o
+listede yok. Yani kaydın kendisi de aynı sınıfın bir örneği: sayılmış
+beş yer, sayılmamış bir altıncı.
+
+**Kapı kendi kör noktasını yazıyor.** Kontrol, kayıtların hangi listede
+durduğunu *yazanın* çözücüsünden (`media._media_list`) soruyor — ikinci
+bir kopya iki uygulamayı ayrıştırırdı. Bedeli: o çözücü yanlış listeyi
+seçseydi yazan da kontrol de **birlikte** yanılırdı. `tools/medya_kapi.py`
+bu yüzden kaydı dıştaki listeye elle taşıyıp kontrolün kızardığını
+ayrıca kanıtlıyor, ve `ayirt_kapi` aynı mutasyonu ürün kodunda kurup
+kapının o ayağının gerçekten ayırt ettiğini ölçüyor.
+
+Aynı sınıfın üçüncü örneği `tools/medya_probe.py`'de çıktı: medya
+bağlarını ölçmek için yazılmış probe, kayıtları `root.iter("mediaLst")`
+ile topluyordu — yani **dıştaki** listedeki kaydı da "kayıtlı"
+sayıyordu. Ölçtüğü kusur sınıfının en pahalı üyesine kördü.
+
+> Kuralın işe yaradığının kanıtı: bir kez yazıldıktan sonra onunla
+> **arandı** ve ikinci örnek, tahmin edilen yerde — kapılarda değil
+> ürünün içinde — bulundu.
+
 ### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
 
 Bir kırmızıyı "çevresel" diye okumak ucuzdur ve çoğu zaman doğrudur —

@@ -44,15 +44,12 @@ KAPSAM OLCULDU (uretilmis kurs, 2026-09-04):
 from __future__ import annotations
 
 from storyline_mcp import authoring, logic, model, shapes
-from storyline_mcp.package import StoryPackage, StoryError
+from storyline_mcp.package import NULL_GUID, StoryPackage, StoryError
 
 try:
     from . import ilerleme
 except ImportError:  # pragma: no cover - script execution fallback
     import ilerleme
-
-NULL_GUID = "00000000-0000-0000-0000-000000000000"
-
 # Geri bildirim katmani tasiyabilen etkilesim etiketleri. model.INTERACTION_TAGS
 # ile ayni kume degil bilerek: burada YALNIZCA <intrProps> tasiyanlar var,
 # cunku kimlik tespiti o elemana dayaniyor.

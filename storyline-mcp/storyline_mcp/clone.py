@@ -36,10 +36,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from .model import slide_index
-from .package import STORY_PART, STORY_RELS, StoryPackage, StoryError
+from .package import (STORY_PART, STORY_RELS, NULL_GUID, StoryPackage,
+                      StoryError)
 
 CONTENT_TYPES = "[Content_Types].xml"
-NULL_GUID = "00000000-0000-0000-0000-000000000000"
 GUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 DEFINED_GUID_RE = re.compile(rf'(?<=\s)(?:g|verG)="({GUID})"')
 REL_ID_CHARS = string.ascii_letters + string.digits

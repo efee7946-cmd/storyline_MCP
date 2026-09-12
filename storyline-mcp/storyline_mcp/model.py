@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
-from .package import STORY_PART, STORY_RELS, StoryPackage
+from .package import STORY_PART, STORY_RELS, NULL_GUID, StoryPackage
 
 # Shapes whose text the player generates at runtime, not the author.
 GENERATED_TEXT_SHAPES = {"rsltBtn"}
@@ -418,9 +418,6 @@ def quiz(pkg: StoryPackage) -> list[dict]:
                     }
                 )
     return out
-
-
-NULL_GUID = "00000000-0000-0000-0000-000000000000"
 
 
 def _describe_choice(root: ET.Element, choice: ET.Element, intr_tag: str) -> dict:

@@ -96,6 +96,33 @@ SINAMALAR = [
                '             "dusen_cozulemeyen": [], "lms_yazildi": False,\n'
                '             "neden": "MUTASYON"}'),
          kapi="kablolama_kapi.py", kapsadigi=("ekler", "kayit nokta.")),
+    # MEDYA: IKI TOHUM, IKISI DE URUN KODUNDA.
+    #
+    # Birincisi tarihsel kusurun ta kendisi: kayit ICTEKI liste yerine
+    # DISTAKI listeye yaziliyor. Bu mutasyonun altinda kapinin CIPA ayagi
+    # YESIL kalir -- cunku `verify` de ayni cozucuyu kullaniyor ve ikisi
+    # BIRLIKTE yanilir. Kizaran ayak "distaki" oluyor, ve o ayak zaten
+    # tam bu kor nokta icin yazildi. Yani bu sinama kapinin kendi kor
+    # noktasini OLCUYOR, iddiasini tekrarlamiyor.
+    dict(ad="medya/liste-secimi", ayak="2 DISTAKI",
+         taklit="kayit ICTEKI liste yerine DISTAKI listeye yaziliyor",
+         dosya="storyline_mcp/media.py",
+         eski=('    ic = dis.find("mediaLst")\n'
+               "    return ic if ic is not None else dis"),
+         yeni=('    ic = dis.find("mediaLst")\n'
+               "    return dis   # MUTASYON"),
+         kapi="medya_kapi.py", kapsadigi=("distaki",)),
+    # Ikincisi kontrolu degil BAGLANTISINI kesiyor: dogrulama kosuyor,
+    # raporu doner, ve kimse bakmaz. Bu depoda bir kez yasandi ve
+    # geriye donusu olmayan tek sey diskteki dosya oldu.
+    dict(ad="medya/yazma-kapisi", ayak="6 YAZMA KAPISI",
+         taklit="verify'in verdikti bir kapiya BAGLI DEGIL (rapor donuyor)",
+         dosya="storyline_mcp/package.py",
+         eski=("        report = verify(tmp)\n"
+               '        if not report.get("ok"):'),
+         yeni=("        report = verify(tmp)\n"
+               "        if False:   # MUTASYON"),
+         kapi="medya_kapi.py", kapsadigi=("yazma kapisi",)),
     dict(ad="red_mesaji/donusum", ayak="1 KASITLI RED",
          taklit="StoryError -> ToolError donusumu dusmus (maskeleme geri)",
          dosya="storyline_mcp/server.py",

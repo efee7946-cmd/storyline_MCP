@@ -106,6 +106,22 @@ ADIMLAR = [
     # logic'inkinden GENIS; ayak ikisinin ayristigini kanitlar).
     ("duzenle",         [PY, "tools/duzenle_kapi.py"],
      True,  False, "URETIR: _canary/duzenle_kapi*.story; 3 = fikstur yok"),
+    # MEDYA KAPISI. `verify` bir referans sinifini zaten kapatiyordu
+    # (`layoutG` cozulmeli); ayni sinifin MEDYA ucu duzyazida duruyordu ve
+    # ISIRAN uc o oldu: kayit yanlis listeye girdiginde paket gecerli
+    # kaliyor, dogrulama temiz geciyor, bag zinciri md5'e kadar
+    # izlenebiliyor, ama Storyline gorseli hic gostermiyor. Kullanici bunu
+    # IKI ayri kursta bildirdi. Kusur korpusta duruyor: 85 test
+    # artefaktinin ikisi onu tasiyor, kontrol grubu (`cmp_old.story`)
+    # temiz.
+    #
+    # Alti ayak, ikisi ozellikle: DISTAKI (kaydi dis listeye elle tasiyip
+    # kontrolun kizardigini kanitlar -- kontrol yazanin liste secimini
+    # tekrarlamakla yetinmiyor) ve SILME YETIMI (zararsiz yonu
+    # CEZALANDIRMAMA karari; `test/bos.story` yedi referanssiz kayit
+    # tasiyor ve uretilen her kurs ondan kopyalaniyor).
+    ("medya kapisi",    [PY, "tools/medya_kapi.py"],
+     True,  False, "URETIR: _canary/medya_kapi*.story; 3 = fikstur yok"),
     ("variety",         [PY, "tools/variety.py"],
      True,  False, "URETIR: _canary/variety.story"),
     # USLUP AYRIMI. variety bir kursun KENDI icinde tekrar edip etmedigine
