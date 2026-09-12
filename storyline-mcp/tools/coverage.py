@@ -585,11 +585,28 @@ def envanter(story: Path | None) -> int:
     _onek = len({a.split("/")[0] for a, *_ in ENVANTER})
     print(f"  EVREN: bu bolum ENVANTER'in {_onek} onekine bakiyor; satiri "
           f"OLMAYAN {len(_b['satirsiz'])} kapi buraya girmiyor.")
+    # SINIR MI BOSLUK MU -- ve nicin BU yon gate EDILMEDI.
+    #
+    # 22/25 bir kapsam sayisi degil, bir KATEGORI HATASI: bolen (butun
+    # kapilar) gereksinimle (belirli bir korlugu tasiyan olculer)
+    # ortusmuyor. Yakalanabilmesinin tek sebebi `scope.py`nin basliginin
+    # KOSULU yazmis olmasi.
+    #
+    # Bir kapi MUMKUN ama koşulun kendisi hicbir yerde BEYAN EDILMIYOR:
+    # "konumsal-sadece, sonuc bildiren olcu `SCOPES` tasimali" diyen bir
+    # kapi, olculerin kendi turunu beyan etmesini ister -- `ayak.py`nin
+    # bir seviye ASAGISI. 3/25'te bunu kurmak, korluk isirmadan,
+    # kazandigindan cok maliyet olur. Ucuz alternatif: korluk bir kez
+    # isirdiginda beyan o anda yazilir ve bolen dogar.
     print("  SINIR, BOSLUK DEGIL: `scope.SCOPES` kapi basina satir "
           "BEKLEMIYOR;")
     print("        renk/punto korlugu tasiyan olculer icin yazildi, ve "
           "kapilar kendi")
-    print("        KAPSAM satirini kendileri basiyor.")
+    print("        KAPSAM satirini kendileri basiyor. Bu yon GATE "
+          "EDILMEDI: kosul")
+    print("        ('konumsal olcu SCOPES tasimali') hicbir yerde beyan "
+          "edilmiyor ve")
+    print("        3/25'te beyan altyapisi kazandigindan cok maliyet.")
 
     print()
     print("=== 3b. ENVANTER SATIRI OLMAYAN KAPI ===")

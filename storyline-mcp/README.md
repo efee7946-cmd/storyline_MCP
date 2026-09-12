@@ -923,6 +923,41 @@ satırlar ondan basılıyor. İki kayma yönü de kapalı — beyansız ad bası
 (`SystemExit`), beyanlı ama basılmayan ayak kusur olarak bildirilir. Kapsam
 sayısını `tools/ayirt_kapi.py` bu beyandan okur, docstring'den değil.
 
+#### Aynı kuralın girdi tarafı: sayıyı kesilmiş çıktıdan alma
+
+Yukarıdaki hâli **yüklem yazmakla** ilgili. Aynı kuralın bir de *sayma*
+hâli var, ve tek bir turda dört kez ısırdı — üçü aynı mekanizmadan:
+
+| sayım | nereden geldi |
+|---|---|
+| `NULL_GUID` 3 kopya sanıldı, 5'ti | `grep ... \| head -3` — kelimenin tam anlamıyla bir **görüntü sınırı** |
+| "panel `storyline_mcp`'i import etmiyor" | okuyarak **varsayıldı**, hiç grep'lenmedi |
+| satırsız kapı 7 sanıldı, 13'tü | **ekrana sığan** liste sayıldı |
+
+İkincisi üçünün en kötüsü: sayı ölçülmedi, yerine **gerekçe uyduruldu.**
+Dördüncüsü ayrı sınıf — kaçırılanların listesi yazılırken bir ad yanlış
+aktarıldı (aktarma hatası, kesilmiş ölçüm değil).
+
+> **Sayı ile gösterim aynı çağrıdan gelmemeli.** `head`, terminal
+> kaydırması, ekrana sığan tablo — hepsi aynı tuzak.
+
+**Kural yazılırken bir kez daha ısırdı**, ve bu en iyi kanıt: yukarıdaki
+satırlar yazıldıktan hemen sonra suit `... | tail -12` ile koşuldu ve
+verdikt satırı (*"Bütün kapılar geçti"*) kesilenin içinde kaldı. Sayı
+değildi bu sefer, **hükmün kendisiydi** — aynı mekanizma.
+
+Ve çıkış kodu yerine geçmiyor: aynı gün suit **0 dönerken** üç kapı
+`KOSAMADI` durumundaydı (sistem python'unda `mcp` paketi yok). Yani
+`$?` "bütün kapılar geçti" demiyor; o cümle yalnızca tam çıktıda
+duruyor. Hükmü kesilmiş bir görünümden okumak, sayıyı öyle okumakla
+aynı sınıf.
+
+Bu, yazma tarafında *biçimlendirilmiş dizgeyi kapıya vermemekle* aynı
+cümlenin girdi tarafı: orada gösterim sayıdan türetiliyordu, burada sayı
+gösterimden alınıyor. Pratik hâli: saymak için `head`siz/limitsiz bir
+çağrı ile say, okumak için ayrıca kısalt — ve sayıyı hiçbir zaman
+okuduğun listeden çıkarma.
+
 ### Dairesellik ayrı bir sınıftır
 
 Yukarıdaki dokuz örnekte yüklem hayal edilen bir biçime yazılmıştı.
@@ -1104,10 +1139,37 @@ bellekte bozulup çırçırın kırmızı döndüğü ölçülüyor, dosyaya
 dokunmadan. Yeşil bir çırçırın sessizce ölmesi kolaydı — `suit.ADIMLAR`
 biçimi değişse her kapı "satırlı" görünürdü.
 
-Bir de **benzer görünen iki liste aynı iddia değil**: `scope.SCOPES`
-kapı başına satır *beklemiyor* — renk/punto körlüğü taşıyan ölçüler için
-yazıldı ve kapılar kendi `KAPSAM` satırını kendileri basıyor. O yüzden
-çırçıra girmedi; çıktısında "sınır, boşluk değil" diye yazılı.
+#### Kapatılmayan boşluk: `SCOPES` neden çırçıra girmedi
+
+Bu bölümdeki her ölçü kusuru *"ölçüyü düzelttik"* diye bitti. Bu tek
+madde **"ölçü olmamalı"** diye bitiyor, ve o daha zor karar: bir boşluğu
+kapatmak her zaman yerel olarak savunulabilir, kapatmamak ise sayının
+**ne anlama geleceğini** bilmeyi gerektiriyor.
+
+`scope.SCOPES` de araç başına anahtar tutuyor ve koşan 25 kapının
+22'sinde yok. Sayı, gerçek boşluktan (`ENVANTER`'in 12'si) daha kötü
+görünüyor — ama **kapsam sayısı değil, kategori hatası:** bölen (bütün
+kapılar) gereksinimle (belirli bir körlüğü taşıyan *ölçüler*)
+örtüşmüyor. Kapılar kendi `KAPSAM` satırını zaten kendi çıktılarında
+basıyor. Yakalanabilmesinin tek sebebi `scope.py`'nin başlığının
+**koşulu yazmış** olması.
+
+Kategori hatası ölçümle de görünüyor: `SCOPES`'un altı anahtarının
+**üçü hiç kapı değil** (`contrast`, `rubric`, `silhouette` — başka
+araçların çağırdığı ölçüler). Yani liste *ölçü* başına anahtarlanmış,
+kapı başına değil; "kapıların 22'sinde yok" cümlesi yanlış bölene
+bakıyor.
+
+Bir kapı **mümkün** — ama koşulun kendisi hiçbir yerde beyan edilmiyor:
+*"konumsal-sadece, sonuç bildiren ölçü `SCOPES` taşımalı"* diyen bir
+kapı, ölçülerin kendi türünü beyan etmesini ister; yani `ayak.py`'nin
+**bir seviye aşağısı**. 3/25'te bu altyapıyı kurmak, körlük ısırmadan,
+kazandığından çok maliyet. Ucuz alternatif yazılı: körlük bir kez
+ısırdığında beyan o anda yazılır ve bölen doğar.
+
+Gate edilmiş olsaydı bedeli somuttu: **22 satırlık uydurma bir boşluk**,
+ve gerçek 12'nin gürültüye gömülmesi. O yüzden çıktıda *"sınır, boşluk
+değil"* diye duruyor — gerekçesiyle birlikte, okuyanın durduğu yerde.
 
 ### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
 
