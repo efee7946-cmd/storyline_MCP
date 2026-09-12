@@ -506,19 +506,30 @@ def verify(path: str | Path) -> dict:
     # kursta olculmus). Burada ikinci bir kopya yazmak iki uygulamayi
     # ayristirirdi. Bedeli bir KOR NOKTA: `_media_list` yanlis listeyi
     # secseydi yazan da kontrol de birlikte yanilirdi -- o yuzden
-    # `tools/medya_probe.py` kaydi DISTAKI listeye tasiyip bu kontrolun
+    # `tools/medya_kapi.py` kaydi DISTAKI listeye tasiyip bu kontrolun
     # kizardigini ayrica kanitliyor.
     from .media import _media_list          # dairesel import: yerel kalmali
 
     kayitli: set[str] = set()
+    # DISTAKI liste ayrica tutuluyor, cunku IKI HAL var ve insan
+    # tarafindaki eylemleri AYRI. Kontrol "cozulmuyor" demekle yetinse
+    # okuyan hangi halde oldugunu bilemez -- ve bu iki halden biri
+    # kaydin DURDUGU hal.
+    distaki: set[str] = set()
     try:
         with zipfile.ZipFile(path) as z:
             story = ET.fromstring(z.read("story/story.xml"))
-        kayitli = {(m.get("g") or "") for m in _media_list(story)}
+        ic = _media_list(story)
+        kayitli = {(m.get("g") or "") for m in ic}
         kayitli.discard("")
+        dis = story.find("mediaLst")
+        distaki = {(m.get("g") or "") for m in (dis if dis is not None else [])
+                   if m is not ic and m.tag != "mediaLst"} - kayitli
+        distaki.discard("")
     except (KeyError, ET.ParseError, StoryError):
         kayitli = set()                     # paketin baska bir kusuru var
 
+    kopuk: list[tuple[str, str, str, str]] = []
     if kayitli:
         with zipfile.ZipFile(path) as z:
             for name in names:
@@ -532,10 +543,40 @@ def verify(path: str | Path) -> dict:
                     asset = el.get("assetG")
                     if not asset or asset == NULL_GUID or asset in kayitli:
                         continue
-                    problems.append(
-                        f"{name}: <{el.tag}> assetG'si hicbir medya kaydina "
-                        f"cozulmuyor ('{asset}'). Paket gecerli kalir ama "
-                        f"Storyline gorseli gostermez.")
+                    kopuk.append((name, el.tag, el.get("name") or "", asset))
+
+    # RED, SIRADAKI ISI SOYLUYOR -- arac adi vermek zorunda degil.
+    #
+    # `compose_slide`in reddinin degeri bir arac adi vermesi degildi,
+    # okuyanin SIRADA NE OLDUGUNU bilmesiydi. Burada sirada olan sey
+    # insan tarafinda ve makine gerektirmiyor: Storyline'da acip gorseli
+    # yeniden eklemek. Kalibi `puanlama.zincir`in 3c kosulu: "arac
+    # bunlari SILMEZ, once neyi gosterdigi bilinmeli" -- arac yok, ama
+    # okuyan halini ve neden otomatik bir hamle olmadigini biliyor.
+    #
+    # CARE TEK SATIRDA, ILK BULGUNUN YANINDA. `save` yalnizca ilk uc
+    # sorunu birlestiriyor; her satira ayni tarifi yazmak reddi uzatir ve
+    # okunmaz kilar.
+    for sira, (name, tag, ad, asset) in enumerate(kopuk):
+        kim = f"{ad!r} " if ad else ""
+        nerede = ("kayit DISTAKI listede duruyor" if asset in distaki
+                  else "kayit hicbir listede yok")
+        satir = (f"{name}: {kim}<{tag}> assetG'si cozulmuyor "
+                 f"('{asset}') -- {nerede}")
+        if sira == 0:
+            ne_yapmali = (
+                "Kayit DURUYOR ama Storyline ICTEKI listeden okuyor "
+                "(`mediaLst > mediaLst`); arac kaydi kendi TASIMAZ, cunku "
+                "hangi gorsele ait oldugu buradan gorunmez."
+                if asset in distaki else
+                "Kaydi arac kendi KURAMAZ: gorselin baytlari, md5'i ve "
+                "kaynak dosya bilgisi kayitta duruyor ve hicbiri buradan "
+                "turetilemez.")
+            satir += (f". Paket gecerli kalir, Storyline gorseli GOSTERMEZ "
+                      f"(toplam {len(kopuk)} sekil). {ne_yapmali} SIRADAKI "
+                      f"IS INSAN TARAFINDA: kursu Storyline'da acip bu "
+                      f"sekli silin ve gorseli yeniden ekleyin.")
+        problems.append(satir)
 
     # If the package overwhelmingly uses BOMs, the odd part without one is a
     # part we wrote and broke -- not a deck that never used them.

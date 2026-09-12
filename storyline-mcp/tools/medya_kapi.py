@@ -22,7 +22,7 @@ sert. Kullanicinin 51 gercek kursunun 51'i temiz gecti, yani kontrol
 hicbir gercek kursu yazilamaz kilmiyor. Tasiyan iki dosya kendi test
 artefaktimiz.
 
-ALTI AYAK:
+YEDI AYAK:
   1 CIPA         normal yol (add_image) TEMIZ gecmeli
   2 DISTAKI      kayit `mediaLst > mediaLst` yerine DISTAKI listeye
                  tasininca KIRMIZI. Tarihsel kusurun tam sekli.
@@ -40,6 +40,14 @@ ALTI AYAK:
                  hicbir seyi engellemiyor olabilirdi (o kusur bu depoda
                  bir kez yasandi: dogrulama kosuyor, rapor donuyor,
                  kimse bakmiyor).
+  7 RED TARIFI   red, SIRADAKI ISI soylemeli. Iki hal ayri eylem
+                 istiyor (kayit distaki listede DURUYOR / kayit hic
+                 YOK) ve mesaj ikisini AYIRT ETMELI; ustune okuyanin
+                 insan tarafindaki hamlesi yazili olmali. Kalibi
+                 `puanlama.zincir`in 3c kosulu: arac yok, ama okuyan
+                 halini ve neden otomatik bir hamle olmadigini biliyor.
+                 Olculmeyen bir mesaj degisir -- bu iplikte
+                 `red_mesaji`nin bir ayagi tam oyle yesil kalmisti.
 
 KOR NOKTA YAZILI. Kontrol, kayitlarin hangi listede durdugunu YAZANIN
 cozucusunden (`media._media_list`) soruyor -- ikinci bir kopya iki
@@ -81,6 +89,7 @@ AYAKLAR = ayak.Defter(
     "null asset",
     "silme yetimi",
     "yazma kapisi",
+    "red tarifi",
     genislik=14,
 )
 
@@ -126,6 +135,7 @@ def _kayit(pkg: StoryPackage, guid: str):
 
 def kanarya() -> list[str]:
     kusur: list[str] = []
+    mesaj_dis = mesaj_yok = ""
     CANARY.mkdir(parents=True, exist_ok=True)
 
     # 1. CIPA -- normal yol temiz gecmeli.
@@ -149,6 +159,7 @@ def kanarya() -> list[str]:
         pkg.replace_xml("story/story.xml", story)
         _yaz_kapisiz(pkg, yol)
         bulgu = _asset_sorunlari(yol)
+        mesaj_dis = bulgu[0] if bulgu else ""
         AYAKLAR.yaz("distaki", f"kayit dis listeye tasindi: {len(bulgu)} "
                                f"assetG sorunu (beklenen >=1)")
         if not bulgu:
@@ -167,6 +178,7 @@ def kanarya() -> list[str]:
         pkg.replace_xml("story/story.xml", story)
         _yaz_kapisiz(pkg, yol)
         bulgu = _asset_sorunlari(yol)
+        mesaj_yok = bulgu[0] if bulgu else ""
         AYAKLAR.yaz("kayitsiz", f"kayit silindi: {len(bulgu)} assetG sorunu "
                                 f"(beklenen >=1)")
         if not bulgu:
@@ -250,6 +262,31 @@ def kanarya() -> list[str]:
                     "RED YARIM: save reddetti ama hedef dosyayi yazmis. "
                     "Dogru hata, kirli durum -- kapinin korudugu sey tam "
                     "olarak dosyanin dokunulmamis kalmasi.")
+
+    # 7. RED TARIFI -- iki hal AYIRT EDILMELI, ve sirada ne var yazili.
+    ayirt = ("DISTAKI listede duruyor" in mesaj_dis
+             and "hicbir listede yok" in mesaj_yok)
+    tarif = "SIRADAKI IS" in mesaj_dis and "SIRADAKI IS" in mesaj_yok
+    sekil_adi = "'Kart'" in mesaj_dis or '"Kart"' in mesaj_dis
+    AYAKLAR.yaz("red tarifi", f"iki hal ayirt ediliyor={ayirt}, sirada ne "
+                              f"var yazili={tarif}, sekli adlandiriyor="
+                              f"{sekil_adi}")
+    if not ayirt:
+        kusur.append(
+            "RED HALINI SOYLEMIYOR: kayit DISTAKI listede durdugunda da hic "
+            "yokken de ayni sey yaziliyor. Iki halin insan tarafindaki "
+            "eylemi AYRI -- biri kaydin tasinmasi, oteki gorselin yeniden "
+            "eklenmesi.")
+    if not tarif:
+        kusur.append(
+            "RED SIRADAKI ISI SOYLEMIYOR: arac adi vermek zorunda degil ama "
+            "okuyan ne yapacagini bilmeli (kalibi `zincir` 3c). Eylemsiz bir "
+            "red, ajani da insani da ayni yerde birakiyor.")
+    if not sekil_adi:
+        kusur.append(
+            "RED SEKLI ADLANDIRMIYOR: parca adi tek basina yetmez -- bir "
+            "slaytta birden fazla gorsel olabilir ve okuyan hangisini "
+            "yeniden eklemesi gerektigini bilemez.")
     return kusur
 
 

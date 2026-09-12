@@ -296,6 +296,8 @@ ENVANTER = [
      "temel/ust", "hepsi", "6 tema, tek varyant", False),
     ("rubric_fixtures", "test/_rubrik/{kotu,orta,iyi}.story", "icerik",
      "temel/ust", "hepsi", "3 fikstur", False),
+    ("medya_kapi", "test/bos.story -> _canary/medya_kapi_*.story",
+     "icerik + gorsel", "-", "pic (assetG tasiyan)", "-", False),
     ("consistency", "dosya yok: kaynak kodu", "-", "-", "-", "-", False),
     ("canary", "test/try_ONCE.story -> _canary fiksturleri", "-",
      "-", "-", "-", False),
@@ -341,6 +343,81 @@ YALNIZCA_SAYAN = {"coverage"}
 #
 # "URETIMDE 0/4" yazan satirlar olculdu (2026-08-16, uretilen kurs, dort soru):
 # o dal hic kullanilmiyor. Kontrol saglam, kosuyor, ve OLU bir dali koruyor.
+# --------------------------------------------- ENVANTER'IN OBUR UCU
+#
+# SATIR VAR / KONTROL YOK yonu bu tablonun basindan beri elle bakiliyor
+# ("Envanterde OLMAYAN bir kontrolun satiri, kapsam iddiasinin en pahali
+# turudur") ve 2026-08-17'de iki satir tam o yuzden silindi. OBUR YON --
+# KONTROL VAR / SATIR YOK -- hic bakilmiyordu, ve olculdugunde 25 kapinin
+# 13'u satirsiz cikti (2026-09-12).
+#
+# Yon "eksik iddia" oldugu icin zararsiz DEGIL. Iki bedeli var: korunmus
+# bir yer yeniden korunur, ve tablonun yanlis oldugu bilindigi icin hic
+# okunmaz -- `--kanarya` notundaki "kalici kirmizi sinyal uretmeyi
+# birakir" ile ayni son. Ustune bosluk BIRLESIYOR: asagidaki 3. bolum
+# kapsam cumlesini ENVANTER'in ONEKLERINE karsi sayiyor, yani satiri
+# olmayan kapi o karsilastirmaya da HIC girmiyor.
+#
+# SATIR OTOMATIK URETILEMEZ: fikstur, slayt turu, sekil sinifi ve kesit
+# tasiyor, ve bunlar ancak kapiyi okuyarak yazilir. Ama YOKLUGU
+# uretilebilir, ve bu kontrol tam olarak `ayak.Defter.kosmayanlar()`in
+# bir seviye ustu: evren `suit.ADIMLAR` (gercekten kosan kapilar),
+# beyan asagidaki kume, ve iki kayma yonu de kapali.
+#
+# GOC BLOKLAMIYOR, ama CIRCIR: bugun satirsiz olanlar BEYAN EDILIYOR ve
+# her kosuda basiliyor; beyanda olmayan yeni bir satirsiz kapi KIRMIZI
+# doner. Yani bosluk buyuyemez, ve kapanmasi asamali olur.
+SATIRSIZ = (
+    "red_mesaji",
+    "puanlanabilirlik",
+    "oturum_kapi",
+    "duzenle_kapi",
+    "uslup",
+    "dusen_arguman",
+    "yeni_modul",
+    "kablolama_kapi",
+    "ajan_yolu",
+    "yeniden_beste",
+    "ogretim_kapi",
+    "tur_testi",
+)
+
+
+def envanter_bosluklari() -> dict:
+    """Kapi evreni `suit.ADIMLAR`; ENVANTER satiri olmayanlari say.
+
+    ICE AKTAR, AYRISTIRMA: kapi listesi `suit`ten IMPORT ediliyor.
+    Kaynagi metin olarak okuyan bir yuklem sessizce hicbir sey olcer --
+    bu depoda dokuz kez isiran sinif.
+    """
+    import suit                              # tool -> tool, dongu yok
+
+    onekler = {ad.split("/")[0] for ad, *_ in ENVANTER}
+    kapilar: list[tuple[str, str | None]] = []
+    for adim in suit.ADIMLAR:
+        if not adim[2]:                      # rapor adimi degil, KAPI
+            continue
+        arac = next((a for a in adim[1] if isinstance(a, str)
+                     and a.startswith("tools/") and a.endswith(".py")), None)
+        kapilar.append((adim[0], Path(arac).stem if arac else None))
+
+    satirsiz = [(ad, kok) for ad, kok in kapilar if kok not in onekler]
+    return {
+        "kapi": len(kapilar),
+        "satirli": [ad for ad, kok in kapilar if kok in onekler],
+        "satirsiz": satirsiz,
+        # BEYANSIZ: satirsiz ve beyanda da yok -> bosluk BUYUDU.
+        "beyansiz": sorted({kok for _ad, kok in satirsiz
+                            if kok not in SATIRSIZ}),
+        # BAYAT: beyanda duruyor ama artik satiri VAR -> beyan sisiyor.
+        # `kosmayanlar()`in aynadaki yonu.
+        "bayat_beyan": sorted(k for k in SATIRSIZ if k in onekler),
+        # OLU SATIR: elle bakilan yon, artik hesapli.
+        "olu_satir": sorted(o for o in onekler
+                            if not (ROOT / "tools" / f"{o}.py").exists()),
+    }
+
+
 KOD_DALI = {
     # fit_choices'in kod dali DEGISTI, silinmedi: eskiden plan uretip
     # apply_choice_plan'a veriyordu (0/4), bugun pick_template'in KABUL TESTI
@@ -360,6 +437,7 @@ KOD_DALI = {
     "scope/verify": "compose_slide",
     "rubric_fixtures": "compose_slide",
     "produced": "builder.build (TAM uretim yolu)",
+    "medya_kapi": "package.verify + media.add_image",
     "contrast": "yok: dosyadan okur",
     "completeness": "yok: dosyadan okur",
     "inventory": "yok: dosyadan okur",
@@ -500,6 +578,37 @@ def envanter(story: Path | None) -> int:
     print(f"  cumlesi OLMAYAN          : {', '.join(yok)}")
     print("\n  K5 diyor ki kapsam verdiktin YANINDA basilmali. Cumlesi olmayan\n"
           "  her kontrol, gectiginde neyi kapsamadigini soylemiyor.")
+    # EVREN YAZILI, cunku bu bolumun boleni ENVANTER'in kendisi: satiri
+    # olmayan bir kapi buraya HIC girmiyor, "cumlesi yok" diye bile
+    # gorunmuyor. Bosluk BIRLESIYOR.
+    _b = envanter_bosluklari()
+    _onek = len({a.split("/")[0] for a, *_ in ENVANTER})
+    print(f"  EVREN: bu bolum ENVANTER'in {_onek} onekine bakiyor; satiri "
+          f"OLMAYAN {len(_b['satirsiz'])} kapi buraya girmiyor.")
+    print("  SINIR, BOSLUK DEGIL: `scope.SCOPES` kapi basina satir "
+          "BEKLEMIYOR;")
+    print("        renk/punto korlugu tasiyan olculer icin yazildi, ve "
+          "kapilar kendi")
+    print("        KAPSAM satirini kendileri basiyor.")
+
+    print()
+    print("=== 3b. ENVANTER SATIRI OLMAYAN KAPI ===")
+    print()
+    print(f"  kosan kapi: {_b['kapi']}   satirli: {len(_b['satirli'])}   "
+          f"satirsiz: {len(_b['satirsiz'])}")
+    for _ad, _kok in _b["satirsiz"]:
+        _durum = "beyanli" if _kok in SATIRSIZ else "BEYANSIZ"
+        print(f"     {_ad:<22} ({_kok})  {_durum}")
+    if _b["beyansiz"]:
+        print(f"  BOSLUK BUYUDU: {', '.join(_b['beyansiz'])} -- satiri da "
+              f"beyani da yok.")
+    if _b["bayat_beyan"]:
+        print(f"  BAYAT BEYAN: {', '.join(_b['bayat_beyan'])} -- satiri VAR, "
+              f"beyandan cikarilmali.")
+    if _b["olu_satir"]:
+        print(f"  OLU SATIR: {', '.join(_b['olu_satir'])} -- satir var, arac "
+              f"yok.")
+    print("  Satir ELLE yazilir (fikstur ve eksen tasiyor); YOKLUGU hesapli.")
 
     if story is None:
         print("\n(Kor nokta sayimi icin: --envanter <kurs.story>)")
@@ -698,8 +807,41 @@ def kanarya(kaynak: Path) -> int:
         print(f"  {etiket:<10}{o['kontrast']:>10}{o['kontrast_kanarya']:>11}"
               f"{o['tasma']:>8}")
 
+    # ENVANTER CIRCIRININ KANARYASI -- uc yonun ucu de KIRMIZI donmeli.
+    #
+    # Circir bugun yesil, cunku 12 satirsiz kapinin 12'si beyanli. Yesil
+    # bir circirin sessizce olmesi kolay: `suit.ADIMLAR`in bicimi degisse
+    # `arac` None kalir, her kapi "satirli" gorunur ve kontrol hicbir sey
+    # olcmezdi. O yuzden uc yon de yerinde tohumlaniyor.
+    #
+    # TOHUM BELLEKTE, DOSYADA DEGIL: listeler modul globali, kopyasi
+    # alinip geri konuyor. Boylece kanarya kendi kostugunu kanitliyor ve
+    # deponun dosyalarina dokunmuyor.
+    _env_yedek, _beyan_yedek = list(ENVANTER), tuple(SATIRSIZ)
+    try:
+        globals()["ENVANTER"] = [r for r in _env_yedek if r[0] != "medya_kapi"]
+        _c1 = "medya_kapi" in envanter_bosluklari()["beyansiz"]
+        globals()["ENVANTER"] = _env_yedek
+        globals()["SATIRSIZ"] = _beyan_yedek + ("coverage",)
+        _c2 = "coverage" in envanter_bosluklari()["bayat_beyan"]
+        globals()["SATIRSIZ"] = _beyan_yedek
+        globals()["ENVANTER"] = _env_yedek + [
+            ("aracisilinmis/x", "-", "-", "-", "-", "-", False)]
+        _c3 = "aracisilinmis" in envanter_bosluklari()["olu_satir"]
+    finally:
+        globals()["ENVANTER"] = _env_yedek
+        globals()["SATIRSIZ"] = _beyan_yedek
+    _c0 = not (envanter_bosluklari()["beyansiz"]
+               or envanter_bosluklari()["bayat_beyan"]
+               or envanter_bosluklari()["olu_satir"])
+
     t, b, k = olcum["temiz"], olcum["temel"], olcum["katman"]
     beklenti = [
+        ("CIRCIR envanter boslugu bugun TEMIZ (12 satirsiz, 12 beyanli)",
+         _c0),
+        ("CIRCIR satiri da beyani da olmayan kapi kirmizi dondu", _c1),
+        ("CIRCIR bayat beyan (satiri VAR) kirmizi dondu", _c2),
+        ("CIRCIR araci olmayan satir kirmizi dondu", _c3),
         ("CANLI  contrast temel katmandaki kusuru gordu",
          b["kontrast_kanarya"] >= 1),
         ("CANLI  inventory temel katmandaki tasmayi gordu",
@@ -893,6 +1035,29 @@ def main() -> int:
     warnings_total = sum(row[l][0] for row in table.values() for l in SPECS)
     if warnings_total:
         problems.append(f"{warnings_total} kontrast uyarisi")
+
+    # ENVANTER'IN CIRCIRI. Bosluk BUGUNDEN kapanmiyor (12 kapi beyanli)
+    # ama BUYUYEMIYOR: beyansiz yeni bir satirsiz kapi kirmizi doner.
+    # Ters yon de kapali -- beyanda duran bir ad satir kazandiysa beyan
+    # sisiyor ve `ayak.Defter.kosmayanlar()` ile ayni sinif.
+    bosluk = envanter_bosluklari()
+    if bosluk["beyansiz"]:
+        problems.append(
+            f"ENVANTER satiri ve beyani OLMAYAN kapi: "
+            f"{', '.join(bosluk['beyansiz'])}. Satiri elle yazin (fikstur, "
+            f"slayt turu, sekil sinifi, kesit) ya da bilincli olarak "
+            f"`SATIRSIZ`a ekleyin -- tablo, kosan bir kapiyi sessizce "
+            f"saymazsa depo oldugundan az korunmus gorunur")
+    if bosluk["bayat_beyan"]:
+        problems.append(
+            f"`SATIRSIZ` bayat: {', '.join(bosluk['bayat_beyan'])} artik "
+            f"ENVANTER'de -- beyandan cikarilmali, yoksa bosluk sayisi "
+            f"oldugundan buyuk gorunur")
+    if bosluk["olu_satir"]:
+        problems.append(
+            f"ENVANTER'de araci olmayan onek: "
+            f"{', '.join(bosluk['olu_satir'])}. Bu yonun bedeli daha agir: "
+            f"tablo bakip 'orasi kapali' der, orada hicbir sey yoktur")
 
     # Geometri renkten bagimsiz olmali; olmamasi bir hatadir, ve bu satir
     # deadband'in kapsam cumlesini her kosuda yeniden dogrular.

@@ -1047,6 +1047,68 @@ sayıyordu. Ölçtüğü kusur sınıfının en pahalı üyesine kördü.
 > **arandı** ve ikinci örnek, tahmin edilen yerde — kapılarda değil
 > ürünün içinde — bulundu.
 
+**Red, sıradaki işi söylüyor** — araç adı vermek zorunda değil. Bu
+ucun kalıbı `puanlama.zincir`in 3c koşulu: *"araç bunları silmez, önce
+neyi gösterdiği bilinmeli."* Araç yok, ama okuyan hâlini ve neden
+otomatik bir hamle olmadığını biliyor. `assetG` reddi iki hâli **ayırt
+ediyor** (kayıt dıştaki listede *duruyor* / kayıt hiç *yok*), şekli adıyla
+anıyor, ve insan tarafındaki hamleyi yazıyor — çünkü iki hâlin eylemi
+ayrı. `medya_kapi`nin 7. ayağı (`red tarifi`) bunu ölçüyor: ölçülmeyen
+bir mesaj değişir, ve bu iplikte `red_mesaji`nin bir ayağı tam öyle
+yeşil kalmıştı.
+
+#### Üçüncü örnek: kuralın tarifini kendi içinde taşıyan dosya
+
+`coverage.ENVANTER` — "her kontrolün gerçekten koştuğu kesit" tablosu —
+kendi başında şunu yazıyor (2026-08-17):
+
+> *"Envanterde OLMAYAN bir kontrolün satırı, kapsam iddiasının en pahalı
+> türüdür: tablo bakıp 'orası kapalı' der, orada hiçbir şey yoktur."*
+
+Yani **satır var / kontrol yok** yönü düşünülmüş ve elle bakılmış; iki
+satır tam o yüzden silinmiş. Öbür yön — **kontrol var / satır yok** —
+hiç bakılmıyordu. Ölçüldü: koşan 25 kapının **13'ü** satırsızdı
+(2026-09-12), ve elle grep'le sayınca 7 görünüyordu; altı kapıyı
+(`uslup`, `dusen_arguman`, `yeni_modul`, `ajan_yolu`, `yeniden_beste`,
+`ogretim_kapi`) kaçırmıştım — bu turda üçüncü kez, kesilmiş bir ölçüm
+tam bir ölçüm gibi göründü. Kaçırdıklarımın listesini de ilk yazışta
+yanlış yazdım (`ajan_yolu` yerine `tur_testi`); sayma disiplini
+hakkındaki bir paragrafta adları elle saymak, hatayı dördüncü kez
+tekrarlamaktı.
+
+**"Eksik iddia, o yüzden güvenli" savunması bu oturumda çürütüldü:**
+`ayak.py` tam olarak bölenin **iki yöne de** kaymaması için yazıldı. Az
+gösteren bir tablonun bedeli, korunmuş bir yeri yeniden korumak — ya da
+tablonun yanlış olduğu bilindiği için hiç okunmaması, ki
+`coverage --kanarya` notundaki *"kalıcı kırmızı sinyal üretmeyi bırakır"*
+ile aynı son.
+
+**Boşluk ayrıca birleşiyor.** `envanter()`in 3. bölümü kapsam cümlelerini
+`ENVANTER`'in *öneklerine* karşı sayıyor — yani satırı olmayan kapı o
+karşılaştırmaya da hiç girmiyor, "cümlesi yok" diye bile görünmüyor.
+Bölümün evreni artık çıktısında yazılı.
+
+**Çözüm `kosmayanlar()`ın bir seviye üstü.** Satır otomatik üretilemez
+(fikstür, slayt türü, şekil sınıfı, kesit taşıyor) ama **yokluğu**
+üretilebilir: evren `suit.ADIMLAR` — gerçekten koşan kapılar, içe
+aktarılarak — beyan `coverage.SATIRSIZ`, ve üç kayma yönü de kapalı:
+
+| yön | hâli |
+|---|---|
+| satırsız **ve** beyansız | **kırmızı** — boşluk büyüyemez |
+| beyanda duruyor ama satırı var | **kırmızı** — beyan şişiyor (`kosmayanlar()`ın aynadaki yönü) |
+| satır var, aracı yok | **kırmızı** — elle bakılan yön, artık hesaplı |
+
+Üçünün üçü `coverage --kanarya` içinde **yerinde tohumlanıyor**: listeler
+bellekte bozulup çırçırın kırmızı döndüğü ölçülüyor, dosyaya
+dokunmadan. Yeşil bir çırçırın sessizce ölmesi kolaydı — `suit.ADIMLAR`
+biçimi değişse her kapı "satırlı" görünürdü.
+
+Bir de **benzer görünen iki liste aynı iddia değil**: `scope.SCOPES`
+kapı başına satır *beklemiyor* — renk/punto körlüğü taşıyan ölçüler için
+yazıldı ve kapılar kendi `KAPSAM` satırını kendileri basıyor. O yüzden
+çırçıra girmedi; çıktısında "sınır, boşluk değil" diye yazılı.
+
 ### Durma kuralı: iki düzeltme belirtiyi oynatmadıysa sınıf yanlıştır
 
 Bir kırmızıyı "çevresel" diye okumak ucuzdur ve çoğu zaman doğrudur —
@@ -1092,7 +1154,7 @@ yeniden bakılır.
 | yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
 | slayt silme / sıralama | çapraz referans taraması `story.xml`i de kapsamalı; `clone.py` bozuk atlama hedeflerini sessizce `actSubType="next"`e çeviriyor ve "Sınavı Yeniden Dene" için bu **anlamca yanlış** |
 | 30 tohumsuz ayak | `tools/ayirt_kapi.py` 11/41 tohumluyor; kapsam sayılı ve zarfta |
-| `coverage.ENVANTER` yedi kapıyı saymıyor | tablo "her kontrolün gerçekten koştuğu kesit" diyor ama yeni kapı ailesinin (`oturum`, `duzenle`, `puanlanabilirlik`, `kablolama`, `red_mesaji`, `tur_testi`, `medya`) hiçbirinin satırı yok. Yön **eksik iddia** — tablonun kendi uyardığı tehlikeli yönün tersi (var olmayan kontrole satır) — ama okuyan depoyu olduğundan az korunmuş sanır |
+| `ENVANTER`'in 12 satırsız kapısı | koşan 25 kapının 13'ü satırlı; kalan 12 **beyanlı** ve çırçır kapalı (beyansız yeni bir satırsız kapı kırmızı döner). Satır elle yazılır — fikstür ve eksen taşıyor; yokluğu hesaplı |
 | medya kaydını onaran araç yok | `assetG` çözülmezse `save` **reddediyor** ve ajanın elinde onarım yok: kaydın dıştaki listeden içtekine taşınması gerekiyor (üç satır). Yazılmadı, çünkü ihtiyaç **ölçülmüş sıfır** — gerçek 51 kursun 51'i temiz; taşıyan iki dosya kendi test artefaktımız. Böyle bir dosya gelirse red okunabilir ama **eylem önermiyor** |
 
 ### Tıkalı: soru bankası
