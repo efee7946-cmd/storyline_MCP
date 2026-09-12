@@ -865,6 +865,41 @@ durumda: SYSTEM_PROMPT'a öğretim bölümü eklendikten sonra aynı ölçü tek
 koşulmadan, değişikliğin davranışı gerçekten değiştirdiği değil yalnızca
 kelime sayısını artırdığı da mümkün kalır. İyileşme varsayılmaz, ölçülür.
 
+## Üç durum: geçti / kaldı / bakılmadı
+
+Aşağıdaki kuralların **üstünde** duran sözleşme bu, ve deponun dört ayrı
+katmanında aynı biçimde uygulanıyor:
+
+| katman | geçti | kaldı | bakılmadı |
+|---|---|---|---|
+| çıkış kodu | `0` | `1` | `3` |
+| ayak (`ayak.Defter`) | hüküm | kusur | `KOSMADI` |
+| yol haritası | — | sırada | tıkalı |
+| kapsam (`ayirt_kapi`) | 11 tohumlu | 41 tohumsuz | 17 beyansız |
+
+Dördünde de tek bir sebep var: **iki durumu tek sayıya katmak,
+bilinmeyeni bilinene benzetiyor.** Ölçülmüş dört örnek:
+
+- `compose kapisi` fikstürsüzken sessizce atlansaydı **"eksik"**
+  sanılacaktı; `KOSMADI` yazdığı için "bakılmadı" olarak okundu.
+- Suit'in verdikti `| tail -12` ile kesildi ve okunan çıkış kodu 0
+  çıktı — **borunun** kodu, suit'in değil (suit üç `KOSAMADI` kapı için
+  doğru şekilde 1 döndü). İki durumlu bir okuma, hiç denetlenmemiş bir
+  koşuyu **"denetlendi"** gösterdi. Çare: üçlü sayımı son satıra
+  koymak.
+- Soru bankası maddesi diğer üçüyle aynı listede dururken her turda
+  **"sıradaki iş"** sanılıp yeniden bakıldı; "tıkalı" ayrımı onu
+  kapattı.
+- 17 beyansız kapı 41 tohumsuz ayağa katılsaydı **ölçülmemiş alan**,
+  ölçülmüş boşluk gibi okunacaktı.
+
+> Bir durum daha vardır: *bakılmadı.* Onu geçti'ye katmak yanlış
+> güvence, kaldı'ya katmak yanlış alarm üretir — ikisi de sinyali
+> zamanla değersizleştirir.
+
+Bu sözleşmenin bir sonraki uygulaması **yeniden türetilmemeli, tanınmalı**:
+bir katmanda iki durum tek sayıya düşmüşse, üçüncüsü kaybolmuştur.
+
 ## Ölçü yazmanın kuralları
 
 > **Bu bölümün alıcısı belli:** yeni bir kapı ayağı ya da tohum yazan
@@ -1265,12 +1300,11 @@ oldukları için silinmediler — yanlış değillerdi, yalnızca yetmiyorlardı
 
 ## Kalan işler: sırada / tıkalı
 
-Bu deponun her katmanında üç durum var -- geçti, kaldı, **koşamadı**:
-çıkış 3'te, ayak düzeyinde (`compose kapisi: KOSMADI`), `varyans`
-zarfında. Yol haritası düzeyinde de olmalı, çünkü **kimsenin
-başlamadığı bir iş** ile **girdisi kimsede olmayan bir iş** aynı listede
-durursa ikisi aynı görünür -- ve ikincisi her turda "sıradaki iş" sanılıp
-yeniden bakılır.
+Bu, üç durum sözleşmesinin yol haritası katmanındaki hâli (sözleşmenin
+tamamı ve dört katmanı: **"Üç durum: geçti / kaldı / bakılmadı"**).
+Burada gerekli, çünkü **kimsenin başlamadığı bir iş** ile **girdisi
+kimsede olmayan bir iş** aynı listede durursa ikisi aynı görünür — ve
+ikincisi her turda "sıradaki iş" sanılıp yeniden bakılır.
 
 ### Sırada
 
