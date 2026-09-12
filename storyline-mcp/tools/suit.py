@@ -61,6 +61,17 @@ URETILMIS = str(ROOT.parent / "test" / "_canary" / "uretilmis.story")
 ADIMLAR = [
     ("scope",           [PY, "tools/scope.py"],
      True,  False, "kapsam iddialarini kosar"),
+    # SON SATIR KAPISI. Suit'in son satiri artik butun kosunun okundugu
+    # YUZEY (uclu sayim orada, `tail -1` yeterli olsun diye). Yuzey
+    # oldugu icin kaymasi en pahali ve en sessiz yer: satir basilmaya
+    # devam eder, sayilar yanlis olur. Bes cikis yolunun besi de
+    # sinaniyor -- `ADIMLAR` ve `kos()` prob degerlerle degistirilip
+    # GERCEK dallar kosularak, alt surec olmadan (~0.2 sn).
+    #
+    # En basta kosuyor: bu satir yanlissa geri kalan her sayinin
+    # okunacagi yer yanlis demektir.
+    ("son satir",       [PY, "tools/son_satir_kapi.py"],
+     True,  False, "fikstur yok: prob degerler"),
     ("consistency",     [PY, "tools/consistency.py"],
      False, False, "yalnizca kaynak kodu; 3 = KOSAMADI (mcp paketi yok)"),
     # RED MESAJI KAPISI. Ustteki kapilarin hepsi URETILEN seye bakiyor;
@@ -115,11 +126,13 @@ ADIMLAR = [
     # artefaktinin ikisi onu tasiyor, kontrol grubu (`cmp_old.story`)
     # temiz.
     #
-    # Alti ayak, ikisi ozellikle: DISTAKI (kaydi dis listeye elle tasiyip
+    # Yedi ayak, ucu ozellikle: DISTAKI (kaydi dis listeye elle tasiyip
     # kontrolun kizardigini kanitlar -- kontrol yazanin liste secimini
     # tekrarlamakla yetinmiyor) ve SILME YETIMI (zararsiz yonu
     # CEZALANDIRMAMA karari; `test/bos.story` yedi referanssiz kayit
-    # tasiyor ve uretilen her kurs ondan kopyalaniyor).
+    # tasiyor ve uretilen her kurs ondan kopyalaniyor) ve RED TARIFI
+    # (red iki hali AYIRT ETMELI ve sirada ne oldugunu soylemeli --
+    # olculmeyen bir mesaj degisir).
     ("medya kapisi",    [PY, "tools/medya_kapi.py"],
      True,  False, "URETIR: _canary/medya_kapi*.story; 3 = fikstur yok"),
     ("variety",         [PY, "tools/variety.py"],
@@ -290,6 +303,50 @@ ADIMLAR = [
 # Ucuncusunun ayri gorunmesi onemli: ikisini ayirmak icin kuruldu.
 KOSAMADI = 3
 
+
+def _son_satir(toplam: int, gecti: int, kaldi: int, bakilmadi: int,
+               rapor_sapma: int, kod: int, kosulmayan: int = 0) -> str:
+    """Uclu sayim, EN SON SATIRDA. Kesilmeye dayanikli tek yer.
+
+    NICIN SON SATIR. Suit bir kez `| tail -12` ile kosuldu ve VERDIKT
+    satiri kesilenin icinde kaldi; ayni kosuda cikis kodu 0 GORUNDU,
+    oysa uc kapi KOSAMADI'ydi. Sonuc: HIC DENETLENMEMIS bir suit
+    "yesil" okunabiliyor.
+
+    VE O SIFIR SUIT'IN DEGILDI (olculdu 2026-09-12): boru, olcunun
+    kodunu GOSTERIM ARACININ koduyla degistiriyor --
+
+        python -c "raise SystemExit(1)" | tail -5   ->  $? = 0
+        python -c "raise SystemExit(1)"             ->  $? = 1
+
+    Yani suit dogru davraniyordu (kosamayan kapi icin 1 doner; bes yol
+    da `tools/` disindaki bir probla sinandi). Kaybi okuma aparati
+    yaptı: kesilen sey once METIN, sonra KODUN KENDISI oldu. Kural bu
+    yuzden tek cumle: sayi da, hukum de, KOD da gosterimle ayni
+    cagridan gelmemeli.
+
+    CIKIS KODU UCLU YAPILMADI, ve gerekce deponun kendi tarihi: `mcp`
+    kurulu olmadigi donemde dort kapi aylarca KOSAMADI'ydi. Suit o
+    donem kalici 3 donseydi sinyal uretmeyi birakirdi -- `coverage
+    --kanarya`daki kalici kirmizi argumaninin aynisi. Ustune boru
+    ucuncu durumu da yutardi. O yuzden kod iki durumlu kaliyor ve
+    UCUNCU durum, borudan gecse bile okunan yere -- SON SATIRA -- SAYI
+    olarak yaziliyor. `tail -1` artik yeterli.
+
+    SAYIM AYRIK VE TOPLIYOR: gecti + kaldi + bakilmadi + rapor sapmasi
+    + kosulmayan = toplam. Toplamayan bir ozet, kesilmis bir ozet kadar
+    yanlis okunur.
+    """
+    parca = [f"{toplam} adim", f"{gecti} gecti", f"{kaldi} kaldi",
+             f"{bakilmadi} BAKILMADI"]
+    if rapor_sapma:
+        parca.append(f"{rapor_sapma} rapor sapmasi (kapi degil)")
+    if kosulmayan:
+        parca.append(f"{kosulmayan} KOSULMADI (kosu terk edildi)")
+    toplam_sayim = gecti + kaldi + bakilmadi + rapor_sapma + kosulmayan
+    denk = "" if toplam_sayim == toplam else f"  [SAYIM TUTMUYOR: {toplam_sayim}]"
+    return f"SUIT: {', '.join(parca)} -- kod {kod}{denk}"
+
 # Kanaryalar en basta kosar ve KALIRSA kosu terk edilir. canary.py'nin kendi
 # sozlesmesi bu: bozuk kontrol bagirmiyorsa, o kosudan gelen bir "gecti"
 # hicbir sey soylemez.
@@ -360,7 +417,14 @@ def main() -> int:
     print("-" * (w + 78))
 
     kalanlar, raporlar, atlananlar = [], [], []
+    # UCLU SAYIM AYRIK TUTULUYOR. `kalanlar` ile `atlananlar` KESISIYOR
+    # (kosamayan bir kapi ikisine de giriyor, cunku ikisi iki ayri sey
+    # soyluyor: "bakilmadi" ve "guvence uretmedi"). Son satirdaki sayimin
+    # TOPLAMASI gerektigi icin burada ayrik kovalar tutuluyor.
+    gecti = kapi_kaldi = bakilmadi = rapor_sapma = 0
+    kosulan = 0
     for ad, komut, kapi, _pahali, _notu, *beklenen in secili:
+        kosulan += 1
         kod, gecen, son = kos(ad, komut)
         bekle = beklenen[0] if beklenen else 0
         tur = "kapi" if kapi else "rapor"
@@ -370,16 +434,25 @@ def main() -> int:
               f"{kod:>5}  {son}")
         if kod == KOSAMADI and bekle != KOSAMADI:
             atlananlar.append(f"{ad} ({'KAPI' if kapi else 'rapor'})")
+            bakilmadi += 1
             if kapi:
                 kalanlar.append(f"{ad} (KOSAMADI -- guvence uretmedi)")
             continue
         if ad in KANARYALAR and kod != bekle:
             print(f"\nKANARYA KALDI ({ad}). Kosu terk edildi: dogrulayici\n"
                   "yalan soyluyorsa, geri kalan her yesil anlamsizdir.")
+            print(_son_satir(len(secili), gecti, kapi_kaldi + 1, bakilmadi,
+                             rapor_sapma, 1, kosulmayan=len(secili) - kosulan))
             return 1
         if kod != bekle:
             (kalanlar if kapi else raporlar).append(
                 ad if bekle == 0 else f'{ad} (beklenen {bekle})')
+            if kapi:
+                kapi_kaldi += 1
+            else:
+                rapor_sapma += 1
+        else:
+            gecti += 1
 
     print()
     if atlananlar:
@@ -390,6 +463,8 @@ def main() -> int:
               "(kapi degil, kosuyu dusurmez)")
     if kalanlar:
         print(f"{len(kalanlar)} KAPI KALDI: {', '.join(kalanlar)}")
+        print(_son_satir(len(secili), gecti, kapi_kaldi, bakilmadi,
+                         rapor_sapma, 1))
         return 1
     print("Butun kapilar gecti.")
     print("KAPSAM: geri bildirim katmanlari (<sldLayerLst>) taraniyor.\n"
@@ -404,6 +479,10 @@ def main() -> int:
           "        karsiligi, ve elle yapilmis kurslarda zemini cozulemeyen\n"
           "        sekiller -- sonuncular 'olculemeyen' sayilir ve SESSIZ\n"
           "        kalir, ihlal diye raporlanmaz.")
+    # EN SON SATIR. Yukaridaki KAPSAM blogu uzun ve `tail -1` onun
+    # ortasina dusuyordu; sayim buraya, hepsinin ALTINA yaziliyor.
+    print(_son_satir(len(secili), gecti, kapi_kaldi, bakilmadi,
+                     rapor_sapma, 0))
     return 0
 
 

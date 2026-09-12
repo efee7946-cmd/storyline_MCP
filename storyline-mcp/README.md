@@ -868,7 +868,7 @@ kelime sayısını artırdığı da mümkün kalır. İyileşme varsayılmaz, ö
 ## Ölçü yazmanın kuralları
 
 > **Bu bölümün alıcısı belli:** yeni bir kapı ayağı ya da tohum yazan
-> kişi. `tools/ayirt_kapi.py` bugün **11/41 ayağı** tohumluyor; kalan 30'u
+> kişi. `tools/ayirt_kapi.py` bugün **11/52 ayağı** tohumluyor; kalan 41'i
 > tohumlayacak olan, aşağıdaki dört kuralı tam o anda yazacak.
 
 Depodaki kapılar aynı kusur sınıfına **dokuz kez** düştü — dördü
@@ -946,11 +946,41 @@ satırlar yazıldıktan hemen sonra suit `... | tail -12` ile koşuldu ve
 verdikt satırı (*"Bütün kapılar geçti"*) kesilenin içinde kaldı. Sayı
 değildi bu sefer, **hükmün kendisiydi** — aynı mekanizma.
 
-Ve çıkış kodu yerine geçmiyor: aynı gün suit **0 dönerken** üç kapı
-`KOSAMADI` durumundaydı (sistem python'unda `mcp` paketi yok). Yani
-`$?` "bütün kapılar geçti" demiyor; o cümle yalnızca tam çıktıda
-duruyor. Hükmü kesilmiş bir görünümden okumak, sayıyı öyle okumakla
-aynı sınıf.
+**Ve o koşuda çıkış kodu da 0 göründü** — oysa üç kapı `KOSAMADI`
+durumundaydı. İlk yazışta bunu "suit 0 döndü" diye kaydettim; **yanlıştı,
+ve düzeltmesi kuralı genişletiyor.** Ölçüldü:
+
+```
+python -c "raise SystemExit(1)" | tail -5   ->  $? = 0
+python -c "raise SystemExit(1)"             ->  $? = 1
+```
+
+Boru, ölçünün kodunu **gösterim aracının** koduyla değiştiriyor. Suit
+doğru davranıyordu (koşamayan kapı için 1 döner — beş çıkış yolu da
+prob'la sınandı); kaybı okuma aparatı yaptı. Yani aynı çağrıda kesilen
+şey önce **metin**, sonra **kodun kendisi** oldu.
+
+> Sayı da, hüküm de, **çıkış kodu da** gösterimle aynı çağrıdan
+> gelmemeli.
+
+Çare çıkış kodunu üç durumlu yapmak **değil**: `mcp` kurulu olmadığı
+dönemde dört kapı aylarca `KOSAMADI`ydı ve suit kalıcı 3 dönseydi sinyal
+üretmeyi bırakırdı — `coverage --kanarya`daki kalıcı kırmızı
+argümanının aynısı. Üstüne boru üçüncü durumu da yutardı. Çare, üçlü
+sayımı **son satıra** koymak: ampirik olarak her okuma alışkanlığından
+sağ çıkan tek satır.
+
+```
+SUIT: 27 adim, 26 gecti, 0 kaldi, 0 BAKILMADI, 1 rapor sapmasi (kapi degil) -- kod 0
+```
+
+Sayım **ayrık ve toplar** (`geçti + kaldı + bakılmadı + rapor sapması +
+koşulmadı = toplam`); toplamazsa satırın kendisi `[SAYIM TUTMUYOR]`
+yazıyor. Beş çıkış yolunun beşi de bu satırı basıyor — koşunun terk
+edildiği kanarya yolu dahil, ki orada `KOSULMADI` sayısı ayrıca
+görünüyor. Bu, `neler`'i yapıya çevirmenin okuma tarafındaki eşi: kapı
+için biçimlendirilmiş dizge yerine **değer**, insan için **kesilmeye
+dayanıklı satır**.
 
 Bu, yazma tarafında *biçimlendirilmiş dizgeyi kapıya vermemekle* aynı
 cümlenin girdi tarafı: orada gösterim sayıdan türetiliyordu, burada sayı
@@ -1103,7 +1133,7 @@ kendi başında şunu yazıyor (2026-08-17):
 Yani **satır var / kontrol yok** yönü düşünülmüş ve elle bakılmış; iki
 satır tam o yüzden silinmiş. Öbür yön — **kontrol var / satır yok** —
 hiç bakılmıyordu. Ölçüldü: koşan 25 kapının **13'ü** satırsızdı
-(2026-09-12), ve elle grep'le sayınca 7 görünüyordu; altı kapıyı
+(2026-09-12; o an koşan kapı 25'ti), ve elle grep'le sayınca 7 görünüyordu; altı kapıyı
 (`uslup`, `dusen_arguman`, `yeni_modul`, `ajan_yolu`, `yeniden_beste`,
 `ogretim_kapi`) kaçırmıştım — bu turda üçüncü kez, kesilmiş bir ölçüm
 tam bir ölçüm gibi göründü. Kaçırdıklarımın listesini de ilk yazışta
@@ -1139,6 +1169,29 @@ bellekte bozulup çırçırın kırmızı döndüğü ölçülüyor, dosyaya
 dokunmadan. Yeşil bir çırçırın sessizce ölmesi kolaydı — `suit.ADIMLAR`
 biçimi değişse her kapı "satırlı" görünürdü.
 
+#### Dördüncü örnek: `ayirt_kapi`'nin böleni de kendinden türüyordu
+
+Aynı kalıbı `ENVANTER`'de kapatırken **aynı kusur `ayirt_kapi`'de
+bulundu** — ve bu sefer bir *kapsam sayısının* kendisinde. Bölen
+şöyle kuruluyordu:
+
+```python
+for kapi in sorted({s["kapi"] for s in SINAMALAR})
+```
+
+Yani **tohumu sıfır olan bir kapı bölene hiç girmiyordu.** Ölçüldü
+(2026-09-12): `tur_testi` (5 ayak) ve `son_satir_kapi` (5 ayak) böyle
+görünmezdi, ve gerçek bölen 41 değil **52**'ydi. Rapor edilen `11/41`
+gerçekte `11/52`; tohumsuz ayak 30 değil **41**.
+
+Evren artık dışarıdan geliyor — `suit.ADIMLAR`'da koşan kapılar
+**birleşim** tohumu olanlar. İkinci küme, suit'ten çıkarılmış ama tohumu
+duran bir kapıyı da görünür tutuyor (o hâlde "beyansız" değil, tohumu
+**ölü** demektir).
+
+> Bir kapsam sayısının böleni, ölçülen kümeden türetilemez. Türetilirse
+> sayı **her zaman iyimser** olur, ve tam olarak eksik olan şeyi saymaz.
+
 #### Kapatılmayan boşluk: `SCOPES` neden çırçıra girmedi
 
 Bu bölümdeki her ölçü kusuru *"ölçüyü düzelttik"* diye bitti. Bu tek
@@ -1163,7 +1216,7 @@ bakıyor.
 Bir kapı **mümkün** — ama koşulun kendisi hiçbir yerde beyan edilmiyor:
 *"konumsal-sadece, sonuç bildiren ölçü `SCOPES` taşımalı"* diyen bir
 kapı, ölçülerin kendi türünü beyan etmesini ister; yani `ayak.py`'nin
-**bir seviye aşağısı**. 3/25'te bu altyapıyı kurmak, körlük ısırmadan,
+**bir seviye aşağısı**. 3/26'da bu altyapıyı kurmak, körlük ısırmadan,
 kazandığından çok maliyet. Ucuz alternatif yazılı: körlük bir kez
 ısırdığında beyan o anda yazılır ve bölen doğar.
 
@@ -1215,8 +1268,8 @@ yeniden bakılır.
 | slayt geçişi, hareket yolu | ölçülmedi; animasyon sözlüğü yalnızca donör havuzunda görülenlerle sınırlı |
 | yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
 | slayt silme / sıralama | çapraz referans taraması `story.xml`i de kapsamalı; `clone.py` bozuk atlama hedeflerini sessizce `actSubType="next"`e çeviriyor ve "Sınavı Yeniden Dene" için bu **anlamca yanlış** |
-| 30 tohumsuz ayak | `tools/ayirt_kapi.py` 11/41 tohumluyor; kapsam sayılı ve zarfta |
-| `ENVANTER`'in 12 satırsız kapısı | koşan 25 kapının 13'ü satırlı; kalan 12 **beyanlı** ve çırçır kapalı (beyansız yeni bir satırsız kapı kırmızı döner). Satır elle yazılır — fikstür ve eksen taşıyor; yokluğu hesaplı |
+| 41 tohumsuz ayak | `tools/ayirt_kapi.py` 11/52 tohumluyor; kapsam sayılı ve zarfta. Bölen 2026-09-12'de **41'den 52'ye** düzeltildi: `SINAMALAR`dan türetildiği için tohumu sıfır olan kapı (o gün `tur_testi` ve `son_satir_kapi`, 5+5 ayak) bölene hiç girmiyordu |
+| `ENVANTER`'in 12 satırsız kapısı | koşan 26 kapının 14'ü satırlı; kalan 12 **beyanlı** ve çırçır kapalı (beyansız yeni bir satırsız kapı kırmızı döner). Satır elle yazılır — fikstür ve eksen taşıyor; yokluğu hesaplı |
 | medya kaydını onaran araç yok | `assetG` çözülmezse `save` **reddediyor** ve ajanın elinde onarım yok: kaydın dıştaki listeden içtekine taşınması gerekiyor (üç satır). Yazılmadı, çünkü ihtiyaç **ölçülmüş sıfır** — gerçek 51 kursun 51'i temiz; taşıyan iki dosya kendi test artefaktımız. Böyle bir dosya gelirse red okunabilir ama **eylem önermiyor** |
 
 ### Tıkalı: soru bankası

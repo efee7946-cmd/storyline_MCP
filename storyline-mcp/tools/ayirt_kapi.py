@@ -176,6 +176,34 @@ def sinama(s: dict) -> dict:
             "taban": taban, "mutasyonlu": mutasyonlu}
 
 
+def _kosan_kapilar() -> list[str]:
+    """Suit'te GERCEKTEN kosan kapi modulleri (`ayak.py` beyani olanlar).
+
+    NICIN VAR -- ve bu bir DUZELTME (2026-09-12). `_roster` boleni
+    `SINAMALAR`dan turetiyordu:
+
+        for kapi in sorted({s["kapi"] for s in SINAMALAR})
+
+    Yani TOHUMU OLMAYAN bir kapi bolene HIC girmiyordu. `son_satir_kapi`
+    bes ayak beyan ediyor ve sifir tohumu var; bolen 42'de kaliyor,
+    47 olmasi gerekirken -- kapsam OLDUGUNDAN IYI okunuyor.
+    Sinif tanidik: bolen, olculen seyin kendisinden turetilmis
+    (`coverage.ENVANTER`in 3. bolumu ayni sekilde kendi oneklerine
+    bakiyordu). Evren artik disaridan geliyor: suit'te kosan kapilar.
+    """
+    import suit                              # tool -> tool, dongu yok
+
+    adlar = []
+    for adim in suit.ADIMLAR:
+        if not adim[2]:                      # rapor degil, KAPI
+            continue
+        arac = next((a for a in adim[1] if isinstance(a, str)
+                     and a.startswith("tools/") and a.endswith(".py")), None)
+        if arac:
+            adlar.append(pathlib.Path(arac).name)
+    return sorted(set(adlar))
+
+
 def _roster() -> dict:
     """Her kapinin BEYAN ETTIGI ayaklar. Bolen buradan geliyor.
 
@@ -193,8 +221,18 @@ def _roster() -> dict:
     import warnings
     warnings.simplefilter("ignore")
     out = {}
-    for kapi in sorted({s["kapi"] for s in SINAMALAR}):
-        mod = __import__(kapi[:-3])
+    # EVREN DISARIDAN: suit'te kosan kapilar UNION tohumu olanlar. Ikinci
+    # kume, suit'ten cikarilmis ama tohumu duran bir kapiyi de gorunur
+    # tutuyor (o zaman `beyansiz` degil, tohumu OLU demektir).
+    evren = sorted(set(_kosan_kapilar()) | {s["kapi"] for s in SINAMALAR})
+    for kapi in evren:
+        try:
+            mod = __import__(kapi[:-3])
+        except Exception:
+            # IMPORT EDILEMEYEN KAPI "beyansiz" DEGIL: sessizce bolenden
+            # dusmesin diye ayri isaretleniyor.
+            out[kapi] = None
+            continue
         beyan = getattr(mod, "AYAKLAR", None)
         # GOC BLOKLAMIYOR: beyani olmayan kapi "beyansiz" diye raporlanir
         # ve BOLENE GIRMEZ. Kapsam bugunden durust kalir, gecis asamali
