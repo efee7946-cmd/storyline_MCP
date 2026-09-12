@@ -1192,6 +1192,18 @@ duran bir kapıyı da görünür tutuyor (o hâlde "beyansız" değil, tohumu
 > Bir kapsam sayısının böleni, ölçülen kümeden türetilemez. Türetilirse
 > sayı **her zaman iyimser** olur, ve tam olarak eksik olan şeyi saymaz.
 
+**Ve `11/52` ne kadarını kapsıyor, onu da yazmak gerek:** sayı, ayak
+beyanı olan **8 kapıyı** kapsıyor. Koşan diğer **17 kapı** hiç ayak
+beyan etmiyor ve bölene *bilinçli olarak* girmiyor — `ayak.py`'nin göç
+planı bu ("göç bloklamadan": beyansız kapı raporlanır, bölene girmez).
+Listesi her koşuda zarfa yazılıyor (`tools/ayirt_sonuc.json` →
+`kapsam.beyansiz_kapilar`), yani eksik küme sayının yanında duruyor,
+düzyazıda değil.
+
+Ayrım önemli: **41 tohumsuz ayak** ölçülmüş bir boşluk, **17 beyansız
+kapı** ise ölçülmemiş bir alan. İkincisini birincisiyle aynı sayıya
+katmak, bilinmeyeni bilinene benzetirdi.
+
 #### Kapatılmayan boşluk: `SCOPES` neden çırçıra girmedi
 
 Bu bölümdeki her ölçü kusuru *"ölçüyü düzelttik"* diye bitti. Bu tek

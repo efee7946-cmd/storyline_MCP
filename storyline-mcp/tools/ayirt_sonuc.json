@@ -1,10 +1,8 @@
 {
-  "zaman": "2026-09-12T16:18:10",
-  "commit": "20dbaf8",
-  "commit_temsil_ediyor_mu": false,
-  "islenmemis_dosyalar": [
-    "storyline-mcp/README.md"
-  ],
+  "zaman": "2026-09-12T17:47:43",
+  "commit": "bf5d20b",
+  "commit_temsil_ediyor_mu": true,
+  "islenmemis_dosyalar": [],
   "kirli_hedef_dosya": false,
   "sinamalar": [
     {
@@ -91,8 +89,26 @@
   ],
   "kapsam": {
     "tohumlanan": 11,
-    "toplam": 41,
-    "beyansiz_kapilar": [],
+    "toplam": 52,
+    "beyansiz_kapilar": [
+      "ajan_yolu.py",
+      "completeness.py",
+      "coverage.py",
+      "deadband.py",
+      "dusen_arguman.py",
+      "golden.py",
+      "invariants.py",
+      "ogretim_kapi.py",
+      "open_test.py",
+      "produced.py",
+      "rubric_fixtures.py",
+      "scope.py",
+      "themes_check.py",
+      "uslup.py",
+      "variety.py",
+      "yeni_modul.py",
+      "yeniden_beste.py"
+    ],
     "kapsanmayan": {
       "duzenle_kapi.py": [
         "tasima",
@@ -111,7 +127,8 @@
         "cipa",
         "kayitsiz",
         "null asset",
-        "silme yetimi"
+        "silme yetimi",
+        "red tarifi"
       ],
       "oturum_kapi.py": [
         "bilgisizlik",
@@ -135,6 +152,20 @@
       "red_mesaji.py": [
         "el sikisti",
         "ayrim (in-process)"
+      ],
+      "son_satir_kapi.py": [
+        "hepsi gecti",
+        "kapi kaldi",
+        "bakilmadi",
+        "rapor sapmasi",
+        "kanarya kaldi"
+      ],
+      "tur_testi.py": [
+        "acildi",
+        "zincir",
+        "kayit",
+        "quizLst",
+        "yapisal"
       ]
     }
   },
