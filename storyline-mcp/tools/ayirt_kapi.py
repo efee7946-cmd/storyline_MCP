@@ -131,6 +131,31 @@ SINAMALAR = [
          yeni=("        except StoryError:\n"
                "            raise   # MUTASYON"),
          kapi="red_mesaji.py", kapsadigi=("kasitli red", "compose kapisi")),
+    # ADIM SERIDI: IKI TOHUM, IKI AYRI KUSUR SINIFI.
+    #
+    # Birincisi kapinin varlik sebebi: izin listesine yeni bir arac
+    # girer, adim tablosu guncellenmez, ve serit o araci HIC gormez --
+    # kirilma sessiz, cunku kutular cizilmeye devam eder. Tohum ters
+    # yonden isliyor (tablodan bir satir dusuruluyor); kapinin ortusme
+    # denetimi iki yonlu oldugu icin ayni ayagi kizartiyor.
+    dict(ad="adim/tablo-ortusme", ayak="1 TABLO ORTUSUYOR",
+         taklit="izin listesindeki bir arac adim tablosunda YOK",
+         dosya="panel/agent.py",
+         eski='    "audit": 4, "check_javascript": 4,',
+         yeni='    "check_javascript": 4,   # MUTASYON: audit dusuruldu',
+         kapi="adim_kapi.py", kapsadigi=("tablo ortusuyor",)),
+    # Ikincisi bir CSS kaydirmasi ve bu depodaki en sessiz turden:
+    # `classList.add("hide")` calisir, sinif eklenir, ve HICBIR SEY
+    # OLMAZ -- kural stil sayfasinin basinda tek sinif ozgulluginde
+    # duruyor, asagidaki her tek-sinif `display` kurali onu yeniyor.
+    # Panelde tam olarak boyle yasandi: ilerleme seridi ve bos durum
+    # cubugu hicbir komut calismamisken bile ekranda kaldi.
+    dict(ad="adim/hide-korumasi", ayak="4 HIDE KURALI",
+         taklit="`.hide` !important'sizken asagidaki display kurali yeniyor",
+         dosya="panel/index.html",
+         eski="  .hide { display: none !important; }",
+         yeni="  .hide { display: none; }   /* MUTASYON */",
+         kapi="adim_kapi.py", kapsadigi=("hide kurali",)),
 ]
 
 

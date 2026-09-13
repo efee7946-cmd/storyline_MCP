@@ -96,7 +96,16 @@
   th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-size: 12px; font-weight: 600; }
   .ok-mark { color: var(--ok-ink); font-weight: 700; }
-  .hide { display: none; }
+  /* !important SART. Bu kural stil sayfasinin BASINDA duruyor ve
+     ozgullugu tek sinif; daha ASAGIDA tanimlanan her `.status`,
+     `.progress-steps` gibi tek-sinif `display` kurali esitlikte onu
+     yeniyordu. Sonuc: `classList.add("hide")` o ogeler icin HICBIR SEY
+     yapmiyordu -- ilerleme seridi ve bos durum cubugu hicbir komut
+     calismamisken bile ekranda duruyordu (olculdu 2026-09-14).
+     Kaydirmayi kurali tasiyarak degil !important ile kapatiyoruz:
+     tasimak yalniz BUGUNKU iki kurali cozer, asagiya eklenecek bir
+     sonraki `display` kuralinda ayni kusur sessizce geri gelir. */
+  .hide { display: none !important; }
   .status {
     display: flex; align-items: center; gap: 9px;
     background: var(--chip); border: 1px solid var(--line); border-radius: 8px;
@@ -670,12 +679,16 @@ function renderStatus() {
     `<span style="margin-left:auto;color:var(--muted)">${secs} sn</span>`;
 }
 
-// The elapsed counter is the point: a long run with a still line looks
-// identical to a hung one, which is how five minutes of silence gets read as
-// a crash.
+// GERI GITMEZ. Ajan soru ekledikten (3) sonra bir slayt daha
+// besteleyebilir (2); seridi 2'ye dusurmek, sorularin ZATEN eklendigi
+// bilgisini silerdi. Asamalar birikimli, serit de oyle okunuyor.
+let enIleriAdim = 0, resetTimer = null;
+
 function updateProgressStep(stepNum) {
   const stepsBox = $("progressSteps");
   if (!stepsBox) return;
+  if (stepNum <= enIleriAdim) return;
+  enIleriAdim = stepNum;
   stepsBox.classList.remove("hide");
   for (let i = 1; i <= 4; i++) {
     const el = $("pStep" + i);
@@ -691,6 +704,8 @@ function updateProgressStep(stepNum) {
 }
 
 function resetProgressSteps() {
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+  enIleriAdim = 0;
   const stepsBox = $("progressSteps");
   if (stepsBox) stepsBox.classList.add("hide");
   for (let i = 1; i <= 4; i++) {
@@ -699,28 +714,31 @@ function resetProgressSteps() {
   }
 }
 
-function setStatus(text, code = "") {
+// The elapsed counter is the point: a long run with a still line looks
+// identical to a hung one, which is how five minutes of silence gets read as
+// a crash.
+//
+// `adim` olayla birlikte GELIYOR; panel onu metinden cikarmiyor.
+// Once cikariyordu: durum dizgesinde "slayt", "soru", "audit" gibi
+// Turkce anahtarlar araniyordu, oysa arac adlari Ingilizce -- 54 aracin
+// 52'si hicbir adimi yakmiyordu (olculdu 2026-09-14). Sayiyi artik
+// `agent.TOOL_ADIM` hesapliyor; burasi yalnizca okuyor. 0 = oynatma.
+function setStatus(text, code = "", adim = 0) {
   statusText = text; statusCode = code;
   $("cmdStatus").classList.remove("hide");
   if (!ticker) { startedAt = Date.now(); ticker = setInterval(renderStatus, 1000); }
   renderStatus();
-
-  const low = (text + " " + code).toLowerCase();
-  if (low.includes("plan") || low.includes("taslak") || low.includes("başlat") || low.includes("müfredat")) {
-    updateProgressStep(1);
-  } else if (low.includes("slayt") || low.includes("tasarım") || low.includes("şablon") || low.includes("sayfa")) {
-    updateProgressStep(2);
-  } else if (low.includes("soru") || low.includes("etkileşim") || low.includes("quiz") || low.includes("test")) {
-    updateProgressStep(3);
-  } else if (low.includes("doğrulama") || low.includes("audit") || low.includes("kaydet") || low.includes("tamam")) {
-    updateProgressStep(4);
-  }
+  if (adim) updateProgressStep(adim);
 }
 function clearStatus() {
   if (ticker) { clearInterval(ticker); ticker = null; }
   startedAt = 0;
   $("cmdStatus").classList.add("hide");
-  setTimeout(resetProgressSteps, 4000);
+  // Serit bitisde birkac saniye kaliyor: son adim okunabilsin diye.
+  // Zamanlayici tutuluyor cunku 4 saniye dolmadan yeni bir kosu
+  // baslarsa, bekleyen sifirlama o kosunun seridini ortadan silerdi.
+  if (resetTimer) clearTimeout(resetTimer);
+  resetTimer = setTimeout(resetProgressSteps, 4000);
 }
 
 /* Ajan metnini HTML e cevirir: kacis, sonra kod/kalin, sonra satir
@@ -781,13 +799,13 @@ window.onAgentEvent = (ev) => {
     sonMetinDeger = (ev.text || "").trim();
   } else if (ev.kind === "tool") {
     toolCount++;
-    setStatus("çalışıyor:", ev.name);
+    setStatus("çalışıyor:", ev.name, ev.adim || 0);
   } else if (ev.kind === "result") {
     logLine(ev.error ? "✕" : "✓", `<span class="sub">${escapeHtml(ev.text)}</span>`,
             ev.error ? "err" : "");
   } else if (ev.kind === "step") {
     // Cycle steps stay: they explain why Storyline visibly closes and reopens.
-    setStatus(ev.text);
+    setStatus(ev.text, "", ev.adim || 0);
     logLine("⟳", `<span class="sub">${escapeHtml(ev.text)}</span>`);
   } else if (ev.kind === "error") {
     logLine("✕", escapeHtml(ev.text), "err");
@@ -917,7 +935,8 @@ $("cmdSend").onclick = async () => {
   $("cmdStop").disabled = false;
   logLine("▸", (asBrief ? "<b>Kurs kur:</b> " : "") +
     `<b>${escapeHtml(text.slice(0, 200))}${text.length > 200 ? "…" : ""}</b>`);
-  setStatus(asBrief ? "planlanıyor…" : "başlatılıyor…");
+  resetProgressSteps();
+  setStatus(asBrief ? "planlanıyor…" : "başlatılıyor…", "", 1);
   try {
     if (asBrief) {
       await call("build_course", S.path, text, $("cmdModel").value, courseProfile());

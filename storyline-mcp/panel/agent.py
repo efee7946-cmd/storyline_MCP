@@ -110,6 +110,54 @@ TOOLS = [
 TOOL_PREFIX = "mcp__storyline__"
 ALLOWED = [f"{TOOL_PREFIX}{name}" for name in TOOLS]
 
+# ADIM ESLEMESI. Panelin dort adimli ilerleme seridi buradan besleniyor.
+#
+# NICIN BURADA. Serit bir sure adimi DURUM METNINDEN tahmin ediyordu:
+# panel "calisiyor: add_slide" dizgesinde "slayt" gecip gecmedigine
+# bakiyordu. Araclarin adi Ingilizce, anahtar kelimeler Turkceydi --
+# 2026-09-14'te olculdu: 54 aracin 52'si HICBIR adimi yakmiyordu, yalniz
+# `list_quiz` ("quiz") ve `audit` ("audit") tutuyordu. Serit koszu boyunca
+# 1'de kaliyor, 2. adim hic yanmiyordu. Duzyazi vekil olarak kullanilinca
+# gorunen her zamanki hal: kirildigi ANDA sessiz.
+#
+# Sayiyi arac adindan TEK YER hesapliyor ve olayla birlikte gonderiyor;
+# panel yalnizca okuyor. `tools/adim_kapi.py` her TOOLS girdisinin burada
+# siniflanmis olmasini denetler -- yeni bir arac eklenip burasi
+# unutulursa kapi kirmizi doner, serit sessizce korlesmez.
+ADIM_OKUMA = 0  # okuyan arac: serit NEREDEYSE ORADA kalir
+
+TOOL_ADIM = {
+    # 0 -- OKUMA. Kosunun her yerinde olur; bir asama isareti degil.
+    "story_info": 0, "list_slides": 0, "extract_text": 0, "search_text": 0,
+    "list_variables": 0, "list_triggers": 0, "list_quiz": 0,
+    "list_templates": 0, "question_formats": 0, "theme": 0,
+    "slide_layout": 0, "slide_properties": 0, "story_size": 0,
+    "list_player_colors": 0, "list_button_states": 0, "list_layers": 0,
+    "list_animations": 0, "animation_effects": 0,
+    "list_js_capabilities": 0, "session_changes": 0,
+
+    # 1 -- TASLAK MUFREDAT. Arac yok: bu asama arac cagrilmadan once,
+    # ajan brief'i okurken gecer. Serit kosu basinda 1'e kurulur.
+
+    # 2 -- SLAYTLAR & SABLON.
+    "update_text": 2, "add_scene": 2, "add_slide": 2, "duplicate_slide": 2,
+    "build_course": 2, "compose_slide": 2, "set_background": 2,
+    "add_text_box": 2, "add_button": 2, "add_shape": 2, "restyle_text": 2,
+    "add_image": 2, "add_video": 2, "request_media": 2,
+    "set_theme_colors": 2, "set_theme_font": 2, "set_slide_properties": 2,
+    "set_story_size": 2, "set_player_color": 2, "set_button_state": 2,
+    "add_layer": 2, "animate_slide": 2, "move_shape": 2, "delete_shape": 2,
+
+    # 3 -- ETKILESIM & SORU. Degisken ve tetik de buraya girer: ikisi de
+    # yalnizca ogrencinin bir sey YAPMASI icin var.
+    "add_question": 3, "add_drag_question": 3, "add_text_question": 3,
+    "add_hotspot_question": 3, "add_results_slide": 3,
+    "add_variable": 3, "add_trigger": 3, "add_js_capability": 3,
+
+    # 4 -- DOGRULAMA.
+    "audit": 4, "check_javascript": 4,
+}
+
 # Substituted with str.replace, not str.format: the prompt contains literal
 # JSON braces as examples, and format() reads those as placeholders and raises
 # KeyError before the CLI is ever launched -- a command that simply never runs.
@@ -612,9 +660,13 @@ class AgentRun:
                     if not name.startswith(TOOL_PREFIX):
                         continue
                     self._ours.add(block.get("id"))
+                    kisa = name.replace(TOOL_PREFIX, "")
                     self.on_event({
                         "kind": "tool",
-                        "name": name.replace(TOOL_PREFIX, ""),
+                        "name": kisa,
+                        # Serit hangi adimda oldugunu buradan ogreniyor;
+                        # 0 = "oynatma". Panel metne BAKMIYOR.
+                        "adim": TOOL_ADIM.get(kisa, ADIM_OKUMA),
                         "input": self._brief(block.get("input", {})),
                     })
 

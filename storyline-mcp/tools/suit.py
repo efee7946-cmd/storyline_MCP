@@ -72,6 +72,18 @@ ADIMLAR = [
     # okunacagi yer yanlis demektir.
     ("son satir",       [PY, "tools/son_satir_kapi.py"],
      True,  False, "fikstur yok: prob degerler"),
+    # ADIM KAPISI. Panelin dort adimli ilerleme seridi adimi bir sure
+    # DURUM METNINDEN tahmin ediyordu: Ingilizce arac adlarinda Turkce
+    # anahtar kelime araniyordu ve 54 aracin 52'si hicbir kutuyu
+    # yakmiyordu (olculdu 2026-09-14). Sayi artik `panel/agent.py`de
+    # TEK YERDE hesaplaniyor; kapi o tablonun izin listesiyle iki yonlu
+    # ortustugunu, her adimin besleyicisi oldugunu ve `.hide` kuralinin
+    # korumali kaldigini denetler. Ucuncu ayagi ekilmis kusur.
+    #
+    # Fikstur GEREKTIRMEZ ve alt surec acmaz (~0.3 sn): temiz klonda da
+    # kosar, bu yuzden erken.
+    ("adim seridi",     [PY, "tools/adim_kapi.py"],
+     True,  False, "fikstur yok: agent.TOOLS ice aktariliyor"),
     ("consistency",     [PY, "tools/consistency.py"],
      False, False, "yalnizca kaynak kodu; 3 = KOSAMADI (mcp paketi yok)"),
     # RED MESAJI KAPISI. Ustteki kapilarin hepsi URETILEN seye bakiyor;

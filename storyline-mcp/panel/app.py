@@ -175,7 +175,7 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
     """Whole-course build, with the same close/reopen courtesy as a command."""
     reopen_after = False
     try:
-        _push_event({"kind": "step", "text": "Kurs oluşturma başlıyor…"})
+        _push_event({"kind": "step", "adim": 1, "text": "Kurs oluşturma başlıyor…"})
         if storyline_ctl.holds(path):
             _push_event({"kind": "step", "text": "Storyline bu projeyi açık tutuyor — kaydedilip kapatılıyor…"})
             result = storyline_ctl.save_and_close(path)
@@ -185,13 +185,13 @@ def _run_builder(path: str, brief: str, model: str, options: dict) -> None:
             reopen_after = True
 
         palette = _palette_for(options)
-        _push_event({"kind": "step", "text": "Builder çalışıyor…"})
+        _push_event({"kind": "step", "adim": 2, "text": "Builder çalışıyor…"})
         report = builder.build(
             path, brief, model=model, options=options, palette=palette or None,
             on_progress=lambda text: _push_event({"kind": "step", "text": text}),
         )
         verified = report["verified"]
-        _push_event({"kind": "step", "text": f"Dosya kaydedildi. Doğrulama: {'✓ Başarılı' if verified.get('ok') else '✗ Sorun var'}"})
+        _push_event({"kind": "step", "adim": 4, "text": f"Dosya kaydedildi. Doğrulama: {'✓ Başarılı' if verified.get('ok') else '✗ Sorun var'}"})
         inherited = report.get("inherited") or {}
         note = ""
         if inherited.get("empty_slides"):
