@@ -1,6 +1,6 @@
 {
-  "zaman": "2026-09-12T17:47:43",
-  "commit": "bf5d20b",
+  "zaman": "2026-09-14T01:14:45",
+  "commit": "0642403",
   "commit_temsil_ediyor_mu": true,
   "islenmemis_dosyalar": [],
   "kirli_hedef_dosya": false,
@@ -55,8 +55,8 @@
       "ayak": "1 EKLER + 6 KAYIT NOKTASI",
       "kapi": "kablolama_kapi.py",
       "taklit": "kablolama `_write`tan kaldirilmis (arac basina kural)",
-      "taban": 0,
-      "mutasyonlu": 1,
+      "taban": 3,
+      "mutasyonlu": 3,
       "durum": "kanitlandi"
     },
     {
@@ -82,14 +82,32 @@
       "ayak": "1 KASITLI RED",
       "kapi": "red_mesaji.py",
       "taklit": "StoryError -> ToolError donusumu dusmus (maskeleme geri)",
+      "taban": 3,
+      "mutasyonlu": 3,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "adim/tablo-ortusme",
+      "ayak": "1 TABLO ORTUSUYOR",
+      "kapi": "adim_kapi.py",
+      "taklit": "izin listesindeki bir arac adim tablosunda YOK",
+      "taban": 0,
+      "mutasyonlu": 1,
+      "durum": "kanitlandi"
+    },
+    {
+      "ad": "adim/hide-korumasi",
+      "ayak": "4 HIDE KURALI",
+      "kapi": "adim_kapi.py",
+      "taklit": "`.hide` !important'sizken asagidaki display kurali yeniyor",
       "taban": 0,
       "mutasyonlu": 1,
       "durum": "kanitlandi"
     }
   ],
   "kapsam": {
-    "tohumlanan": 11,
-    "toplam": 52,
+    "tohumlanan": 13,
+    "toplam": 57,
     "beyansiz_kapilar": [
       "ajan_yolu.py",
       "completeness.py",
@@ -110,6 +128,10 @@
       "yeniden_beste.py"
     ],
     "kapsanmayan": {
+      "adim_kapi.py": [
+        "adimlar besleniyor",
+        "ekilmis kusur"
+      ],
       "duzenle_kapi.py": [
         "tasima",
         "silme",
@@ -118,6 +140,7 @@
         "cozucu"
       ],
       "kablolama_kapi.py": [
+        "yeniden dene",
         "dusurur",
         "cogaltmaz",
         "ara hal",
