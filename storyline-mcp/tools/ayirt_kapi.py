@@ -267,7 +267,7 @@ def _roster() -> dict:
 
 
 def _zarf(sonuclar: list, kapsam: dict, kirli: list) -> pathlib.Path:
-    """Kaydin ZARFI: tarih, commit, kirli bayragi, kapsanmayan.
+    """Kaydin ZARFI: tarih, commit, ORTAM, kirli bayragi, kapsanmayan.
 
     ELLE KOSAN SEY KAYAR. Bu arac suit'te degil (urun kaynagini gecici
     degistiriyor; bir suit adimi cokerse agac MUTASYONLU kalirdi), ve
@@ -298,12 +298,39 @@ def _zarf(sonuclar: list, kapsam: dict, kirli: list) -> pathlib.Path:
         _ham = ""
     depo_kirli = [l[3:].strip() for l in _ham.splitlines() if l.strip()]
 
+    # ORTAM DA BIR GIRDI, ve bir sure kayitli DEGILDI.
+    #
+    # 2026-09-14: ayni commit, ayni temiz agac, IKI FARKLI KAYIT.
+    # `kablolama/degismez` ve `red_mesaji/donusum` bir kosuda (0,1),
+    # otekinde (3,3) cikti. Zarf ikisini de "0642403'te olculdu" diye
+    # kaydetti ve farkin sebebini SOYLEYEMEDI -- cunku kaydettigi sey
+    # yalnizca KODUN girdisiydi (commit, islenmemis dosyalar).
+    #
+    # Sebep ortamdi: `PY = sys.executable`, yani bu araci baslatan
+    # yorumcu butun alt kapilara MIRAS KALIYOR. Sistem python'unda `mcp`
+    # yok, venv'de var; mcp istemcisi acan iki kapi 3 donuyordu.
+    #
+    # Kayit, sonucu uretebilecek girdilerin HEPSINI tasimali; yoksa
+    # celisen iki zarftan hangisinin dogru oldugu disaridan bilinemez.
+    try:
+        import importlib.util
+        mcp_var = importlib.util.find_spec("mcp") is not None
+    except Exception:                                   # noqa: BLE001
+        mcp_var = None
+
     yol = ROOT / "tools" / "ayirt_sonuc.json"
     yol.write_text(json.dumps({
         "zaman": datetime.now().isoformat(timespec="seconds"),
         "commit": commit,
         "commit_temsil_ediyor_mu": not depo_kirli,
         "islenmemis_dosyalar": depo_kirli,
+        "ortam": {
+            # Kapilar `PY = sys.executable` ile kosuyor: bu alan, o
+            # kapilarin GERCEKTEN kostugu yorumcudur.
+            "yorumcu": sys.executable,
+            "surum": sys.version.split()[0],
+            "mcp_ice_aktarilabiliyor": mcp_var,
+        },
         "kirli_hedef_dosya": bool(kirli),
         "sinamalar": [{k: r[k] for k in ("ad", "ayak", "kapi", "taklit",
                                          "taban", "mutasyonlu", "durum")}
@@ -342,14 +369,22 @@ def main() -> int:
         r = sinama(s)
         sonuclar.append(r)
         t, m = r["taban"], r["mutasyonlu"]
+        # SINIF, satirdaki metinden AYRI bir deger. Onceki surumde yalniz
+        # `hukum` dizgesi vardi ve ekrana gidiyordu; kapsam sayimi onu
+        # goremedigi icin KOSAMADI bir tohumun ayaklari da "tohumlandi"
+        # sayisina giriyordu. Iki okuma, tek sayi.
         if r["durum"] != "kanitlandi":
-            hukum, kotu = r["durum"], kotu + 1
+            hukum, sinif, kotu = r["durum"], "sapma", kotu + 1
         elif t == 0 and m == 1:
-            hukum = "AYIRT EDIYOR"
+            hukum, sinif = "AYIRT EDIYOR", "kanitli"
+        elif 3 in (t, m):
+            # 3 = bu depoda KOSAMADI. "Kaldi" degil, "bakilmadi".
+            hukum, sinif, kotu = f"KOSAMADI ({t},{m})", "kosamadi", kotu + 1
         elif t == 0 and m == 0:
-            hukum, kotu = "AYIRT ETMIYOR <- kapi kor", kotu + 1
+            hukum, sinif, kotu = "AYIRT ETMIYOR <- kapi kor", "kor", kotu + 1
         else:
-            hukum, kotu = f"beklenmedik ({t},{m})", kotu + 1
+            hukum, sinif, kotu = f"beklenmedik ({t},{m})", "sapma", kotu + 1
+        r["sinif"] = sinif
         print(f"{r['ad']:<30}{r['ayak']:<22}{str(t):>7}{str(m):>10}  {hukum}")
 
     # KAPSAM BIR SAYI, CIKTININ ICINDE. Onceki surum "yedi ayak sinandi,
@@ -361,6 +396,10 @@ def main() -> int:
     roster = {k: v for k, v in roster.items() if v is not None}
     tohumlu: dict[str, set] = {k: set() for k in roster}
     defter = []
+    # Ayak -> onu tohumlayan sinamalarin SINIFLARI. Bir ayak birden cok
+    # tohumla kapsanabilir; KANITLI olmasi icin BIRININ ayirt etmesi yeter.
+    ayak_sinif: dict[tuple, set] = {}
+    sinif_of = {r["ad"]: r.get("sinif", "sapma") for r in sonuclar}
     for s in SINAMALAR:
         if s["kapi"] in beyansiz:
             continue
@@ -370,12 +409,39 @@ def main() -> int:
                               f"beyaninda YOK -- tohum defteri kaymis")
             else:
                 tohumlu[s["kapi"]].add(ayak)
+                ayak_sinif.setdefault((s["kapi"], ayak), set()).add(
+                    sinif_of.get(s["ad"], "sapma"))
     toplam = sum(len(v) for v in roster.values())
     kapsanan = sum(len(v) for v in tohumlu.values())
 
+    def _ayak_sinifi(anahtar: set) -> str:
+        if "kanitli" in anahtar:
+            return "kanitli"
+        for oncelik in ("kor", "kosamadi"):
+            if oncelik in anahtar:
+                return oncelik
+        return "sapma"
+
+    kova = {"kanitli": 0, "kosamadi": 0, "kor": 0, "sapma": 0}
+    for anahtar, sinifler in ayak_sinif.items():
+        kova[_ayak_sinifi(sinifler)] += 1
+
     print()
+    # UCUNCU DURUM AYRI KALIR. Satir bir sure yalniz "13/57 tohumlandi"
+    # diyordu ve bolene bakan onu "13 ayak KANITLI" diye okuyordu --
+    # oysa kosamayan bir tohumun ayaklari da paya giriyordu. 2026-09-14'te
+    # ayni commit, ayni temiz agac, iki farkli kayit verdi: fark yalnizca
+    # KOSAN YORUMCUYDU (sistem python'unda `mcp` yok, venv'de var), ve iki
+    # kapi 3 donuyordu. Sayi "kaldi" gibi okundu, oysa "bakilmadi"ydi.
+    #
+    # Dort kova da HER ZAMAN basiliyor: sifir bir kovayi gizlemek, o
+    # durumun var oldugunu da gizler. Satir kendi toplamini denetliyor.
+    tutar = sum(kova.values()) == kapsanan
     print(f"KAPSAM: {kapsanan}/{toplam} ayak tohumlandi "
-          f"({len(roster)} kapi roster'da).")
+          f"({len(roster)} kapi roster'da) -- "
+          f"{kova['kanitli']} kanitli, {kova['kosamadi']} KOSAMADI, "
+          f"{kova['kor']} kor, {kova['sapma']} sapma"
+          f"{'' if tutar else '  [SAYIM TUTMUYOR]'}")
     if beyansiz:
         print(f"  BEYANSIZ (bolene girmiyor): {', '.join(beyansiz)} -- "
               f"ayak beyani yok, kapsami OLCULEMEZ")
@@ -388,11 +454,13 @@ def main() -> int:
           "mesaj hic degismemisti.")
 
     kapsam = {"tohumlanan": kapsanan, "toplam": toplam,
+              "kanitli": kova["kanitli"], "kosamadi": kova["kosamadi"],
+              "kor": kova["kor"], "sapma": kova["sapma"],
               "beyansiz_kapilar": beyansiz,
               "kapsanmayan": {k: [a for a in v if a not in tohumlu[k]]
                               for k, v in roster.items()}}
     zarf = _zarf(sonuclar, kapsam, kirli)
-    print(f"  zarf yazildi: {zarf.name} (zaman + commit + kirli bayragi)")
+    print(f"  zarf yazildi: {zarf.name} (zaman + commit + ortam + kirli bayragi)")
 
     print()
     if defter:
