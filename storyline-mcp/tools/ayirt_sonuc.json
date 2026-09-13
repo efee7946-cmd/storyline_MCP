@@ -1,8 +1,13 @@
 {
-  "zaman": "2026-09-14T01:14:45",
-  "commit": "0642403",
+  "zaman": "2026-09-14T01:29:47",
+  "commit": "316906d",
   "commit_temsil_ediyor_mu": true,
   "islenmemis_dosyalar": [],
+  "ortam": {
+    "yorumcu": "C:\\Users\\erman\\Desktop\\Art\\storyline-mcp\\.venv\\Scripts\\python.exe",
+    "surum": "3.11.0",
+    "mcp_ice_aktarilabiliyor": true
+  },
   "kirli_hedef_dosya": false,
   "sinamalar": [
     {
@@ -55,8 +60,8 @@
       "ayak": "1 EKLER + 6 KAYIT NOKTASI",
       "kapi": "kablolama_kapi.py",
       "taklit": "kablolama `_write`tan kaldirilmis (arac basina kural)",
-      "taban": 3,
-      "mutasyonlu": 3,
+      "taban": 0,
+      "mutasyonlu": 1,
       "durum": "kanitlandi"
     },
     {
@@ -82,8 +87,8 @@
       "ayak": "1 KASITLI RED",
       "kapi": "red_mesaji.py",
       "taklit": "StoryError -> ToolError donusumu dusmus (maskeleme geri)",
-      "taban": 3,
-      "mutasyonlu": 3,
+      "taban": 0,
+      "mutasyonlu": 1,
       "durum": "kanitlandi"
     },
     {
@@ -108,6 +113,10 @@
   "kapsam": {
     "tohumlanan": 13,
     "toplam": 57,
+    "kanitli": 13,
+    "kosamadi": 0,
+    "kor": 0,
+    "sapma": 0,
     "beyansiz_kapilar": [
       "ajan_yolu.py",
       "completeness.py",
