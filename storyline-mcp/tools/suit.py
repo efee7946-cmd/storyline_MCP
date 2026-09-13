@@ -86,6 +86,17 @@ ADIMLAR = [
      True,  False, "fikstur yok: agent.TOOLS ice aktariliyor"),
     ("consistency",     [PY, "tools/consistency.py"],
      False, False, "yalnizca kaynak kodu; 3 = KOSAMADI (mcp paketi yok)"),
+    # AYIRT RAPORU. `ayirt_kapi` suit'te DEGIL ve olmamali: urun
+    # kaynagini gecici degistiriyor ve sert bir oldurmede `finally`
+    # kosmaz -- mutasyonlu kalan agac, duzelttigi seyden kotu. Bedeli
+    # kendi basliginda yaziyordu: "elle kosan sey kayar", ve zarf bunun
+    # icin vardi. ACIK: zarfi kimse okumuyordu. Bir JSON dosyasi
+    # okunmaz; BU cikti her kosuda okunur.
+    #
+    # Adim zarfi OKUR, araci kosturmaz -- mutasyon riski sifir. Boylece
+    # "elle kosan sey kayar" bir nottan OLCULEN BIR NICELIGE donuyor.
+    ("ayirt (rapor)",   [PY, "tools/ayirt_rapor.py"],
+     False, False, "rapor: ayirt_sonuc.json'i okur; 3 = hic kosulmamis"),
     # RED MESAJI KAPISI. Ustteki kapilarin hepsi URETILEN seye bakiyor;
     # bu, aracin REDDEDERKEN ne soyledigine. Kapatilan kusur sinifi:
     # mcp 2.x yalnizca `ToolError`in metnini geciriyor, `StoryError` duz

@@ -343,6 +343,86 @@ def _zarf(sonuclar: list, kapsam: dict, kirli: list) -> pathlib.Path:
     return yol
 
 
+# KAPININ GEREKTIRDIGI YETENEK, yolu degil.
+#
+# `PY = sys.executable` SABITLENMEDI ve sabitlenmeyecek: asil gereksinim
+# `.venv/Scripts/python.exe` degil, `mcp`yi ICE AKTARABILEN bir yorumcu.
+# Ikisi bugun ayni, yarin degil (baska bir venv, CI'da mcp kurulu bir
+# sistem python'u, tasinmis bir kurulum). Deponun kendisi bu soruyu bir
+# kez cevaplamis, ters yonde: `red_mesaji.py`nin basligi `sys.executable`
+# tercihini gerekcelendiriyor -- konsol betigi kurulum yerine gore
+# degisir, `-c` ile baslatmak kapiyi URUNUN ORTAMINA baglar, kurulumun
+# tesadufune degil. Yol sabitlemek tam olarak o tesadufe baglamak olur.
+#
+# Onun yerine KOSMADAN ONCE YETENEGI SORUYORUZ. Reddetmiyoruz: 9 kanitli
+# ayak hala gercek bilgi, ve reddetmek araci mcp'siz ortamda busbutun
+# kullanilmaz kilardi. Eksik olan sey SAYI degil SEBEP -- "4 KOSAMADI"
+# satiri NEYIN eksik oldugunu soylemiyordu.
+#
+# Beyan TAHMIN DEGIL, kaynaktan olculdu (2026-09-14): roster'daki yedi
+# kapidan yalnizca bu ikisi mcp istemcisi aciyor. Kayma iki yonlu
+# denetleniyor -- beyansiz bir kapi 3 donerse kosu sonunda bildirilir.
+YETENEK = {
+    "kablolama_kapi.py": ("mcp",),
+    "red_mesaji.py": ("mcp",),
+}
+
+
+def _yetenek(modul: str) -> bool:
+    """Bu yorumcu `modul`u ice aktarabiliyor mu. Kapilar `PY` ile
+    kosuyor ve `PY` bu yorumcu, yani cevap onlar icin de gecerli."""
+    try:
+        import importlib.util
+        return importlib.util.find_spec(modul) is not None
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def _venv_ipucu() -> str:
+    """Varsa depodaki venv yorumcusu -- ONERI olarak, sabit olarak degil."""
+    for aday in (ROOT / ".venv" / "Scripts" / "python.exe",
+                 ROOT / ".venv" / "bin" / "python"):
+        if aday.exists():
+            return str(aday)
+    return ""
+
+
+def _onsoz(roster: dict) -> set:
+    """Kosmadan once: bu yorumcunun acamayacagi kapilari BILDIR.
+
+    Donen kume, eksik yetenek yuzunden olculemeyecegi ONCEDEN bilinen
+    kapilarin adlari. Cagiran bunu kosu sonundaki kayma denetiminde
+    kullaniyor.
+    """
+    eksik = {m for moduller in YETENEK.values() for m in moduller
+             if not _yetenek(m)}
+    if not eksik:
+        return set()
+    kapilar = {k for k, moduller in YETENEK.items()
+               if any(m in eksik for m in moduller)}
+    ayaklar = 0
+    for s in SINAMALAR:
+        if s["kapi"] in kapilar:
+            ayaklar += len([a for a in s["kapsadigi"]
+                            if a in (roster.get(s["kapi"]) or ())])
+    toplam = sum(len(v) for v in roster.values() if v is not None)
+    tohumlu = 0
+    for s in SINAMALAR:
+        tohumlu += len([a for a in s["kapsadigi"]
+                        if a in (roster.get(s["kapi"]) or ())])
+    print(f"KOSAMADI (kismi): bu yorumcu {', '.join(sorted(eksik))} "
+          f"ice aktaramiyor -- {', '.join(sorted(kapilar))} acilamaz, "
+          f"{ayaklar} ayak OLCULEMEZ.")
+    print(f"  Kapsam {max(tohumlu - ayaklar, 0)}/{toplam} okunacak, "
+          f"{tohumlu}/{toplam} degil. Eksik olan KANIT, kapi degil.")
+    print(f"  Yorumcu: {sys.executable}")
+    ipucu = _venv_ipucu()
+    if ipucu:
+        print(f"  Tam olcum icin: {ipucu} tools/ayirt_kapi.py")
+    print()
+    return kapilar
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--liste", action="store_true", help="ne sinanacak, kosma")
@@ -360,6 +440,11 @@ def main() -> int:
               f"({', '.join(kirli)}). Geri yukleme senin duzenlemeni "
               "yutardi; once commit et ya da stash'le.")
         return 3
+
+    # YETENEK, KOSUDAN ONCE. Bunu tablodan sonra basmak, okurun once
+    # dort tane (3,3) gorup "kapi kirildi" diye okumasina izin verirdi --
+    # belirti ile teshis arasindaki fark tam olarak SIRA.
+    beklenen_kosamaz = _onsoz(_roster())
 
     print(f"{'sinama':<30}{'ayak':<22}{'taban':>7}{'mutasyon':>10}  hukum")
     print("-" * 92)
@@ -452,6 +537,19 @@ def main() -> int:
     print("  Tohumsuz bir ayak, OLCTUGU SANILAN bir ayaktir: bu iplikte "
           "`red_mesaji`nin\n  `:133` ayagi tam olarak oyle yesildi -- "
           "mesaj hic degismemisti.")
+
+    # YETENEK BEYANI IKI YONLU. Beyansiz bir kapi 3 dondurduyse beyan
+    # kaymis demektir: onsoz o kapiyi haber VERMEDI ve okur sebebini
+    # goremedi. Ters yon (beyanli kapi calisiyor) kusur degil -- yetenek
+    # o ortamda vardi.
+    sapan = sorted({r["kapi"] for r in sonuclar
+                    if r.get("sinif") == "kosamadi"
+                    and r["kapi"] not in beklenen_kosamaz})
+    if sapan:
+        defter.append(
+            "YETENEK BEYANI KAYMIS: %s kapisi KOSAMADI dondu ama YETENEK "
+            "beyaninda yok -- onsoz sebebini haber veremedi. Beyana "
+            "ekleyin (bkz. YETENEK)." % ", ".join(sapan))
 
     kapsam = {"tohumlanan": kapsanan, "toplam": toplam,
               "kanitli": kova["kanitli"], "kosamadi": kova["kosamadi"],
