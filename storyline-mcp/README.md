@@ -1425,13 +1425,22 @@ ikincisi her turda "sıradaki iş" sanılıp yeniden bakılır.
 
 ### Sırada
 
-**Ses ve geçiş için ilk hamle tasarım değil:** bağışçı havuzunda o şeyi
-taşıyan bir dosya bulup Storyline'ın ne yazdığını okumak (bkz. *"Üçüncü
-kategori: zaten yazılmış olanı okumadık"* — havuz bu oturumda dört kez
-doğru cevabı verdi). İkisi için bilinmeyen şey tasarım değil, **biçim**.
+**Geçiş için ilk hamle tasarım değil:** bağışçı havuzunda o şeyi taşıyan
+bir dosya bulup Storyline'ın ne yazdığını okumak (bkz. *"Üçüncü
+kategori: zaten yazılmış olanı okumadık"*). Onun için bilinmeyen şey
+tasarım değil, **biçim** — ve okuma yapıldı (2026-09-14), sonucu
+aşağıdaki satırda.
 
-İki madde bu kalıba **girmiyor**, ve ikisi de ayrı sebepten:
+**Üç madde bu kalıba girmiyor**, üçü de ayrı sebepten:
 
+- **Ses havuzda YOK** — ölçüldü (2026-09-14, 57 dosya: 6 bağışçı + 51
+  gerçek kurs). İki bağımsız yüklem aynı şeyi söylüyor: 4339 `<audio>`
+  elemanının **hiçbirinde öznitelik yok** (hepsi boş yer tutucu), ve
+  126 medya kaydının türü yalnızca `Png`/`Jpeg`/`Emf` — **tek bir ses
+  kaydı yok**. Yani ses "sırada" değil, **tıkalı**: girdisi bankanınki
+  gibi elde değil. Bu satır iki gün boyunca yanlış durdu ve okuyanı var
+  olmayan bir dosyayı aramaya gönderirdi — bankada yakalanan kusurun
+  aynısı.
 - **Yayınlama yarı yarıya biçim sorusu.** `trackMode`,
   `lmsResultSlideG`, `playerProps` havuzda okunur — ama *yayınlanan
   paketin gerçekten rapor edip etmediği* `.story`'de **değil**, çıktı
@@ -1439,13 +1448,12 @@ doğru cevabı verdi). İkisi için bilinmeyen şey tasarım değil, **biçim**.
   bir okuma.
 - **Banka havuzda yok.** Aşağıdaki "Tıkalı" bölümü onu ayrıca
   anlatıyor: 480 `.story` tarandı, banka dolu tek dosya bu ipliğin
-  kendi sentetiğiydi. Başlığı ona uygulamak, okuyanı var olmayan bir
-  dosyayı aramaya gönderir.
+  kendi sentetiğiydi.
 
 | iş | notu |
 |---|---|
-| ses, altyazı | araç yüzeyinde karşılığı yok (`add_audio` yazılmadı) |
-| slayt geçişi, hareket yolu | ölçülmedi; animasyon sözlüğü yalnızca donör havuzunda görülenlerle sınırlı |
+| slayt geçişi | **biçim okundu** (2026-09-14): tür, `<trans>`in **çocuk elemanının adı** — `<trans><fade dur="PT1S"/></trans>`; ebeveyn `sld` ya da `sldLayer`. Sözlük havuzun taşıdığıyla sınırlı: yalnızca `fade` ve `none`, 57 dosyanın **1**'inde (Accordion.story), `dur` her yerde `PT1S`. `sld` düzeyinde yalnızca **2** örnek var — yani slayt geçişi havuzda neredeyse hiç kullanılmamış. Ötesi (push, wipe, zoom) **uydurma** olurdu |
+| hareket yolu | ölçülmedi |
 | yayınlama / SCORM | hiçbir adım kursun yayınlandığını doğrulamıyor; `audit` yapısal |
 | slayt silme / sıralama | araç yok; çapraz referans taraması `story.xml`i de kapsamalı (atlama hedefi, quiz kaydı, LMS hedefi). **Eksik yüzey** — bir şey bozmuyor, yalnızca yapılamıyor |
 | 41 tohumsuz ayak | `tools/ayirt_kapi.py` 11/52 tohumluyor; kapsam sayılı ve zarfta. Bölen 2026-09-12'de **41'den 52'ye** düzeltildi: `SINAMALAR`dan türetildiği için tohumu sıfır olan kapı (o gün `tur_testi` ve `son_satir_kapi`, 5+5 ayak) bölene hiç girmiyordu |
@@ -1477,6 +1485,25 @@ anlamı `tools/banka_sorusu.py` başlığında.
 **Bu ayrımın kendisi bir iş:** aynı listede durdukları sürece dört
 madde birden bankanın cevabını bekliyor görünüyordu. Ses, geçiş ve
 yayınlama onu hiç beklemiyor.
+
+### Tıkalı: ses
+
+**Girdisi havuzda yok, ve arandı.** 57 dosya tarandı (6 bağışçı + 51
+gerçek kurs, 2026-09-14) ve iki bağımsız yüklem aynı sonucu verdi:
+
+- `<audio>` elemanı **4339 kez** geçiyor ama **hiçbirinde öznitelik
+  yok** — hepsi boş yer tutucu. Varlık, özellik değil.
+- `mediaLst > mediaLst` içindeki **126 kaydın** türü yalnızca `Png`,
+  `Jpeg`, `Emf`. **Tek bir ses kaydı yok.**
+
+Yani `add_audio` yazmadan önce cevaplanacak soru — Storyline sesi hangi
+kayıtla, hangi parça adıyla ve şekle hangi öznitelikle bağlıyor —
+**okunacak bir dosya olmadığı için** cevapsız. Sentetik kurmak dairesel
+olurdu: ölçümün konusu ölçeni tarafından sağlanmış olur.
+
+**Açacak tek şey**, bankadakiyle aynı: dışarıdan gelen, Storyline'ın
+yazdığı, **ses taşıyan** gerçek bir proje. Bir tane gelirse yukarıdaki
+iki yüklem onu kendiliğinden görür.
 
 ## Doğrulama
 
