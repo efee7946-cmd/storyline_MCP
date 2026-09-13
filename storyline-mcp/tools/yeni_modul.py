@@ -1435,16 +1435,30 @@ def main() -> int:
     _yol35 = Path(tempfile.gettempdir()) / "sohbet_yolu_kanarya.story"
     shutil.copy2(BLANK, _yol35)
 
-    def _son_metin35(_dosya):
+    # NE TESLIM EDILDIGINE BAKAR, HANGI ALANLA DEGIL. Not "text"e
+    # yapistirilmiyor artik -- panelin ayni cumleyi iki kez basmamasi
+    # ajanin KENDI sozunun "text"te yalniz kalmasina bagli. Iddia
+    # "not bitis olayina ULASTI" oldugu icin ayak ikisini birlestirip
+    # okuyor; ALANIN AYRI KALDIGINI ise asagidaki `_ham35` sinar.
+    def _son_olay35(_dosya):
         _yakalanan = []
         _kosu = _AR35(str(_dosya), "komut", _yakalanan.append,
                       output_path=str(_dosya))
         _kosu._dispatch({"type": "result", "result": "Kurs kuruldu.",
                          "is_error": False})
         _son = [_e for _e in _yakalanan if _e["kind"] == "final"]
-        return _son[0]["text"] if _son else ""
+        return _son[0] if _son else {}
 
-    _sohbet35 = _son_metin35(_yol35)
+    def _son_metin35(_dosya):
+        _e = _son_olay35(_dosya)
+        return ((_e.get("text") or "") + " " + (_e.get("not") or "")).strip()
+
+    # HAM OLAY O ANDA ALINIR. `_yol35` birkac satir asagida kurucu yola
+    # DONUSTURULUYOR; ayni cagriyi sonra tekrarlamak bambaska bir dosyayi
+    # olcerdi ve "not bos" sonucu kusur degil, yanlis ani okumak olurdu.
+    _ham35 = _son_olay35(_yol35)
+    _sohbet35 = ((_ham35.get("text") or "") + " "
+                 + (_ham35.get("not") or "")).strip()
     # KAYNAK NOT, o andaki dosyadan: final metniyle karsilastirilacak.
     _sohbet_notu35 = _il35.sohbet_yolu_notu(StoryPackage(_yol35))
     with warnings.catch_warnings():
@@ -1529,10 +1543,34 @@ def main() -> int:
     if _kurucu_notu35.strip():
         _sorun35.append("kurucu yolda yanlis alarm: sohbet_yolu_notu %r "
                         "dondurdu" % _kurucu_notu35.strip()[:60])
+    # NEGATIFIN VARIS YANI. Kaynak (`sohbet_yolu_notu`) kurucu yolda
+    # sustugu halde metin yine de oraya ulasiyor olabilirdi -- bitis
+    # olayini besleyen TEK yer o degil. Iddia elle yazilmis bir parcayla
+    # degil, sohbet yolunun O ANDA URETTIGI metinle kuruluyor.
+    #
+    # "Ayak izi" notu bu kontrolun DISINDA: o her iki yolda da dogru
+    # olarak konusur, sohbet yoluna ozgu degildir.
+    if _sohbet_notu35.strip() and _sohbet_notu35.strip() in _kurucu35:
+        _sorun35.append("sohbet yolu notu KURUCU yolun bitis olayina "
+                        "sizdi: %r" % _sohbet_notu35.strip()[:60])
     if "okunamadi" in _sohbet35:
         # Teshis alinamadigini SOYLEMESI dogru, ama kanaryada bu
         # "not calisiyor" diye okunmamali.
         _sorun35.append("teshis okunamadi: %r" % _sohbet35[:80])
+    # EKILMIS KUSUR KANARYASI: not "text"e geri yapisirsa kirmizi.
+    #
+    # Panel ayni kapanis cumlesini iki kez basmasin diye "text" olayiyla
+    # bitis metnini BIREBIR karsilastiriyor. Teshis metne eklendigi surece
+    # o esitlik hic tutmuyor ve kullanici ayni paragrafi ust uste iki kez
+    # okuyor (olculdu 2026-09-14). Yukaridaki delivery iddiasi bu kusuru
+    # GOREMEZ -- birlestirilmis metne bakiyor -- o yuzden ayri sorulur.
+    if (_ham35.get("text") or "").strip() != "Kurs kuruldu.":
+        _sorun35.append("ajanin sozu yalniz degil: final['text'] = %r "
+                        "(teshis notu metne yapistirilmis; panelin "
+                        "tekrar korumasi bu halde CALISMAZ)"
+                        % (_ham35.get("text") or "")[:100])
+    if not (_ham35.get("not") or "").strip():
+        _sorun35.append("final olayinda 'not' alani bos: teshis nereye gitti?")
     # SIPARIS GERCEKTEN YAZILIYOR MU -- ucu uca, `_dispatch` uzerinden.
     #
     # Notun "yazildi" demesi yetmez: defter DISKTE olusmali, cunku panelin

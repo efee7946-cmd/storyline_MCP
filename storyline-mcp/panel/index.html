@@ -177,6 +177,9 @@
   .tur.video { background: var(--accent); color: var(--accent-ink); }
   .gonder { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .gonder .sayac { font-size: 12.5px; color: var(--muted); }
+  /* Teşhis notu ajanın cümlesi değildir: dosyanın ölçülmüş hali.
+     Aynı paragrafa yapışınca ajanın sözü sanılıyordu. */
+  .log .tespit { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); font-size: 12px; opacity: .92; }
   .log.final { background: var(--ok-bg); border-radius: 7px; padding: 9px 11px; margin-top: 9px; border: 1px solid var(--ok-line); }
   .log.final.err { background: var(--err-bg); border-color: var(--err-line); }
   .spin { display: inline-block; animation: sp 1s linear infinite; }
@@ -823,13 +826,21 @@ window.onAgentEvent = (ev) => {
            <button class="small" onclick="undoRun('${escapeHtml(ev.output_path).replace(/\\/g, "\\\\")}')">Bu koşuyu geri al</button>
          </div>` : "";
     const ops = toolCount ? ` · ${toolCount} işlem` : "";
+    // AJANIN SON CÜMLESİ BİR KEZ OKUNUR. Kapanış cümlesi hem "text"
+    // olayıyla hem yeşil kutuda geliyor; aynıysa üstteki satır kaldırılır.
+    // Karşılaştırma ajanın KENDİ sözüne bakıyor: teşhis notu ayrı alanda
+    // geliyor ve birleştirmeyi burası yapıyor, yoksa ek cümleler yüzünden
+    // eşitlik hiç tutmaz ve aynı paragraf iki kez görünür.
+    const notu = (ev.not || "").trim();
     if (sonMetinEl && (ev.text || "").trim() &&
         (ev.text || "").trim() === sonMetinDeger) {
       sonMetinEl.remove();
     }
     sonMetinEl = null; sonMetinDeger = "";
     logLine(ev.error ? "✕" : "✔",
-      `${metinHtml(ev.text || "Tamamlandı")}<div class="sub">${ev.turns || 0} adım${secs}${ops}</div>${out}`,
+      `${metinHtml(ev.text || "Tamamlandı")}` +
+      (notu ? `<div class="tespit">${metinHtml(notu)}</div>` : "") +
+      `<div class="sub">${ev.turns || 0} adım${secs}${ops}</div>${out}`,
       "final" + (ev.error ? " err" : ""));
   } else if (ev.kind === "done") {
     running = false;

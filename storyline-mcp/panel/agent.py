@@ -764,10 +764,19 @@ class AgentRun:
                 except Exception as _hata:  # noqa: BLE001
                     yol_notu = (" (yol teshisi okunamadi: %s)"
                                 % " ".join(str(_hata).split())[:90])
+            # NOT AYRI ALANDA GIDER, metne YAPISTIRILMAZ.
+            #
+            # Panel ajanin kapanis cumlesini iki kez basmasin diye
+            # "text" olayiyla "final" metnini karsilastiriyor; teshis
+            # metnin SONUNA eklenince o karsilastirma HIC tutmuyordu ve
+            # ayni paragraf ust uste iki kez okunuyordu (olculdu
+            # 2026-09-14, ekran goruntusu). Birlestirmeyi panel yapar --
+            # ajanin kendi sozu "text"te KALIR ve esitlik yeniden calisir.
             self.on_event({
                 "kind": "final",
                 "error": bool(event.get("is_error")),
-                "text": (event.get("result", "") or "") + yol_notu,
+                "text": event.get("result", "") or "",
+                "not": yol_notu.strip(),
                 "duration_ms": event.get("duration_ms"),
                 "turns": event.get("num_turns"),
                 "output_path": str(written) if written.exists() else None,
