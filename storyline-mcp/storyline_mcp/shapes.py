@@ -532,6 +532,19 @@ def wraps(shape: ET.Element) -> bool:
     return (shape.get("wrap") or "true").lower() not in WRAP_YOK
 
 
+def set_wrap(shape: ET.Element, sarsin: bool = True) -> None:
+    """Kutu metni sarsin (ya da sarmasin).
+
+    NITELIGIN TEK YAZICISI. Once yalnizca `set_text_flow` yaziyordu ve o
+    dikey akisla BIRLIKTE yaziyor (vertAlign + autoFit + wrap); sarmayi
+    TEK BASINA acmak isteyen cagirana `shape.set("wrap", ...)` demekten
+    baska yol kalmiyordu. Okuyan taraf (`wraps`) uc degeri biliyor --
+    true/none/false -- ve yazan tarafin ayni sozlugu ikinci kez kurmasi,
+    iki uygulamanin ayrismasi demekti.
+    """
+    shape.set("wrap", "true" if sarsin else "none")
+
+
 def estimate_text_width(text: str, font_size: float, space) -> float:
     """Sarmayan bir kutuda tek satırın gerektirdiği GENİŞLİK.
 
@@ -546,6 +559,40 @@ def estimate_text_width(text: str, font_size: float, space) -> float:
     line_px = max(font_size, 1) * _space(space).h
     en_uzun = max((len(p) for p in (text or " ").split("\n")), default=0)
     return en_uzun * line_px * CHAR_WIDTH_RATIO
+
+
+def text_overflow(text: str, font_size: float, box_w: float, box_h: float,
+                  space, *, wrap: bool, slack: float = 0.0):
+    """Bu metin bu kutuya sığıyor mu? ("", 0, 0) ya da (eksen, gereken, kutu).
+
+    IKI EKSEN TEK SORUDA, ve sebebi bu depoda UC KEZ olculdu: "sigiyor mu"
+    diye soran her yer yalnizca YUKSEKLIGE bakiyordu, oysa wrap="none" olan
+    bir kutuda yukseklik SABIT (paragraf sayisi kadar satir) ve tasma
+    tanim geregi YATAYDA olur. Yani o kutularda yukseklik sorusu daima
+    "sigdi" der:
+
+        compose._sigar_mi              dugme etiketi secerken  -> 573 birimlik
+                                       etiketi 449 birimlik kutuya "sigar"
+                                       dedi (uretilen kursta dort dugme)
+        compose.katman_yazisini_sigdir katman yazisini sigdirirken -> 2989
+                                       birimlik satiri 1067 birimlik kutuda
+                                       "sorun yok" saydi
+        invariants.tasan_yazilar       tasmanin TEK YETKILI olcusu -> ayni
+                                       kutulari temiz raporladi
+
+    Ucu de dogru primitifi cagiriyordu; eksik olan sey hangi EKSENIN
+    sorulacagiydi. Bir kural ucuncu kez unutulduysa duzeltilecek yer dal
+    degil kuralin YERIDIR -- soru artik tek fonksiyonda soruluyor.
+
+    `slack`, yazanla okuyanin ayni toleransi paylasmasi icin disaridan
+    gelir (compose.FIT_TOLERANCE).
+    """
+    if wrap:
+        gereken = measured_text_height(text, font_size, box_w, space,
+                                       wrap=True)
+        return ("YUKSEKLIK", gereken, box_h) if gereken > box_h + slack             else ("", 0.0, 0.0)
+    gereken = estimate_text_width(text, font_size, space)
+    return ("GENISLIK", gereken, box_w) if gereken > box_w + slack         else ("", 0.0, 0.0)
 
 
 def _text_height(text: str, font_size: float, width: float,
@@ -810,7 +857,7 @@ def set_text_flow(shape: ET.Element, *, vertical: str = "t", grow: bool = True) 
     """
     shape.set("vertAlign", {"t": "t", "m": "m", "b": "b"}.get(vertical, "t"))
     shape.set("autoFit", "resize" if grow else "none")
-    shape.set("wrap", "true")
+    set_wrap(shape, True)
 
 
 def _place(element: ET.Element, left: float, top: float,

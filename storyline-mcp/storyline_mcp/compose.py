@@ -1640,6 +1640,7 @@ Bu secim..."
     n = 0
     for kap in list(root.find("sldLayerLst") or []):
         sl = kap.find("shapeLst")
+        _ebeveyn = model._parent_map(kap)
         for sh in (list(sl) if sl is not None else []):
             g = sh.get("g") or ""
             metin = model.shape_text(kap, g).strip() if g else ""
@@ -1652,6 +1653,60 @@ Bu secim..."
             kutu = rect[3] - rect[1]
             genislik = rect[2] - rect[0]
             sarma = shapes.wraps(sh)
+
+            # YATAY TASMA ONCE COZULUR -- ve cozulmezse asagisi KOR KALIR.
+            #
+            # Sarmayan bir kutuda Storyline satiri saga uzatir, gerekirse
+            # slaydin disina; dikey tasma ise TANIM GEREGI imkansiz (bir
+            # paragraf = bir satir). Yani asagidaki yukseklik hesabi boyle
+            # bir kutuda HER ZAMAN "sigdi" der ve hicbir sey yapmaz.
+            #
+            # OLCULDU 2026-09-14, kullanicinin gegenpress.story'sinde
+            # (3.3, surukle-birak), her iki geri bildirim katmaninda:
+            #
+            #     kutu 1066 birim   gereken 2989 (x2.80)  sag kenar 3416/1920
+            #     kutu 1066 birim   gereken 3290 (x3.08)  sag kenar 3717/1920
+            #
+            # Metin slaydin sag kenarini asip ekranin disina cikiyor ve
+            # ustelik alttaki birakma hedeflerinin uzerinden geciyor.
+            # `katman_yazisini_sigdir` o dosyada KOSTU ve 0 dondurdu --
+            # kontrol kosusunda ayni fonksiyon ekilmis bir DIKEY tasmayi
+            # gordu (1), yani sifir aracin susmasindan degil bu kusur
+            # sinifinin olculmemesinden geliyordu.
+            #
+            # CARE ROLE GORE AYRILIR:
+            #
+            #   AKAN METIN  sarma acilir. Kutu zaten cok satira yer
+            #               ayirmis (1066x120); tek eksik, Storyline'a
+            #               satiri kirmasini soylemek. Punto korunur ve
+            #               is asagidaki yukseklik koluna devredilir --
+            #               orada zaten "once buyut, sonra kucult"
+            #               yazili ve komsuya binmeyi engelliyor.
+            #
+            #   DUGME       sarilmaz, punto iner. Bir dugme etiketi iki
+            #               satira bolunurse 64 birimlik kabinda kirpilir;
+            #               ustelik `katman_dugmelerini_hizala` dugmeleri
+            #               BOYUTA gore kumeliyor, yani kutuyu genisletmek
+            #               hizalamayi da bozardi. Punto merdivenin icinde
+            #               kalir ve kalibrasyon tabaninin altina inmez.
+            if not sarma:
+                _gereken_w = shapes.estimate_text_width(metin, size, uzay)
+                if _gereken_w > genislik + slack:
+                    if sh.tag in ("btn", "rsltBtn", "feedBackBtn"):
+                        _punto = size
+                        while shapes.estimate_text_width(
+                                metin, _punto, uzay) > genislik + slack:
+                            _yeni = step_down(_punto, lo)
+                            if _yeni >= _punto:
+                                break          # taban asildi
+                            _punto = _yeni
+                        if _punto != size:
+                            n += punto_yaz(kap, g, _punto, _ebeveyn)
+                            size = _punto
+                    else:
+                        shapes.set_wrap(sh, True)
+                        sarma = True
+                        n += 1
 
             # ONCE BUYUT, SONRA KUCULT -- ve sira onemli. Punto kalibre
             # bandin icinde; onu indirmek son care olmali. Olculdu
@@ -1692,11 +1747,7 @@ Bu secim..."
                     break                 # taban asildi
                 punto = yeni_punto
             if punto != size:
-                for _s2, el, _d, _st in model._iter_text_shapes(kap):
-                    if _s2.get("g") == g and el.text:
-                        el.text = shapes.set_text_style(el.text, size=punto)
-                        n += 1
-                        break
+                n += punto_yaz(kap, g, punto, _ebeveyn)
     return n
 
 
@@ -2152,13 +2203,19 @@ def katman_dugmelerini_bagla(root, pkg) -> int:
     _uzay2 = shapes.space_of(root, shapes.stage_size(pkg))
 
     def _sigar_mi(aday: str, dugme) -> bool:
+        # IKI EKSEN BIRDEN -- once yalnizca yukseklik soruluyordu ve dugme
+        # `wrap="none"` tasidigi icin o soru HER ADAY icin "sigar" diyordu.
+        # Olculdu 2026-09-14: "Dogru Cevabi Gor" 17pt'de 573 birim istiyor,
+        # kutu 449 -- kural burada gecti, tasma ekranda gorundu (dort
+        # dugme, iki slayt). Kuralin kendisi dogruydu, sordugu eksen eksikti.
         _rect = shapes.shape_rect(dugme)
         _c2, _sz2, _b2, _a2 = _preview._text_style(dugme)
         if not _rect or not _sz2:
             return False
-        return shapes.measured_text_height(
-            aday, _sz2, _rect[2] - _rect[0], _uzay2,
-            wrap=shapes.wraps(dugme)) <= (_rect[3] - _rect[1])
+        _eksen, _g, _k = shapes.text_overflow(
+            aday, _sz2, _rect[2] - _rect[0], _rect[3] - _rect[1], _uzay2,
+            wrap=shapes.wraps(dugme))
+        return not _eksen
 
     def _tek_dugme(guid: str):
         _kat = katmanlar.get(guid)
@@ -2787,18 +2844,50 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
 # DEGIL, ovalsiz bir bes sikli tohum bulmak ya da hasat etmek.
 
 
-def _restyle(pkg: StoryPackage, part: str, guid: str, *, size: float) -> None:
-    """Bir şeklin bütün metin gövdelerinin puntosunu değiştirir."""
-    root = pkg.parse(part)
-    parents = model._parent_map(root)
-    for shp, text_el, _doc, _state in model._iter_text_shapes(root):
+def punto_yaz(kap, guid: str, punto: float, ebeveyn: dict | None = None) -> int:
+    """`guid` seklinin BUTUN metin govdelerine puntoyu yazar. Kac tane, doner.
+
+    ATA ZINCIRI YURUNUR, KIMLIK KARSILASTIRILMAZ -- ve bu dosyada aynı
+    ders UC KEZ ayri ayri ogrenildi:
+
+        _restyle          ata zincirini yuruyor          (dogru)
+        _olcege_al        once `_s is shape` yazdi       (18pt Rectangle'lari
+                                                          duzeltti, 16pt
+                                                          Button'lara HIC
+                                                          dokunmadi)
+        katman_yazisini_sigdir  `_s2.get("g") == g` yazdi (ayni kusur, sessiz:
+                                                          punto INMEDI ve
+                                                          fonksiyon yine de
+                                                          saydi)
+
+    Sebep her seferinde ayni: bir BUTONUN metni disaridaki `<btn>` dugumunde
+    degil, DURUM GOVDELERINDE yasiyor -- alti durum, alti ayri govde ve
+    hicbiri butonun kendisiyle ayni nesne degil. Kural ucuncu kez
+    unutulduysa duzeltilecek sey dal degil kuralin YERIDIR: yazma tek
+    fonksiyonda toplandi.
+    """
+    if not guid:
+        return 0
+    if ebeveyn is None:
+        ebeveyn = model._parent_map(kap)
+    n = 0
+    for shp, text_el, _doc, _state in model._iter_text_shapes(kap):
         node = shp
         while node is not None:
             if node.get("g") == guid:
-                text_el.text = shapes.set_text_style(text_el.text or "",
-                                                     size=size)
+                if text_el.text:
+                    text_el.text = shapes.set_text_style(text_el.text,
+                                                         size=punto)
+                    n += 1
                 break
-            node = parents.get(node)
+            node = ebeveyn.get(node)
+    return n
+
+
+def _restyle(pkg: StoryPackage, part: str, guid: str, *, size: float) -> None:
+    """Bir şeklin bütün metin gövdelerinin puntosunu değiştirir."""
+    root = pkg.parse(part)
+    punto_yaz(root, guid, size)
     pkg.replace_xml(part, root)
 
 

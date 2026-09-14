@@ -489,18 +489,59 @@ def tasan_yazilar(root, slayt_adi: str, stage) -> tuple[list[str], int, int]:
             if not text or not rect:
                 continue
             _colour, size, _bold, _align = preview._text_style(shape)
+            box_w, box_h = rect[2] - rect[0], rect[3] - rect[1]
+
+            # SARMAYAN KUTUDA SORU GENISLIKTIR, ve o kutu buradan
+            # CEVAPSIZ GECIYORDU.
+            #
+            # wrap="none" olan bir kutuda satir sayisi metnin uzunlugundan
+            # BAGIMSIZ (paragraf sayisi kadar), yani asagidaki yukseklik
+            # hesabi daima "sigdi" der. Storyline satiri saga uzatir,
+            # gerekirse slaydin disina -- `shapes.estimate_text_width`
+            # tam olarak bunun icin yazilmisti ve TEK cagirani
+            # `inventory`nin TEMEL katmani idi.
+            #
+            # OLCULDU 2026-09-14, kullanicinin gegenpress.story'sinde
+            # (3.3): iki geri bildirim katmaninin govde kutusu 1066
+            # birim, metin 2989 ve 3290 istiyor -- sag kenar 1920'lik
+            # slaytta 3416 ve 3717. Bu kontrol o dosyada KOSTU ve tasma
+            # bulmadi.
+            #
+            # BANT BURADA UYGULANMAZ, ve bu bilincli. `CALIBRATED_RANGE`
+            # YUKSEKLIK modelinin gecerlilik bandi (satir sayisi kuantali,
+            # leading olculmus); genislik tahmini ise puntoya DOGRUSAL ve
+            # kendi sabiti `CHAR_WIDTH_RATIO` 12pt'de -- yani bandin
+            # ALTINDA -- olculmus. Yukseklik bandini genislige tasimak,
+            # olcunun gecerli oldugu yerde onu susturmak olurdu: 3.3'un
+            # govdesi 11pt ve tam o yuzden "bakilmadi" sayilirdi.
+            #
+            # Sarmayan bir kutuda dikey tasma tanim geregi imkansiz
+            # oldugu icin genislik TEK BASINA tam bir verdikt; bu kutular
+            # `unmeasured` degil `checked` sayilir.
+            if not shapes.wraps(shape):
+                checked += 1
+                eksen, gereken, kutu = _quiet(
+                    shapes.text_overflow, text, size, box_w, box_h, uzay,
+                    wrap=False, slack=slack)
+                if eksen:
+                    over.append(f"{slayt_adi}/{nere} {size:.0f}pt "
+                                f"{text[:26]!r} {eksen} "
+                                f"{gereken:.0f} > {kutu:.0f}")
+                continue
+
             if not (lo <= size <= hi):
                 unmeasured += 1
                 continue
             checked += 1
-            box_w, box_h = rect[2] - rect[0], rect[3] - rect[1]
-            needed = _quiet(shapes.measured_text_height, text, size, box_w,
-                            uzay, wrap=shapes.wraps(shape))
-            # Yazanla AYNI tolerans, ayni birim. Kendi sayisini yazan bir
-            # kontrol, yazma yolunun bilerek izin verdigi seyi kusur sayar.
-            if needed > box_h + slack:
+            # Yazanla AYNI tolerans, ayni birim, ve ayni YUKLEM. Kendi
+            # sayisini yazan bir kontrol, yazma yolunun bilerek izin
+            # verdigi seyi kusur sayar.
+            eksen, gereken, kutu = _quiet(
+                shapes.text_overflow, text, size, box_w, box_h, uzay,
+                wrap=True, slack=slack)
+            if eksen:
                 over.append(f"{slayt_adi}/{nere} {size:.0f}pt {text[:26]!r} "
-                            f"{needed:.0f} > {box_h:.0f}")
+                            f"{gereken:.0f} > {kutu:.0f}")
     return over, checked, unmeasured
 
 
