@@ -1415,6 +1415,70 @@ doğmuyordu**; gerçek ajan yolunda pencere yok. Düzeltme fikstürde:
 > yazılmışsa iş **kapanabilir hâle gelmiştir** ve kimse bunu
 > kendiliğinden fark etmez.
 
+### İkinci örnek: sahne sınırında ölen İLERİ düğmesi
+
+Yukarıdaki kural aynı gün ikinci kez ödedi (2026-09-14). Kullanıcının
+bildirdiği kusur tek cümleydi: *"sahnelerdeki en son slayttan sonra
+ileriye basınca geçmiyor."*
+
+Sebep tahmin edilmedi, **üretilmiş kursta ölçüldü** (`tools/produced.py`
+yolu, model çağrısı yok — 5 sahne, 33 slayt):
+
+| sahne sonu slaydı | ileri götüren tetikleyici | olan şey |
+|---|---|---|
+| `slidef` (şık sorusu) | katman DEVAM → `jumpToSlide/next` | hiçbir şey |
+| `slide15` (yazma) | **yok** | hiçbir şey |
+| `slide1b` (sıcak alan) | **yok** | hiçbir şey |
+| `slide20` (şık sorusu) | katman DEVAM → `jumpToSlide/next` | hiçbir şey |
+
+*"Sonraki slayt" sahne sınırını geçmez:* sahnenin son slaydında gidecek
+slayt yoktur ve düğme **sessizce** hiçbir şey yapmaz. Aynı sınıf bir kez
+daha ölçülmüştü — kursun **son** slaydı, kullanıcının 10 numaralı
+bulgusu — ama çare (`son_slaydin_ilerisini_kapat`) yalnızca kursun sonu
+için yazılmıştı; sahne sınırları açıkta kalmıştı.
+
+**Çare korpustan geldi, çünkü zaten yazılmıştı.** `0_duz_kopya.story`de
+(elle yapılmış kurs) sekiz sahnenin yedisinde son slayt
+`jumpToScene/spec` ile bir sonraki sahneye atlıyor.
+`clone._kopuk_atlamalari_onar`ın notu aynı şeyi ters yönden söylüyordu:
+hasat edilen soru tohumlarının DEVAM düğmeleri donör kursta bir
+**sahneye** atlıyordu ve hedef bu projede çözülmediği için "sonraki
+slayt"a çevriliyordu. O notun ön koşulu — *"burada proje hakkında hiçbir
+şey bilinmiyor"* — **inşa bittiğinde geçersiz**: sahne sırası bilinir,
+hedef tahmin edilmez, okunur. Kural tek yerde:
+`authoring.ileri_zincirini_kur`.
+
+**İkinci kusur aynı ölçümden çıktı ve daha sessizdi.** İçerik
+slaytlarının İLERİ düğmesi `jumpToScene` ile `388e285d-…` sahnesine
+atlıyordu; o sahne dosyada **yok** (şablon slaydından klonla devralınmış,
+hedefi silinmiş bir sahne). 16 slayt. Kopuk-tetikleyici sayacı bunu
+**göremiyordu**, çünkü bilinen küme `paket_guidleri` — paketteki bütün
+xml'ler, `docProps/summary.xml` dahil — ve o özet parçası silinmiş
+sahneyi `<scene g="…">` olarak taşıyor. Oynatıcı `sceneLst`e bakar;
+ölçü de artık oraya bakıyor (`completeness.ileri_cikmazlari`).
+
+> Bir kapı, denetlediği kodun **yardımcısını** çağırırsa o yardımcıdaki
+> kusuru göremez. Yeni ölçü kendi okuyucusunu taşıyor ve kanaryası var:
+> sahne sonları kasten "sonraki slayt"a geri çevrildiğinde ölçü **6**
+> çıkmaz sayıyor. Temiz koşudaki sıfır ancak o yüzden okunabilir.
+
+**Üçüncü durum ayrı sayılıyor.** `jumpToScene` + `actSubType="next"`
+biçimce *"sonraki sahneye git"* okunuyor; öyleyse sahne sonunda zaten
+doğru, değilse gerçek bir çıkmaz. Burada ölçülemiyor (oynatıcı yok) ve
+korpus da cevaplamıyor: tek örnek var (`0_duz_kopya.story/slide4.xml`) ve
+orada yanında ayrıca açık hedefli bir `jumpToScene/spec` duruyor. Yazan
+ona **dokunmuyor**, ölçü onu **çıkmaz saymıyor ama sessizce de
+geçmiyor** — `ileri_bilinmeyenleri` ayrı sayıyor. Bedeli ölçüldü ve
+sıfır: üretici bu biçimi hiç üretmiyor, yani ayrım yalnızca insan yapımı
+dosyaları koruyor.
+
+**Üçüncü kusur, kapsam hatasıydı.** `son_slaydin_ilerisini_kapat`
+**dosyanın** son slaydına bakıyordu; `promote_scenes` kurulan sahneleri
+öne aldığı için dosyanın sonunda **devralınan** şablon slaydı duruyor.
+Ölçüldü: kapatılan slayt `slided.xml` idi — şablonun SINAV sahnesinden.
+Kursun kendi son slaydı ölü İLERİ düğmesiyle kalıyordu. Akış artık
+`kurulan_sahneler`den okunuyor, dosya sırasından değil.
+
 ## Kalan işler: sırada / tıkalı
 
 Bu, üç durum sözleşmesinin yol haritası katmanındaki hâli (sözleşmenin

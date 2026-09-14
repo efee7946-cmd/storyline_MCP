@@ -3029,28 +3029,374 @@ def son_slaydin_ilerisini_kapat(pkg: StoryPackage) -> dict:
         return {"kapatildi": False, "why": "slayt yok"}
     son_part = list(idx)[-1]
     root = pkg.parse(son_part)
-    degisti = False
+    # GOVDE `_olu_ileriyi_kapat`TA, cunku ayni isi `ileri_zincirini_kur` da
+    # yapiyor -- akisin son slaydi icin. Iki uygulama er ya da gec ayrisir
+    # ve ayristiginda hangisinin dogru oldugu okunamaz (bu projede bir kez
+    # oldu: kopuk tetikleyici sayaci iki yerde iki farkli cevap veriyordu).
+    degisti = _olu_ileriyi_kapat(root)
 
-    for tl in root.iter("trigLst"):
-        for t in list(tl):
-            d = t.find("data")
-            if d is None:
+    if degisti:
+        pkg.replace_xml(son_part, root)
+    return {"kapatildi": degisti, "slayt": idx[son_part].basename}
+
+
+# --------------------------------------------------------------- ileri zinciri
+
+# Oynaticinin ILERI dugmesinin olayi. Katmandaki DEVAM dugmesi ayri bir
+# olay (`OnClick`) kullanir; ikisi de "ogrenci ileri gitmek istedi"dir.
+ILERI_OLAYLARI = ("OnNextButtonClick", "OnClick")
+
+
+def _ileri_datalari(root: ET.Element) -> list[ET.Element]:
+    """Slayttan ILERI goturen tetikleyicilerin `data` dugumleri.
+
+    IKI YER VAR VE IKISI DE GERCEK -- olculdu (2026-09-14, produced.py'nin
+    kurdugu taze kurs):
+
+      * slayt duzeyinde `OnNextButtonClick` -- oynaticinin ILERI dugmesi.
+        Icerik slaytlarinda ileri gitmenin tek yolu bu.
+      * geri bildirim katmanindaki DEVAM dugmesi (`feedBackBtn`,
+        `OnClick -> jumpToSlide/next`). SORU slaytlarinda ileri gitmenin
+        TEK yolu bu, cunku o slaytlarda `navData next="false"`: oynaticinin
+        ILERI dugmesi EKRANDA YOK.
+
+    OTOMATIK ILERLEME BU KUMEYE GIRMEZ (`OnStart`, `OnMediaComplete`).
+    Onlar "ogrenci ileri basti" degil; birini sahneye baglamak, slayda
+    girer girmez sonraki sahneye atlayan bir kurs uretirdi -- bu projenin
+    bir kez yasadigi kusur (`_otomatik_ilerlemeyi_kaldir`).
+    """
+    out: list[ET.Element] = []
+    for owner in root.iter():
+        trig_list = owner.find("trigLst")
+        if trig_list is None:
+            continue
+        for trig in trig_list:
+            # YALNIZCA `<trig>`. `trigLst` icinde QUIZ'E OZGU etiketler de
+            # yasiyor ve onlarin "ileri" ile isi yok -- korpusta olculdu
+            # (uretilmis kurs + 0_duz_kopya + bos.story): gezinmenin
+            # tamami `trig` (147 ornek), quiz davranislari kendi
+            # etiketlerinde (`gotoFirstInQuizTrig`, `resetQuizTrig`,
+            # `reviewQuizTrig`, `submitQuizTrig`).
+            #
+            # AYRIM GEREKLI, kozmetik degil: `gotoFirstInQuizTrig` de
+            # "OnClick -> jumpToSlide/next" tasiyor, yani bicimce bir ILERI
+            # dugmesinden ayirt edilemez. Sonuc slaydi bir sahnenin sonunda
+            # oldugunda o tetikleyici sonraki sahneye baglanirdi ve
+            # "SINAVI YENIDEN DENE" dugmesi ogrenciyi ileri goturuyor
+            # olurdu -- clone._kopuk_atlamalari_onar'in notunun tam olarak
+            # uyardigi sey: "yeniden denemek ileri gitmek degildir".
+            if trig.tag != "trig":
                 continue
-            if (d.get("event") == "OnNextButtonClick"
-                    and d.get("action") in ("jumpToSlide", "jumpToScene")
-                    and d.get("actSubType") == "next"):
-                tl.remove(t)
-                degisti = True
+            data = trig.find("data")
+            if data is None or data.get("event") not in ILERI_OLAYLARI:
+                continue
+            action, alt = data.get("action"), data.get("actSubType")
+            if action == "jumpToSlide" and alt in ("next", "spec"):
+                out.append(data)
+            elif action == "jumpToScene":
+                out.append(data)
+    return out
 
+
+def _hedef_tutuyor_mu(data: ET.Element, sahneler: set, slaytlar: set) -> bool:
+    """Bu tetikleyici GERCEK bir yere gidiyor mu.
+
+    "Sonraki slayt" (`actSubType="next"`) burada TUTMUYOR sayilir, cunku
+    bu soru yalnizca SAHNENIN SON slaydi icin soruluyor: orada sonraki
+    slayt YOKTUR. Kurs ortasinda ayni bicim dogrudur ve oraya sorulmaz.
+
+    BILINEN KUME `completeness.paket_guidleri` DEGIL, ve fark bir kusuru
+    gizliyordu: o kume paketteki BUTUN xml'lerin `g` degerlerini topluyor,
+    `docProps/summary.xml` dahil. Uretilmis kursta olculdu (2026-09-14):
+    16 ILERI dugmesi `388e285d-...` sahnesine atliyordu, o sahne
+    `sceneLst`te YOK -- yani dugme olu -- ama guid ozet parcasinda bir
+    `<scene g="...">` kaydi olarak durdugu icin kopuk-tetikleyici sayaci
+    SIFIR diyordu. Oynatici `sceneLst`e bakar; bu kume de oraya bakar.
+    """
+    action, alt = data.get("action"), data.get("actSubType")
+    # UCUNCU DURUM: `jumpToScene` + `next`. Bicimce "sonraki SAHNE"
+    # okunuyor ve oyleyse sahne sonunda ZATEN DOGRU -- ama bu OLCULMEDI,
+    # ve burada olculemez de (oynatici yok). Korpusta TEK ornek var
+    # (0_duz_kopya.story/slide4.xml, 01_Giris'in son slaydi) ve orada
+    # yaninda ayrica acik hedefli bir `jumpToScene/spec` duruyor, yani
+    # o dosya soruyu cevaplamiyor.
+    #
+    # BILINMEYEN, "OLU" DEGILDIR: dokunmuyoruz. Maliyeti olculdu ve
+    # sifir -- uretici bu bicimi HIC uretmiyor (taze kursta 0 ornek,
+    # 68 gezinme tetikleyicisi icinde). Yani birakmak yalnizca INSAN
+    # yapimi dosyalari koruyor; ureticinin cikmazlarindan hicbirini
+    # acikta birakmiyor.
+    if action == "jumpToScene" and alt == "next":
+        return True
+    if alt != "spec":
+        return False
+    node = data.find("scene" if action == "jumpToScene" else "slide")
+    hedef = node.get("jumpG") if node is not None else None
+    if not hedef or hedef.startswith("00000000"):
+        return False
+    return hedef in (sahneler if action == "jumpToScene" else slaytlar)
+
+
+def _sahneye_cevir(data: ET.Element, sahne_guid: str) -> None:
+    """Tetikleyiciyi "su SAHNEYE git"e cevirir.
+
+    BICIM UYDURULMADI, korpustan alindi -- `bos.story/slide7.xml`in kendi
+    gezinme tetikleyicisi ve `0_duz_kopya.story`nin yedi sahne gecisi ayni
+    sekli tasiyor:
+
+        action="jumpToScene" actSubType="spec"  +  <scene jumpG="..."/>
+    """
+    data.set("action", "jumpToScene")
+    data.set("actSubType", "spec")
+    scene = data.find("scene")
+    if scene is None:
+        scene = ET.SubElement(data, "scene")
+    scene.set("jumpG", sahne_guid)
+    slide = data.find("slide")
+    if slide is not None:
+        slide.attrib.pop("jumpG", None)
+
+
+def _sonraki_slayda_cevir(data: ET.Element) -> None:
+    """Tetikleyiciyi "sonraki slayt"a cevirir; hedef GUID'i tasimaz.
+
+    `clone._kopuk_atlamalari_onar` ile AYNI care ve ayni gerekce: kursa
+    ozgu hicbir sey tasimayan tek guvenli gezinme bicimi budur.
+    """
+    data.set("action", "jumpToSlide")
+    data.set("actSubType", "next")
+    for tag in ("slide", "scene"):
+        node = data.find(tag)
+        if node is not None:
+            node.attrib.pop("jumpG", None)
+
+
+def _ileri_dugmesini_ac(root: ET.Element) -> None:
+    """Oynaticinin ILERI dugmesini gosterir."""
+    nav = next(root.iter("navData"), None)
+    if nav is not None:
+        nav.set("next", "true")
+        nav.set("nextGesture", "true")
+
+
+def _olu_ileriyi_kapat(root: ET.Element) -> bool:
+    """Gidecek yer yokken duran ILERI dugmesini kaldirir.
+
+    `son_slaydin_ilerisini_kapat`in govdesi; ayni is iki yerde iki kez
+    yazilmasin diye buraya alindi.
+    """
+    degisti = False
+    for trig_list in root.iter("trigLst"):
+        for trig in list(trig_list):
+            data = trig.find("data")
+            if data is None:
+                continue
+            if (data.get("event") == "OnNextButtonClick"
+                    and data.get("action") in ("jumpToSlide", "jumpToScene")
+                    and data.get("actSubType") == "next"):
+                trig_list.remove(trig)
+                degisti = True
     nav = next(root.iter("navData"), None)
     if nav is not None and nav.get("next") != "false":
         nav.set("next", "false")
         nav.set("nextGesture", "false")
         degisti = True
+    return degisti
 
-    if degisti:
-        pkg.replace_xml(son_part, root)
-    return {"kapatildi": degisti, "slayt": idx[son_part].basename}
+
+def _ileri_tetikleyicisi_ekle(root: ET.Element, sahne_guid: str) -> None:
+    """Hic ileri yolu olmayan slayda oynatici ILERI'sini kurar.
+
+    NE ZAMAN. Yalnizca sahnenin son slaydinda VE o slaytta ileri goturen
+    hicbir tetikleyici yokken. Olculdu (2026-09-14): `freeTextEntryIntr`
+    ve `freeHotSpotIntr` tohumlarindan kurulan slaytlar geri bildirim
+    katmani TASIMIYOR, dolayisiyla DEVAM dugmesi de yok -- ogrenci cevabi
+    gonderiyor ve orada kaliyor. Sahne sonunda bu, kursun bittigi yerdir.
+
+    TAKAS ACIK YAZILIYOR: puanli bir soruda ILERI dugmesini acmak, cevabi
+    vermeden GECMEYI mumkun kilar. Alternatifi MAHSUR KALMAK ve o daha
+    kotu; ayni gerekce `_gezinmeyi_geri_ac`ta da yazili (kullanicinin 2
+    numarali bulgusu). Slayt Submit dugmesini tasimaya devam eder.
+    """
+    from . import logic
+
+    trig_list = root.find("trigLst")
+    if trig_list is None:
+        trig_list = ET.SubElement(root, "trigLst")
+    trig = logic._blank_trigger()
+    trig.set("name", "Navigation")
+    trig.set("group", "next")
+    data = trig.find("data")
+    data.set("event", "OnNextButtonClick")
+    # Korpus bicimi: gezinme tetikleyicileri bu iki alani dolu tasiyor
+    # (bos.story/slide7.xml ve 0_duz_kopya.story'nin sahne gecisleri).
+    data.set("NavigationIntent", "Next")
+    data.set("NavigationState", "Button, Gesture")
+    _sahneye_cevir(data, sahne_guid)
+    trig_list.append(trig)
+    _ileri_dugmesini_ac(root)
+
+
+def ileri_zincirini_kur(pkg: StoryPackage,
+                        sahne_guidleri: list[str] | None = None,
+                        *, kapat_son: bool = True) -> dict:
+    """Kursun ILERI zincirini kurar: her sahnenin sonu bir sonraki sahnedir.
+
+    KULLANICININ BILDIRDIGI KUSUR (2026-09-14): "sahnelerdeki en son
+    slayttan sonra ileriye basinca gecmiyor".
+
+    SEBEP OLCULDU, tahmin edilmedi. produced.py'nin insa yoluyla kurulan
+    taze bir kursta (model cagrisi yok, 5 sahne / 33 slayt) sahne sonu
+    slaytlarinin ileri yolu soyleydi:
+
+        slidef  (sik sorusu)    katman DEVAM -> jumpToSlide/next
+        slide15 (yazma)         ILERI YOLU YOK
+        slide1b (sicak alan)    ILERI YOLU YOK
+        slide20 (sik sorusu)    katman DEVAM -> jumpToSlide/next
+
+    "Sonraki slayt" SAHNE SINIRINI GECMEZ: sahnenin son slaydinda gidecek
+    slayt yoktur, dugme sessizce hicbir sey yapmaz. Ayni sinif bir kez
+    daha olculmustu -- kursun SON slaydi, kullanicinin 10 numarali
+    bulgusu -- ve caresi (`son_slaydin_ilerisini_kapat`) YALNIZCA kursun
+    sonu icin yazilmisti. Sahne sinirlari acikta kalmisti.
+
+    CARE KORPUSTAN, cunku zaten yazilmis: `0_duz_kopya.story`de (elle
+    yapilmis kurs) sekiz sahnenin yedisinde son slayt `jumpToScene/spec`
+    ile bir SONRAKI sahneye atliyor. `clone._kopuk_atlamalari_onar`in notu
+    ayni seyi ters yonden soyluyor: hasat edilen soru tohumlarinin DEVAM
+    dugmeleri donor kursta bir SAHNEYE atliyordu ve o hedef burada
+    cozulmedigi icin "sonraki slayt"a cevriliyor. O notun ON KOSULU
+    ("proje hakkinda hicbir sey bilinmiyor") BURADA GECERSIZ: insa
+    bittiginde sahne sirasi bilinir -- hedef tahmin edilmez, okunur.
+
+    IKINCI KUSUR, ayni gecisten: icerik slaytlarinin ILERI dugmesi
+    `jumpToScene` ile `388e285d-...` sahnesine atliyordu ve o sahne
+    dosyada YOK (sablon slaydindan klonla devralinmis, hedefi silinmis bir
+    sahne). Olculdu: 16 slayt. Kopuk-tetikleyici sayaci bunu GORMUYOR;
+    gerekcesi `_hedef_tutuyor_mu`da. Cozulmeyen her ileri hedefi burada
+    "sonraki slayt"a dusurulur.
+
+    KAPSAM `sahne_guidleri` ILE SINIRLI ve bu bilerek: kullanicinin kendi
+    dosyasindan DEVRALINAN sahnelere dokunulmaz (ayni sozlesme
+    `_otomatik_ilerlemeyi_kaldir` ve `promote_scenes` icin de gecerli).
+    Liste verilmezse dosyadaki butun sahneler akis sayilir -- yalnizca
+    bastan kurulan dosyalar icin dogru olan varsayim.
+
+    KASITLI HEDEF KORUNUR: bir sahne sonunda ileri tetikleyicisi zaten
+    COZULEN bir slayta/sahneye gidiyorsa dokunulmaz. Yalnizca gidecek yeri
+    OLMAYAN ("sonraki slayt") ve COZULMEYEN hedefler yeniden baglanir.
+
+    BUGUN NEREDEN CAGRILIYOR, ve eksik olan sey NE. Cagiran tek yer
+    `builder.build` -- panelin kurs kurma yolu, yani kullanicinin kusuru
+    bildirdigi yol. MCP'nin `build_course` yolu bu zinciri KURMUYOR.
+
+    ILK GEREKCE YARISI ICIN YANLISTI ve duzeltildi. Yazilmisti ki "akisin
+    sonu neresi" sorusunu tek bir op listesi cevaplayamaz; dogru, ama zincir
+    IKI YARI ve yalnizca biri o soruyu soruyor:
+
+        sahne sonu -> sonraki sahne     "bitti" GEREKMEZ
+        akisin sonunda dugmeyi kapat    "bitti" GEREKIR
+
+    Birinci yari turetilmis: sahne sirasi da slayt sirasi da dosyada yazili.
+    Ve kullanicinin gordugu kusuru ureten yari O -- sahne sinirinda takilan
+    ogrenci.
+
+    AMA TURETILEN SEY SIRA, KAPSAM DEGIL. Kapsam neden turetilemiyor,
+    olculdu (2026-09-14): kapsam=butun sahneler ile URETILMIS bir kursta
+    kosuldugunda
+
+        eklenen   slide21.xml -> 'Ana Menu'   sonuc slaydi, KASTEN kapatilmis
+        baglanan  slide4.xml  -> 'SINAV'      DEVRALINAN sablon slaydi
+        onarilan  slide7, slide2, slide3      DEVRALINAN sablon slaytlari
+
+    Yani `sceneLst` bu kursa AIT OLMAYAN sahneler tasiyor (sablondan
+    devralinan Ana Menu / SINAV, `promote_scenes` onlari arkaya atiyor ama
+    SILMIYOR) ve dosyada sinirini gosteren bir isaret YOK. Kapsam=hepsi
+    diyen bir degismez, kapatilmis son slayda yeniden ileri dugmesi takip
+    ogrenciyi sablon artigina sokar, ve kullanicinin kendi slaytlarini
+    yeniden yazar.
+
+    EKSIK OLAN BILGI "akis nerede bitiyor" DEGIL, "hangi sahneler bu kurs".
+    Ve `build_course` o bilgiye SAHIP: o cagrinin `create_scene` op'lari.
+    Yani ajan yolu birinci yariyi alabilir --
+    `ileri_zincirini_kur(pkg, o_cagrinin_sahneleri, kapat_son=False)` --
+    ve ikinci yari (kapatma) disarida kalir, cunku bugunun sonu yarinin
+    sonu olmayabilir.
+
+    ACIK KALAN, dikis: iki ayri `build_course` cagrisi arasindaki sinir.
+    N. cagrinin son sahnesinin son slaydi, N+1'in ilk sahnesini bilmez ve
+    her cagri yalnizca kendi kapsamini yaziyor.
+
+    INSAN YAPIMI DOSYALARDA MALIYET OLCULDU (dort bagisci + 0_duz_kopya,
+    kapsam=hepsi): bagiscilarda 0 degisiklik; 0_duz_kopya'da 2 -- ikisi de
+    sahne sonunda duran ve YANINDA calisan bir `jumpToScene/spec` bulunan
+    olu `jumpToSlide/next` tetikleyicileri, yani kasit ezilmiyor, olu
+    kardes onariliyor.
+    """
+    story = pkg.parse(STORY_PART)
+    sahne_adlari = {s.get("g"): (s.get("name") or "")
+                    for s in (story.find("sceneLst") or []) if s.get("g")}
+    sira = [g for g in (sahne_guidleri if sahne_guidleri is not None
+                        else list(sahne_adlari)) if g in sahne_adlari]
+    idx = model.slide_index(pkg)
+    slayt_guidleri = {r.guid for r in idx.values() if r.guid}
+    sahne_guid_kumesi = set(sahne_adlari)
+
+    akis: list[tuple[str, list]] = []
+    for guid in sira:
+        uyeler = sorted((r for r in idx.values() if r.scene_guid == guid),
+                        key=lambda r: r.position)
+        if uyeler:
+            akis.append((guid, uyeler))
+
+    rapor: dict = {"baglanan": [], "onarilan": [], "eklenen": [],
+                   "kapatilan": None, "sahne": len(akis)}
+    if not akis:
+        rapor["why"] = "akista sahne yok"
+        return rapor
+
+    for yer, (sahne_guid, uyeler) in enumerate(akis):
+        sonraki = akis[yer + 1][0] if yer + 1 < len(akis) else None
+        for uye in uyeler:
+            root = pkg.parse(uye.part)
+            son_mu = uye is uyeler[-1]
+            degisti = False
+            datalar = _ileri_datalari(root)
+
+            if son_mu and sonraki:
+                for data in datalar:
+                    if _hedef_tutuyor_mu(data, sahne_guid_kumesi, slayt_guidleri):
+                        continue                      # kasitli hedef: dokunma
+                    _sahneye_cevir(data, sonraki)
+                    degisti = True
+                if degisti:
+                    rapor["baglanan"].append(
+                        f"{uye.basename} -> {sahne_adlari[sonraki]!r}")
+                elif not datalar:
+                    _ileri_tetikleyicisi_ekle(root, sonraki)
+                    degisti = True
+                    rapor["eklenen"].append(
+                        f"{uye.basename} -> {sahne_adlari[sonraki]!r}")
+            elif son_mu and kapat_son:
+                if _olu_ileriyi_kapat(root):
+                    degisti = True
+                    rapor["kapatilan"] = uye.basename
+            else:
+                # Sahne ICI: "sonraki slayt" dogru bicim. Yalnizca hedefi
+                # COZULMEYEN atlamalar duzeltilir.
+                for data in datalar:
+                    if data.get("actSubType") != "spec":
+                        continue
+                    if _hedef_tutuyor_mu(data, sahne_guid_kumesi, slayt_guidleri):
+                        continue
+                    _sonraki_slayda_cevir(data)
+                    degisti = True
+                    rapor["onarilan"].append(uye.basename)
+
+            if degisti:
+                pkg.replace_xml(uye.part, root)
+
+    return rapor
 
 
 def add_results_slide(

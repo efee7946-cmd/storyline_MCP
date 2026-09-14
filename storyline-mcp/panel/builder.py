@@ -2183,19 +2183,75 @@ def build(
         on_progress(f"✓ Hareket kurgusu '{hareket}': "
                     f"{_kurgulanan} nesne zaman cizgisine dizildi")
 
-    # SON SLAYDIN ILERISI, EN SONDA. Ilk yazimda dallanmadan ONCE cagriliyordu ve olculdu ki
-    # etkisi kayboluyor -- aradaki adimlardan biri son slaydi yeniden
-    # yaziyor. Artik kaydetmenin hemen onunde: sonrasinda hicbir sey
-    # yok, yani uzerine yazilamaz. Hangi slaydin
-    # SON oldugu ancak butun sahneler ve sonuc slaydi kurulduktan sonra
-    # bilinir; daha erken kapatmak yanlis slaydi kapatirdi.
+    # ILERI ZINCIRI, EN SONDA. Ilk yazimda burada yalnizca KURSUN SON
+    # slaydi kapatiliyordu ve o cagrinin da yeri dogruydu: aradaki adimlar
+    # son slaydi yeniden yaziyor, o yuzden kaydetmenin hemen onunde
+    # duruyor. Eksik olan sey KAPSAMDI.
+    #
+    # Iki sey birden olculdu (2026-09-14, produced.py'nin taze ciktisi):
+    #
+    #   1. SAHNE SINIRLARI acikta. Her sahnenin son slaydi "sonraki
+    #      slayt"a bagliydi ve sahnenin son slaydinda sonraki slayt YOK --
+    #      ogrenci ILERI'ye basiyor, hicbir sey olmuyor. Kullanicinin
+    #      bildirdigi kusur bu ("sahnelerdeki en son slayttan sonra ileriye
+    #      basinca gecmiyor").
+    #   2. `son_slaydin_ilerisini_kapat` YANLIS SLAYDI kapatiyordu.
+    #      Dosyanin son slaydina bakiyor; ama `promote_scenes` kurulan
+    #      sahneleri ONE aliyor, yani dosyanin sonunda DEVRALINAN sablon
+    #      slaydi duruyor. Olculdu: kapatilan slayt `slided.xml` idi --
+    #      sablonun SINAV sahnesinden. Kursun kendi son slaydi (sonuc)
+    #      olu ILERI dugmesiyle kaliyordu.
+    #
+    # Ikisinin de cevabi ayni bilgide: AKIS. `kurulan_sahneler` bu kursun
+    # sahnelerini kurulus sirasinda tutuyor (sonuc sahnesi de icinde) ve
+    # `promote_scenes`e verilen liste de bu. Devralinan sahneler listede
+    # YOK, dolayisiyla onlara dokunulmaz.
     try:
-        _son = authoring.son_slaydin_ilerisini_kapat(pkg)
-        if _son.get("kapatildi"):
-            on_progress("son slaytta olu ILERI dugmesi kapatildi (%s)"
-                        % _son.get("slayt"))
+        _zincir = authoring.ileri_zincirini_kur(pkg, kurulan_sahneler)
+        if _zincir.get("baglanan") or _zincir.get("eklenen"):
+            on_progress("✓ Sahne geçişleri bağlandı: %d sahne sonu bir "
+                        "sonraki bölüme gidiyor%s"
+                        % (len(_zincir["baglanan"]) + len(_zincir["eklenen"]),
+                           (" (%d slaytta İLERİ düğmesi yoktu, kuruldu)"
+                            % len(_zincir["eklenen"]))
+                           if _zincir.get("eklenen") else ""))
+        if _zincir.get("onarilan"):
+            on_progress("✓ Hedefi çözülmeyen %d İLERİ düğmesi 'sonraki "
+                        "slayt'a indirildi" % len(_zincir["onarilan"]))
+        if _zincir.get("kapatilan"):
+            on_progress("son slaytta ölü İLERİ düğmesi kapatıldı (%s)"
+                        % _zincir["kapatilan"])
     except Exception as _exc:
-        on_progress("son slayt kapatilamadi: %s" % str(_exc)[:60])
+        on_progress("ileri zinciri kurulamadı: %s" % str(_exc)[:80])
+
+    # KABLOLAMA DEGISMEZI, KAYDETMEDEN HEMEN ONCE.
+    #
+    # `server._write` bunu HER yazmada kosuyor ve gerekcesi orada yazili:
+    # "54 cagriya tek tek konan bir kural, 55.'yi yazan kisinin
+    # unutabilecegi bir kural olur". Panelin kurucu yolu `pkg.save`i
+    # DOGRUDAN cagiriyor, yani o degismezin disindaydi -- 55. cagri tam
+    # olarak burasiymis.
+    #
+    # BEDELI OLCULDU (2026-09-14, produced.py'nin taze ciktisi): kablolama
+    # bu kursta tek bir sey degistiriyor ve o sey gorunur bir kusur --
+    # sonuc slaydindaki "SINAVI YENIDEN DENE" dugmesi. Tohumdaki hedef
+    # kopuk oldugu icin `clone._kopuk_atlamalari_onar` onu "sonraki
+    # slayt"a cevirmis; sonuc slaydi kursun SON slaydi oldugu icin sonraki
+    # slayt YOK. Yani ogrenci sinavi kaybediyor, "yeniden dene"ye basiyor,
+    # hicbir sey olmuyor.
+    #
+    #     kablola(...) -> {'yeniden_dene': ['slidef.xml'], ...}   (digerleri 0)
+    #
+    # Kablolama TURETILMIS bir istir (hedef quiz kaydinin ilk uyesi) ve
+    # gorunur icerik uretmez; degisiklik yoksa dosyaya dokunmaz.
+    try:
+        from storyline_mcp import puanlama as _puanlama_kablo
+        _kablo = _puanlama_kablo.kablola(pkg)
+        if _kablo.get("yeniden_dene"):
+            on_progress("✓ 'Sınavı yeniden dene' düğmesi ilk soruya bağlandı "
+                        "(%s)" % ", ".join(_kablo["yeniden_dene"]))
+    except Exception as _exc:
+        on_progress("kablolama koşulamadı: %s" % str(_exc)[:80])
 
     # SAVE WITH GUARANTEED LOGGING
     try:

@@ -284,6 +284,51 @@ def build() -> StoryPackage:
     return StoryPackage(WORK), report, devralinan
 
 
+def _ileri_kanaryasi(kapsam: list[str]) -> int:
+    """Sahne sonlarini KASTEN bozup olcunun kirmiziya dondugunu sinar.
+
+    Ekilen kusur, kullanicinin bildirdigi halin ta kendisi: her sahnenin
+    son slaydindaki sahne atlamasi "sonraki slayt"a cevriliyor -- sahnenin
+    son slaydinda gidecek slayt olmadigi icin dugme olu kaliyor.
+
+    Donen sayi, ekilen kusurdan sonra olcunun saydigi cikmaz. Sifir
+    donerse olcu KORDUR ve temiz kosudaki sifir hicbir sey soylemiyordur.
+    """
+    from storyline_mcp import model as _model
+
+    yol = WORK.with_name("uretilmis_ileri_kanarya.story")
+    shutil.copy2(WORK, yol)
+    pkg = StoryPackage(yol)
+    idx = _model.slide_index(pkg)
+    for sahne_guid in kapsam:
+        uyeler = sorted((r for r in idx.values() if r.scene_guid == sahne_guid),
+                        key=lambda r: r.position)
+        if not uyeler:
+            continue
+        son = uyeler[-1]
+        kok = pkg.parse(son.part)
+        bozuldu = False
+        for trig_list in kok.iter("trigLst"):
+            for trig in trig_list:
+                if trig.tag != "trig":
+                    continue
+                veri = trig.find("data")
+                if veri is None or veri.get("action") != "jumpToScene":
+                    continue
+                veri.set("action", "jumpToSlide")
+                veri.set("actSubType", "next")
+                sahne = veri.find("scene")
+                if sahne is not None:
+                    sahne.attrib.pop("jumpG", None)
+                bozuldu = True
+        if bozuldu:
+            pkg.replace_xml(son.part, kok)
+    pkg.save(yol, backup=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return len(completeness.ileri_cikmazlari(StoryPackage(yol), kapsam))
+
+
 # Uretilmis bir kursta SIFIR olmasi gereken siniflar. Hicbiri "tasarim
 # tercihi" degil: her biri ogrencinin gordugu somut bir bozukluk.
 # "tasma" BURADAN CIKARILDI ve sebebi olculdu (2026-08-16).
@@ -377,6 +422,74 @@ def main() -> int:
             + ("BUYUDU: uretici yeni kopuk ekliyor"
                if kopuk > KOPUK_TABAN else
                "DUSTU: iyilesme olabilir, taban yeniden yazilmali"))
+
+    # ILERI ZINCIRI: ogrenci ILERI'ye basinca BIR YERE gidiyor mu.
+    #
+    # KULLANICI BILDIRDI (2026-09-14): "sahnelerdeki en son slayttan sonra
+    # ileriye basinca gecmiyor". Olculdu ve uc ayri bicimde dogrulandi --
+    # gerekcesi `completeness.ileri_cikmazlari`da. Burasi o olcunun
+    # URETILMIS kursta kostugu yer: kusurun yasadigi tek yer burasiydi ve
+    # hicbir prob onu gormuyordu.
+    #
+    # SIFIR BEKLENIYOR ve ulasilabilir oldugu OLCULDU: duzeltmeden once bu
+    # kursta 20 cozulmeyen ileri hedefi ve 4 sahne sonu cikmazi vardi,
+    # duzeltmeden sonra kurulan sahnelerde SIFIR.
+    #
+    # KAPSAM DEVRALINANLARI DISLAR ve turetimi BUILDER'A SORMUYOR: sahne,
+    # slaytlarinin hicbiri kaynak dosyada yoksa "kurulan" sayilir. Kurucunun
+    # kendi defterine (`kurulan_sahneler`) bakmak, denetlenen tarafin
+    # bookkeeping'ine guvenmek olurdu -- o defter yanlissa kapi da yanlis
+    # yere bakardi.
+    from storyline_mcp import model as _model
+    from storyline_mcp.package import STORY_PART as _STORY_PART
+
+    _idx = _model.slide_index(pkg)
+    _story = pkg.parse(_STORY_PART)
+    kapsam = []
+    for _s in (_story.find("sceneLst") or []):
+        _g = _s.get("g")
+        _uyeler = [r for r in _idx.values() if r.scene_guid == _g]
+        if _uyeler and all(r.part not in devralinan for r in _uyeler):
+            kapsam.append(_g)
+
+    cikmaz = completeness.ileri_cikmazlari(pkg, kapsam)
+    print(f"\n  ileri zinciri {len(cikmaz)}      "
+          f"{'temiz' if not cikmaz else 'CIKMAZ'}"
+          f"   {len(kapsam)} kurulan sahnede ILERI bir yere gidiyor mu")
+    for _slayt, _sahne, _neden in cikmaz[:6]:
+        print(f"      {_slayt} ({_sahne}): {_neden}")
+    if cikmaz:
+        problems.append(
+            f"{len(cikmaz)} yerde ILERI hicbir yere gitmiyor "
+            f"(ilki: {cikmaz[0][0]} -- {cikmaz[0][2]})")
+
+    # UCUNCU DURUM AYRI SATIRDA. `jumpToScene/next` cikmaz mi degil mi
+    # SOYLENEMIYOR (bkz. `completeness.ileri_bilinmeyenleri`) ve iki duruma
+    # indirgenmis bir sayi ucuncusunu kaybeder. Uretici bu bicimi hic
+    # uretmiyor, yani satir uretilmis kursta 0 okur -- sifirin sebebi
+    # "bakildi ve yoktu", "bakilmadi" degil.
+    bilinmeyen = completeness.ileri_bilinmeyenleri(pkg, kapsam)
+    print(f"  ileri bilinmeyen {len(bilinmeyen):<3}   "
+          f"{'yok' if not bilinmeyen else 'BAKILMADI'}"
+          f"   jumpToScene/next: 'sonraki sahne' mi, olu mu -- olculmedi")
+    for _slayt, _sahne, _neden in bilinmeyen[:3]:
+        print(f"      {_slayt} ({_sahne}): {_neden}")
+
+    # KANARYA: olcunun KOR olmadigini kanitlar.
+    #
+    # "Sifir" bir dogrulama degildir; olculen sey yanlis olsaydi yine sifir
+    # cikar miydi diye sorulmali. Ekilen kusur, duzeltmenin tam tersi:
+    # sahne sonlarindaki sahne atlamalari yeniden "sonraki slayt"a
+    # cevrilir -- yani kullanicinin bildirdigi hal geri getirilir. Olcu
+    # o kursta KIRMIZI donmezse buradaki sifir okunmamalidir.
+    kanarya = _ileri_kanaryasi(kapsam)
+    print(f"  ileri kanaryasi {kanarya:<4}  "
+          f"{'temiz' if kanarya else 'KOR'}"
+          f"   sahne sonlari bozulunca olcu kirmiziya donuyor mu")
+    if not kanarya:
+        problems.append(
+            "ileri zinciri olcusu KOR: sahne sonlari kasten bozuldugunda "
+            "bile cikmaz saymadi -- yukaridaki sifir okunmamali")
 
     if izleme["lms_bos"] and survey["scored"]:
         problems.append("lmsResultSlideG bos — LMS'e bildirilecek sonuc "

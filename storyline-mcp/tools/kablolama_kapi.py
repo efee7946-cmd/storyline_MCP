@@ -446,12 +446,26 @@ def main() -> int:
           "        olmayan kurs kablolanmaz -- o hal uyariya kalir\n"
           "        (`puanlama.eksik_sonuc_uyarisi`).")
     # DEGISMEZ HANGI YOLDA: bu asimetri baska hicbir yerde yazili degil.
-    print("        DEGISMEZ MCP YOLUNDA duruyor (`server._write`). Panelin")
-    print("        kurucu yolu `pkg.save`i DOGRUDAN cagiriyor: zinciri INSA")
-    print("        GEREGI dogru kuruyor, DEGISMEZ olarak degil. Bugun fark")
-    print("        yok -- bayat kayit `delete_shape` istiyor ve kurucu onu")
-    print("        kullanmiyor -- ama 'turetilmis olan degismezdir'")
-    print("        gerekcesi yol ayrimi TANIMIYOR.")
+    #
+    # "BUGUN FARK YOK" ARTIK DOGRU DEGIL -- OLCULDU 2026-09-14. Bu not
+    # asimetriyi dogru yaziyordu ama zararsiz sayiyordu ("bayat kayit
+    # `delete_shape` istiyor ve kurucu onu kullanmiyor"). Kapsam eksikti:
+    # kablolamanin `yeniden_dene` ayagi `delete_shape` istemiyor ve
+    # kurucunun ciktisinda ATESLENIYOR. produced.py'nin taze kursunda
+    # olculdu:
+    #
+    #     kablola(...) -> {'yeniden_dene': ['slidef.xml'], digerleri 0}
+    #
+    # Yani sonuc slaydindaki "SINAVI YENIDEN DENE" dugmesi panelden
+    # uretilen her kursta OLUYDU: tohumun kopuk hedefi "sonraki slayt"a
+    # cevrilmis, sonuc slaydi kursun sonunda oldugu icin sonraki slayt yok.
+    # `builder.build` artik kaydetmeden hemen once `puanlama.kablola`
+    # cagiriyor; asimetri kapandi, not kanit olarak kaliyor.
+    print("        DEGISMEZ MCP YOLUNDA kuruldu (`server._write`); panelin")
+    print("        kurucu yolu `pkg.save`i dogrudan cagirdigi icin DISARIDA")
+    print("        kalmisti. Fark olculdu (2026-09-14): 'yeniden dene'")
+    print("        dugmesi uretilen her kursta oluydu. `builder.build` artik")
+    print("        kaydetmeden once kablolamayi kosuyor.")
     print("        SORU BANKASI: banka DOLU bir projede sinanmadi; fikstur")
     print("        yok (52 kursun 52'sinde bankLst bos, donors/'daki 9")
     print("        projede de banka slaydi 0). Ayrinti: puanlama.zincir 3c.")

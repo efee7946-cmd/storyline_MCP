@@ -141,6 +141,178 @@ def dangling_in_slide(root: ET.Element, known: set) -> list[str]:
     return out
 
 
+# ILERI CIKMAZI: ogrenci ILERI'ye basiyor ve hicbir sey olmuyor.
+#
+# KENDI OKUYUCUSU VAR, `authoring._ileri_datalari`yi CAGIRMIYOR -- ve bu
+# bilerek. Kapi, denetledigi kodun yardimcisini kullanirsa o yardimcidaki
+# kusuru goremez: yanlis bir "ileri" tanimi hem yazarda hem kapida ayni
+# anda yanlis olur ve kapi yesil kalir. Ayni sozlesme `donors._harvest_file`
+# ile `completeness.dangling_in_slide` arasindaki ayrimda da yazili.
+#
+# QUIZ ETIKETLERI AYRI TUTULUYOR, ve ayrim korpustan olculdu (2026-09-14,
+# uretilmis kurs + 0_duz_kopya + bos.story): gezinmenin tamami `<trig>`
+# (147 ornek), quiz davranislari kendi etiketlerinde -- `gotoFirstInQuizTrig`,
+# `resetQuizTrig`, `reviewQuizTrig`, `submitQuizTrig`. Bir `gotoFirstInQuizTrig`
+# de "OnClick -> jumpToSlide/next" tasir, yani BICIMCE bir ILERI dugmesinden
+# ayirt edilemez; ama anlami "sinavi yeniden dene"dir, "ileri git" degil.
+# O yuzden onlara yalnizca "hedefi cozulmuyor" olcusu uygulanir.
+ILERI_OLAYLARI = ("OnNextButtonClick", "OnClick")
+QUIZ_ETIKETLERI = ("gotoFirstInQuizTrig", "resetQuizTrig", "reviewQuizTrig",
+                   "submitQuizTrig", "textEntryTrig")
+
+
+def _ileri_kayitlari(root: ET.Element) -> list[tuple[str, ET.Element]]:
+    """(etiket, data) -- slayttaki gezinme tetikleyicileri, katmanlar dahil."""
+    out: list[tuple[str, ET.Element]] = []
+    for owner in root.iter():
+        trig_list = owner.find("trigLst")
+        if trig_list is None:
+            continue
+        for trig in trig_list:
+            data = trig.find("data")
+            if data is None or data.get("event") not in ILERI_OLAYLARI:
+                continue
+            if data.get("action") not in ("jumpToSlide", "jumpToScene"):
+                continue
+            out.append((trig.tag, data))
+    return out
+
+
+def _hedef(data: ET.Element) -> tuple[str, str | None]:
+    """(tur, hedef guid) -- tur: 'sahne' | 'slayt' | 'sonraki' | 'onceki'."""
+    alt = data.get("actSubType")
+    if alt != "spec":
+        return ("sonraki" if alt == "next" else "onceki"), None
+    if data.get("action") == "jumpToScene":
+        node = data.find("scene")
+        return "sahne", (node.get("jumpG") if node is not None else None)
+    node = data.find("slide")
+    return "slayt", (node.get("jumpG") if node is not None else None)
+
+
+def ileri_cikmazlari(pkg: StoryPackage,
+                     sahne_guidleri: list[str] | None = None
+                     ) -> list[tuple[str, str, str]]:
+    """ILERI'ye basinca hicbir sey olmayan yerler: (slayt, sahne, neden).
+
+    KULLANICININ 2026-09-14'te bildirdigi kusurun olcusu: "sahnelerdeki en
+    son slayttan sonra ileriye basinca gecmiyor". Uc ayri bicimde oluyor ve
+    ucu de burada sayiliyor:
+
+      1. SAHNE SONUNDA "sonraki slayt". Sahnenin son slaydinda sonraki
+         slayt YOKTUR; dugme sessizce hicbir sey yapmaz.
+      2. SAHNE SONUNDA HIC ILERI YOLU YOK. Olculdu: `freeTextEntryIntr` ve
+         `freeHotSpotIntr` tohumlarindan kurulan slaytlar geri bildirim
+         katmani tasimiyor, yani DEVAM dugmesi de yok.
+      3. HEDEFI COZULMEYEN ATLAMA, slayt nerede olursa olsun. Olculdu:
+         uretilmis kursta 16 icerik slaydinin ILERI dugmesi dosyada
+         OLMAYAN bir sahneye (`388e285d-...`) atliyordu.
+
+    BILINEN KUME `paket_guidleri` DEGIL. O kume paketteki butun xml'leri
+    tariyor, `docProps/summary.xml` dahil, ve o ozet parcasi silinmis
+    sahneleri `<scene g="...">` olarak tasiyor: 16 olu dugmenin hepsi
+    "cozuluyor" gorunuyordu ve `dangling_triggers` SIFIR diyordu. Oynatici
+    `sceneLst`e bakar; bu olcu de oraya bakar.
+
+    KAPSAM: `sahne_guidleri` verilirse yalnizca o sahneler olculur --
+    kullanicinin dosyasindan devralinan sahnelerin gezinmesi onun sorunu,
+    ureticinin degil. Listedeki SON sahnenin son slaydi "ileri yolu yok"
+    diye sayilmaz: kurs orada biter (bkz. `son_slaydin_ilerisini_kapat`).
+    """
+    story = pkg.parse("story/story.xml")
+    sahneler = [s for s in (story.find("sceneLst") or []) if s.get("g")]
+    sahne_adi = {s.get("g"): (s.get("name") or "") for s in sahneler}
+    kapsam = [g for g in (sahne_guidleri if sahne_guidleri is not None
+                          else list(sahne_adi)) if g in sahne_adi]
+    index = model.slide_index(pkg)
+    slayt_guidleri = {r.guid for r in index.values() if r.guid}
+    sahne_guidleri_kume = set(sahne_adi)
+
+    akis: list[tuple[str, list]] = []
+    for guid in kapsam:
+        uyeler = sorted((r for r in index.values() if r.scene_guid == guid),
+                        key=lambda r: r.position)
+        if uyeler:
+            akis.append((guid, uyeler))
+
+    out: list[tuple[str, str, str]] = []
+    for yer, (sahne_guid, uyeler) in enumerate(akis):
+        akisin_sonu = yer == len(akis) - 1
+        for uye in uyeler:
+            root = pkg.parse(uye.part)
+            kayitlar = _ileri_kayitlari(root)
+            son_mu = uye is uyeler[-1]
+            gezinme = [(etiket, data) for etiket, data in kayitlar
+                       if etiket not in QUIZ_ETIKETLERI]
+
+            for etiket, data in kayitlar:
+                tur, hedef = _hedef(data)
+                if tur in ("sahne", "slayt"):
+                    bilinen = (sahne_guidleri_kume if tur == "sahne"
+                               else slayt_guidleri)
+                    if (not hedef or hedef.startswith("00000000")
+                            or hedef not in bilinen):
+                        out.append((uye.basename, sahne_adi[sahne_guid],
+                                    f"{etiket}: hedef {tur} dosyada yok "
+                                    f"({(hedef or 'bos')[:8]})"))
+                elif (tur == "sonraki" and son_mu
+                      and etiket not in QUIZ_ETIKETLERI
+                      and data.get("action") != "jumpToScene"):
+                    # `jumpToScene/next` BURAYA GIRMEZ: o "sonraki SAHNE"
+                    # okunuyor ve sahne sonunda dogru olabilir. Olculmedi,
+                    # o yuzden cikmaz da sayilmiyor sessizce de geciliyor
+                    # -- `ileri_bilinmeyenleri` onu ayri sayiyor.
+                    out.append((uye.basename, sahne_adi[sahne_guid],
+                                "sahnenin son slaydinda 'sonraki slayt' "
+                                "-- gidecek slayt yok"))
+
+            if son_mu and not gezinme and not akisin_sonu:
+                out.append((uye.basename, sahne_adi[sahne_guid],
+                            "sahnenin son slaydinda hic ileri yolu yok"))
+    return out
+
+
+def ileri_bilinmeyenleri(pkg: StoryPackage,
+                         sahne_guidleri: list[str] | None = None
+                         ) -> list[tuple[str, str, str]]:
+    """Cikmaz mi degil mi SOYLENEMEYEN ileri yollari: (slayt, sahne, neden).
+
+    UCUNCU DURUM, ve ayri durmasi sart. `jumpToScene` + `actSubType="next"`
+    bicimce "sonraki SAHNEYE git" okunuyor; oyleyse sahnenin son slaydinda
+    ZATEN dogru ve cikmaz saymak YANLIS POZITIF olur. Degilse gercek bir
+    cikmazdir. Ikisi arasindaki farki burada olcmenin yolu yok -- oynatici
+    yok -- ve korpus da cevaplamiyor: tek ornek var (`0_duz_kopya.story`,
+    `slide4.xml`, 01_Giris'in son slaydi) ve orada yaninda ayrica acik
+    hedefli bir `jumpToScene/spec` duruyor.
+
+    O yuzden ne `ileri_cikmazlari`na katiliyor ne de sessizce geciliyor:
+    "gecti" ile "kaldi"nin yaninda "bakilmadi" olarak sayiliyor. Iki
+    duruma indirgenmis bir sayi, ucuncusunu kaybeder.
+
+    Uretici bu bicimi HIC uretmiyor (taze kursta 0 ornek), yani bu liste
+    uretilmis kurslarda bos kalir; insan yapimi bir dosya olculdugunde
+    dolar.
+    """
+    story = pkg.parse("story/story.xml")
+    sahne_adi = {s.get("g"): (s.get("name") or "")
+                 for s in (story.find("sceneLst") or []) if s.get("g")}
+    kapsam = [g for g in (sahne_guidleri if sahne_guidleri is not None
+                          else list(sahne_adi)) if g in sahne_adi]
+    index = model.slide_index(pkg)
+    out: list[tuple[str, str, str]] = []
+    for guid in kapsam:
+        for ref in sorted((r for r in index.values() if r.scene_guid == guid),
+                          key=lambda r: r.position):
+            root = pkg.parse(ref.part)
+            for etiket, data in _ileri_kayitlari(root):
+                if (data.get("action") == "jumpToScene"
+                        and data.get("actSubType") == "next"):
+                    out.append((ref.basename, sahne_adi[guid],
+                                f"{etiket}: jumpToScene/next -- 'sonraki "
+                                f"sahne' mi, olu mu: OLCULMEDI"))
+    return out
+
+
 def paket_guidleri(pkg: StoryPackage) -> set:
     """Paketteki BUTUN `g` degerleri. Cozulme kararinin bilinen kumesi.
 
