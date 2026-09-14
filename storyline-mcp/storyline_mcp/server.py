@@ -249,6 +249,99 @@ def update_text(
 # ----------------------------------------------------------------- authoring
 
 
+# --------------------------------------------------------- dikis olcumu
+
+# DIKIS VAR MI: bir dosyaya KAC AYRI YAZMA CAGRISI sahne ekliyor.
+#
+# NICIN OLCULUYOR, ve nicin TASARIM YAPILMADAN once. `ileri_zincirini_kur`
+# bir cagrinin kurdugu sahneleri zincirliyor; iki AYRI cagri arasindaki
+# sinir -- dikis -- acikta. Once sorulacak sey tasarim degil SIKLIK: bir
+# kurs gercekten iki cagrida mi kuruluyor. Ihtiyac olculmus sifirsa makine
+# yazilmaz (`assetG` onarim aracinda verilen ayni karar).
+#
+# SORU "KAC build_course" DEGIL, ve bu ayrim olculdu: `add_scene` KENDI
+# BASINA bir arac. Bir kurs sahnesini `build_course` disinda da
+# kazanabiliyor --
+#
+#     build_course(A, B)  ->  add_scene(C)
+#
+# -- ve bu kosuda hicbir `build_course` cifti yok ama dikis VAR. Yalnizca
+# `build_course` sayan bir gunluk "cok cagrili kurulum: 0" derdi. Olculen
+# kume iddiadan dar olunca sifir "yok" diye okunur; bu depoda dokuz kez
+# isiran sekil bu.
+#
+# KAYIT `_write`TA, cunku soru "yazma cagrisi" hakkinda ve burasi her
+# yazmanin gectigi tek bogaz -- kablolama degismezi de ayni gerekceyle
+# burada. 31 arac govdesinin 31'i `_write`i DOGRUDAN cagiriyor (olculdu),
+# yani cagiran arac cercevesinden okunabiliyor ve 31 imzaya dokunmak
+# gerekmiyor.
+#
+# SAHNE SAYISI DOSYADAN TURETILIYOR, cagirandan degil. `create_scene_op`
+# yalnizca `build_course`un op listesinden gelir ve dogru oldugu surece
+# dar bir sayidir: yarin ucuncu bir arac sahne kurmayi ogrenirse SESSIZCE
+# 0 yazar. `sahne_sayisi` o kusurdan bagisik -- analiz ayni dosyanin ardisik
+# kayitlarinda sayinin ARTTIGI yeri arar ve hangi aracin yaptigini
+# umursamaz.
+_YAZMA_BAGLAMI: dict = {}
+
+
+def _cagiran_arac() -> str:
+    """`_write`i cagiran arac fonksiyonunun adi.
+
+    Cerceve introspeksiyonu, imza degisikligi yerine: 31 cagri yerinin
+    31'i bir arac govdesinde ve her biri TAM BIR KEZ cagiriyor (ast ile
+    olculdu 2026-09-14). Yeni bir arac yazan kisi kaydi bedavaya alir --
+    `_write`in kendi belge dizesindeki gerekcenin aynisi.
+    """
+    import sys as _sys
+    try:                                   # 0=burasi 1=_write 2=arac
+        return _sys._getframe(2).f_code.co_name
+    except Exception:                      # noqa: BLE001
+        return "?"
+
+
+def _dikis_kaydi(pkg: StoryPackage, target: Path, yazma: dict,
+                 arac: str) -> None:
+    """Bu yazmayi `production.jsonl`e yazar. Hicbir zaman yazmayi dusurmez.
+
+    IKINCI BIR GUNLUK ACILMIYOR: `production.jsonl` bu seklin zaten sahibi
+    (206 kayit, ayni alan duzeni) ve ayni soruyu iki dosyada cevaplamak,
+    bu depoda bir kez pahaliya patlayan "iki uygulama ayrisir" deseni.
+    `operation` alanina ARAC ADI yaziliyor; production.py'nin kendi belge
+    dizesi bu kelime dagarcigini zaten ornekliyor ("add_image").
+
+    NUFUS SUZULMELI, OKUYAN TARAFTA. Kapilar da bu yoldan geciyor ve
+    `test/_canary/` icine yaziyor -- tek bir `kablolama_kapi` kosusu 23
+    satir birakti. Dikis sorusu GERCEK kullanim hakkinda, o yuzden analiz
+    hedefi `test/_canary/` altinda olan kayitlari disarida birakmali;
+    yoksa nufusu fikstuurler belirler ve sayi kendi kapilarimizi olcer.
+
+    SESSIZ DUSMEYE IZIN VAR ve bilerek: gunluk bir olcum aparatidir,
+    urunun kendisi degil. Kayit yazilamazsa kullanicinin dosyasi yine
+    kaydedilmis olmali. Panelin kendi `production.record` cagrilari da
+    ayni sozlesmede.
+    """
+    try:
+        import sys as _sys
+        _panel = str(Path(__file__).resolve().parent.parent / "panel")
+        if _panel not in _sys.path:
+            _sys.path.append(_panel)
+        import production                              # noqa: PLC0415
+
+        story = pkg.parse(STORY_PART)
+        sahne_lst = story.find("sceneLst")
+        baglam = {
+            "yol": "mcp",
+            "arac": arac,
+            "sahne_sayisi": len(list(sahne_lst)) if sahne_lst is not None else 0,
+            "op_sayisi": _YAZMA_BAGLAMI.get("op_sayisi", 1),
+            "create_scene_op": _YAZMA_BAGLAMI.get("create_scene_op", 0),
+        }
+        production.record(target, arac, yazma, context=baglam)
+    except Exception:                                  # noqa: BLE001
+        pass
+
+
 def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool) -> dict:
     """Her yazma buradan geciyor -- ve kablolama DEGISMEZI burada korunuyor.
 
@@ -267,6 +360,9 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
     # dokunmaz (`degisti: False`). Gerekcesi puanlama.kablola'da.
     kablo = puanlama.kablola(pkg)
     yazma = pkg.save(target, backup=True)
+    # DIKIS OLCUMU. Kaydetmeden SONRA: gunluge girenin dosyaya gercekten
+    # yazilmis bir hal olmasi gerekiyor.
+    _dikis_kaydi(pkg, target, yazma, _cagiran_arac())
     # Sessiz kalmiyor: kayit gercekten degistiyse cagirana SOYLENIYOR.
     # Sessizce dogru olan bir sey, sonradan sessizce yanlis olabilir.
     return {**yazma, **({"kablolama": kablo} if kablo["degisti"] else {})}
@@ -1699,7 +1795,18 @@ def build_course(
             results.append({"index": i, "op": op.get("op"), "result": _apply_op(pkg, op)})
         except Exception as exc:
             raise StoryError(f"{i}. islem ({op.get('op')!r}) basarisiz: {exc}") from exc
-    return {"operations": results, **_write(pkg, path, output_path, in_place)}
+    # OP SAYILARI YALNIZCA BURADAN BILINIYOR; `sahne_sayisi` ise dosyadan
+    # turetiliyor ve bu iki satir unutulsa bile dikis sorusu cevaplanabilir
+    # kalir (gerekce: _dikis_kaydi).
+    _YAZMA_BAGLAMI.update(
+        {"op_sayisi": len(operations),
+         "create_scene_op": sum(1 for o in operations
+                                if o.get("op") == "create_scene")})
+    try:
+        return {"operations": results,
+                **_write(pkg, path, output_path, in_place)}
+    finally:
+        _YAZMA_BAGLAMI.clear()
 
 
 # ----------------------------------------------------------------- duzenle

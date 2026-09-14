@@ -62,11 +62,14 @@ class ProductionLog:
             "context": context,
         }
         line = json.dumps(entry, ensure_ascii=False)
-        existing = self.log_path.read_text(encoding="utf-8", errors="ignore") if self.log_path.is_file() else ""
-        self.log_path.write_text(
-            existing + line + "\n",
-            encoding="utf-8",
-        )
+        # EKLEYEREK YAZ, bastan yazarak degil. Onceki hali her kayitta
+        # gunlugun TAMAMINI okuyup geri yaziyordu -- N kayit icin O(N^2)
+        # bayt. 206 kayitta gorunmezdi; kayit artik `server._write`ten de
+        # geliyor (arac basina bir satir, dikis olcumu) ve ayni dosyaya
+        # cok daha hizli birikiyor. Davranis ayni: append-only bir gunluge
+        # tek satir ekleniyor.
+        with self.log_path.open("a", encoding="utf-8") as akis:
+            print(line, file=akis)
 
     def latest(self, count: int = 10) -> list[dict[str, Any]]:
         """Retrieve the most recent log entries."""
@@ -114,6 +117,61 @@ def record(
 def latest(count: int = 10) -> list[dict[str, Any]]:
     """Module-level latest retrieval."""
     return _LOGGER.latest(count)
+
+
+# KAPI KOSULARI GUNLUGE DE YAZAR, ve nufusun cogunlugunu onlar olusturur.
+#
+# `server._write` her yazmayi kaydediyor (dikis olcumu) ve kapilar da o
+# yoldan geciyor: TEK bir `kablolama_kapi` kosusu 23 satir birakti.
+# Analizi sonra yazan kisi suzgeci unutursa sayi gercek kullanimi degil
+# kendi kapilarimizi olcer -- ve gurultu sinyalden buyuk.
+#
+# SUZGEC OKUYAN TARAFTA, VE TEK YERDE. Yazma yolunda DURAMAZ: `test/_canary/`
+# bir DEPO SOZLESMESI, urun gercegi degil; `server._write`in onu bilmesi
+# urunun kendi test duzenine bagimli olmasi olurdu. Ama her okuyana
+# "sen suz" demek, kuralin 55. cagriyi yazan kisi tarafindan unutulmasi
+# demek. O yuzden varsayilan DOGRU olan burada hesaplaniyor: ham liste
+# `latest()` olarak durmaya devam ediyor, suzulmus olan kendi adiyla
+# cagriliyor.
+#
+# ELEME OLCUTU ADRESTIR, arac adi degil. Hangi araclarin "kapi" oldugunu
+# saymak, kapi listesi degistikce bayatlayacak ikinci bir defter olurdu;
+# hedef YOLU ise fikstur oldugunu kendisi soyluyor.
+#
+# BEDELI VAR VE YAZILI: eslesme TAM PARCA uzerinden ("Testler" elenmez,
+# "test" elenir), ama kullanicinin kendi kurslari `test` adli bir klasorde
+# dursaydi bu suzgec onlari SESSIZCE eler. Bugun oyle bir kayit yok --
+# 253 kaydin hedefi tek tek bakildi (2026-09-15), hepsi `test/_canary/`
+# ya da gecici dizin. Bir gun eleme sasarsa isaret sudur: `latest()`
+# doluyken `gercek_kullanim()` inatla bos kalir.
+FIKSTUR_PARCALARI = ("_canary", "test")
+
+
+def _fikstur_mu(hedef: str) -> bool:
+    """Bu yazma bir kapinin/probun artefaktina mi gitti."""
+    import tempfile
+
+    yol = Path(hedef)
+    parcalar = {p.casefold() for p in yol.parts}
+    if parcalar & {p.casefold() for p in FIKSTUR_PARCALARI}:
+        return True
+    # Gecici dizin: `yeni_modul` ve elle kosulan problar oraya yaziyor.
+    try:
+        gecici = Path(tempfile.gettempdir()).resolve()
+        return gecici in yol.resolve().parents
+    except OSError:
+        return False
+
+
+def gercek_kullanim(count: int = 10000) -> list[dict[str, Any]]:
+    """Kapi/prob artefaktlari AYIKLANMIS kayitlar -- analizin varsayilani.
+
+    Dikis sorusu ("bir dosyaya kac ayri yazma cagrisi sahne ekliyor")
+    GERCEK kullanim hakkinda. Ham liste icin `latest()` duruyor; ikisi
+    ayri isimde, cunku hangi nufusa bakildigi iddianin parcasi.
+    """
+    return [e for e in _LOGGER.latest(count)
+            if not _fikstur_mu(e.get("target", ""))]
 
 
 def summary() -> dict[str, Any]:
