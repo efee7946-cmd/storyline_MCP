@@ -370,6 +370,14 @@ YALNIZCA_SAYAN = {"coverage"}
 # her kosuda basiliyor; beyanda olmayan yeni bir satirsiz kapi KIRMIZI
 # doner. Yani bosluk buyuyemez, ve kapanmasi asamali olur.
 SATIRSIZ = (
+    # SATIRI OLAMAZ, "henuz yok" degil. ENVANTER'in eksenleri bir
+    # STORYLINE artefaktini tarif ediyor: fikstur, slayt turu, sekil
+    # sinifi, kesit. `adim_kapi` panelin kendi yuzeyini olcuyor --
+    # `agent.TOOL_ADIM` tablosunu ve `index.html`deki `.hide`
+    # bildirimini. Ortada slayt da sekil de yok, yani satir yazilamaz;
+    # beyan bu yuzden borc DEGIL, sinir. Ayrimi yazmazsak sonraki
+    # okuyan var olmayan bir satiri aramaya cikar.
+    "adim_kapi",
     "red_mesaji",
     "puanlanabilirlik",
     "oturum_kapi",
