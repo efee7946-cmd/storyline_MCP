@@ -297,6 +297,7 @@ def check() -> list[str]:
     failures += check_button_band()
     failures += check_card_band()
     failures += check_text_fits()
+    failures += check_layer_text_width()
     failures += check_no_overlap()
     failures += check_floor_respected()
     return failures
@@ -393,6 +394,106 @@ def check_floor_respected() -> list[str]:
     print(f"taban ({EXPECTED_FLOOR:.0f}%) altina sarkma, {len(specs)} duzen: "
           f"{'yok' if not out else str(len(out)) + ' SEKIL'}")
     return out[:5]
+
+
+def check_layer_text_width() -> list[str]:
+    """Sarmayan bir kutunun YATAY taşması ölçülüyor mu -- katmanda da?
+
+    EKILMIS KUSUR KANARYASI, ve olmadan bu olcu kendini dogrulayamaz.
+    `tasan_yazilar` uzun suredir "tasma yok" diyordu ve SORDUGU EKSENDE
+    dogruydu: sarmayan kutuda satir sayisi metnin uzunlugundan bagimsiz,
+    yani yukseklik sorusu daima "sigdi" der. Tasma yatayda olur ve o soru
+    hic sorulmuyordu -- yani olcunun denetledigi sey yanlis olsaydi da
+    yesil kalirdi. Tam bu yuzden burada bir kusur EKILIYOR.
+
+    UC YON, cunku ikisi yetmez:
+
+        A saglam       sigan bir satir       -> bulgu YOK  (yanlis alarm yok)
+        B ekili temel  tasan bir satir       -> bulgu VAR  (olcu calisiyor)
+        C ekili katman AYNI kusur katmanda   -> bulgu VAR  (kapsam katmani
+                                                            iceriyor)
+
+    C'siz B hicbir sey kanitlamaz: temelde goren bir olcu katmanda kor
+    olabilir ve bu depoda tam olarak bu oldu -- `inventory`nin yatay sayaci
+    adiyla TEMELDE kalmisti (`_yatay_temel`), kullanicinin
+    gegenpress.story'sinde tasan iki kutunun ikisi de KATMANDAYDI.
+
+    FIKSTUR GERCEK BIR KUTUDAN KLONLANIR, elle kurulmaz: elle kurulan
+    `<textBox>`in `<text>` govdesi yok ve `set_shape_text` guid'i bulup
+    sessizce False donuyor -- ekim yapilmis, metin hic yazilmamis olurdu.
+    Ilk yazimda tam olarak bu oldu ve asagidaki geri okuma yakaladi.
+    """
+    import xml.etree.ElementTree as _ET
+    from storyline_mcp import authoring
+
+    kaynak = ROOT.parent / "test" / "bos.story"
+    if not kaynak.is_file():
+        # Bir uyari basip GECMEK, gecmenin en sinsi bicimi.
+        return [f"yatay tasma kanaryasi kurulamadi: {kaynak.name} yok"]
+
+    SLAYT = (1920.0, 1080.0)
+    KISA = "Devam"
+    UZUN = ("Gegenpress aninda her hat farkli bir gorev ustlenir ve bu "
+            "gorev dagilimi ucunun ayni anda calismasina baglidir.")
+
+    pkg = _quiet(StoryPackage, kaynak)
+    try:
+        tohum, _part = _quiet(shapes.find_seed, pkg, "textBox")
+    except Exception as hata:            # noqa: BLE001
+        return [f"yatay tasma kanaryasi kurulamadi: textBox tohumu yok "
+                f"({hata})"]
+
+    def _slayt(metin: str, katmanda: bool):
+        kok = _ET.Element("slide")
+        _ET.SubElement(kok, "sldSz", {"cx": str(SLAYT[0]), "cy": str(SLAYT[1])})
+        temel = _ET.SubElement(kok, "shapeLst")
+        kat_lst = _ET.SubElement(kok, "sldLayerLst")
+        hedef = temel
+        if katmanda:
+            katman = _ET.SubElement(kat_lst, "sldLayer", {"g": "kanarya_kat"})
+            hedef = _ET.SubElement(katman, "shapeLst")
+        sekil = shapes.clone_shape(tohum, name="KANARYA_YATAY",
+                                   keep_triggers=False)
+        shapes.set_shape_slide_size(sekil, *SLAYT)
+        shapes.set_wrap(sekil, False)
+        shapes.set_loc(sekil, 400.0, 500.0, 1000.0, 560.0)
+        hedef.append(sekil)
+        _quiet(authoring._apply_text, kok, sekil, metin, size=17)
+        return kok, sekil
+
+    kusur: list[str] = []
+    yonler: list[str] = []
+    for etiket, metin, katmanda, bekleniyor in (
+            ("A saglam", KISA, False, False),
+            ("B ekili temel", UZUN, False, True),
+            ("C ekili katman", UZUN, True, True)):
+        kok, sekil = _slayt(metin, katmanda)
+        # EKIM GERI OKUNUR: metin yazilmadiysa "bulgu yok" sonucu kusurun
+        # yoklugundan degil ekimin bosa gitmesinden gelirdi.
+        okunan = model.shape_text(kok, sekil.get("g") or "").strip()
+        if okunan != metin:
+            kusur.append(f"yatay tasma kanaryasi ({etiket}): ekim yazilmadi, "
+                         f"geri okunan {okunan[:30]!r}")
+            continue
+        if shapes.wraps(sekil):
+            kusur.append(f"yatay tasma kanaryasi ({etiket}): kutu SARIYOR, "
+                         "ekilen kusur bu eksende degil")
+            continue
+        bulgular, _olculen, _bant = tasan_yazilar(kok, "kanarya.xml", SLAYT)
+        goruldu = any("GENISLIK" in b for b in bulgular)
+        if goruldu is not bekleniyor:
+            kusur.append(
+                f"yatay tasma kanaryasi ({etiket}): beklenen "
+                f"{'bulgu' if bekleniyor else 'temiz'}, olculen "
+                f"{'bulgu' if goruldu else 'temiz'} -- sarmayan kutunun "
+                "genislik olcusu bu kesitte kor")
+        yonler.append(f"{etiket}={'bulgu' if goruldu else 'temiz'}")
+    # SESSIZ GECMEK YOK: kanarya kostugunu ciktida soyler, yoksa fikstur
+    # bozulup uc yon de atlandiginda "kusur yok" gibi okunur.
+    print(f"sarmayan kutunun yatay tasmasi (temel+katman): "
+          f"{', '.join(yonler) if yonler else 'HIC KOSMADI'}"
+          f"{'' if not kusur else '  | KANARYA KIRMIZI'}")
+    return kusur
 
 
 def check_no_overlap() -> list[str]:
@@ -519,10 +620,15 @@ def tasan_yazilar(root, slayt_adi: str, stage) -> tuple[list[str], int, int]:
             # oldugu icin genislik TEK BASINA tam bir verdikt; bu kutular
             # `unmeasured` degil `checked` sayilir.
             if not shapes.wraps(shape):
-                checked += 1
                 eksen, gereken, kutu = _quiet(
                     shapes.text_overflow, text, size, box_w, box_h, uzay,
                     wrap=False, slack=slack)
+                # UCUNCU DURUM AYRI KALIR: degisken tasiyan metnin ekrandaki
+                # uzunlugu bilinmiyor, "temiz" degil "bakilmadi".
+                if eksen == "BAKILMADI":
+                    unmeasured += 1
+                    continue
+                checked += 1
                 if eksen:
                     over.append(f"{slayt_adi}/{nere} {size:.0f}pt "
                                 f"{text[:26]!r} {eksen} "
@@ -532,13 +638,16 @@ def tasan_yazilar(root, slayt_adi: str, stage) -> tuple[list[str], int, int]:
             if not (lo <= size <= hi):
                 unmeasured += 1
                 continue
-            checked += 1
             # Yazanla AYNI tolerans, ayni birim, ve ayni YUKLEM. Kendi
             # sayisini yazan bir kontrol, yazma yolunun bilerek izin
             # verdigi seyi kusur sayar.
             eksen, gereken, kutu = _quiet(
                 shapes.text_overflow, text, size, box_w, box_h, uzay,
                 wrap=True, slack=slack)
+            if eksen == "BAKILMADI":
+                unmeasured += 1
+                continue
+            checked += 1
             if eksen:
                 over.append(f"{slayt_adi}/{nere} {size:.0f}pt {text[:26]!r} "
                             f"{gereken:.0f} > {kutu:.0f}")

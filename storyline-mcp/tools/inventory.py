@@ -129,11 +129,38 @@ def _merdiven_disi(pkg) -> dict:
     return out
 
 
+def _tasma_olc(shape, text, size, rect, uzay, slack, lo, hi):
+    """Bu kutu tasiyor mu: (eksen, gereken, kutu). Tasmiyorsa ("", 0, 0).
+
+    IKI DONGU, TEK OLCU. Temel katman ve geri bildirim katmanlari ayri
+    donuyor (izgara sorulari yalnizca temelde anlamli) ama TASMA sorusu
+    ikisinde de ayni soru olmali. Ayri yazildiklarinda ayrismislardi: yatay
+    eksen bir dongude vardi, otekinde yoktu.
+
+    BANT YALNIZCA YUKSEKLIGE UYGULANIR. `CALIBRATED_RANGE` satir sayisi
+    modelinin gecerlilik bandi; genislik tahmini puntoya DOGRUSAL ve kendi
+    sabiti (`CHAR_WIDTH_RATIO`) 12pt'de -- yani bandin ALTINDA -- olculmus.
+    Bandi genislige tasimak, olcunun gecerli oldugu yerde onu susturmak
+    olurdu: gegenpress.story'de tasan govde tam olarak 11pt'ydi.
+    """
+    if not shapes.wraps(shape):
+        return shapes.text_overflow(text, size, rect[2] - rect[0],
+                                    rect[3] - rect[1], uzay, wrap=False,
+                                    slack=slack)
+    if not (lo <= size <= hi):
+        return ("BAKILMADI", 0.0, 0.0)
+    return shapes.text_overflow(text, size, rect[2] - rect[0],
+                                rect[3] - rect[1], uzay, wrap=True,
+                                slack=slack)
+
+
 def audit(pkg: StoryPackage) -> dict:
     index = model.slide_index(pkg)
     lo, hi = shapes.CALIBRATED_RANGE
     out = {k: 0 for k in list(GUARDED) + list(UNGUARDED)}
     out["_yatay_temel"] = 0
+    out["_yatay_katman"] = 0
+    out["_olculemeyen"] = 0
     sizes: set[int] = set()
     lefts: dict[float, int] = {}
     filled: list[str] = []
@@ -165,31 +192,22 @@ def audit(pkg: StoryPackage) -> dict:
                 boxes.append((shape.get("name") or shape.tag, rect))
                 # Yazanla ayni tolerans (compose.FIT_TOLERANCE).
                 slack = compose.FIT_TOLERANCE / 100 * height
-                # wrap OKUNUR, varsayilana birakilmaz: sarmayan bir kutuda
-                # model satir sayisini fazla veriyordu ve bu sayac artefakt
-                # sayiyordu -- referansta 38 adayin 16'si tam olarak buydu.
                 _uzay = shapes.space_of(root, shapes.stage_size(pkg))
-                if lo <= size <= hi:
-                    _gereken = shapes.measured_text_height(
-                        text, size, rect[2] - rect[0], _uzay,
-                        wrap=shapes.wraps(shape))
-                    if _gereken > (rect[3] - rect[1]) + slack:
-                        out["tasma"] += 1
-                    # Oran AYNI hesaptan cikar, ikinci bir uygulama
-                    # ACILMAZ: iki uygulama ayrisir ve fark yuvarlama
-                    # degil kesit olur.
-                    _oran = _gereken / max(rect[3] - rect[1], 1.0)
+                _eksen, _gereken, _kutu = _tasma_olc(
+                    shape, text, size, rect, _uzay, slack, lo, hi)
+                if _eksen == "GENISLIK":
+                    out["tasma"] += 1
+                    out["_yatay_temel"] += 1
+                elif _eksen == "YUKSEKLIK":
+                    out["tasma"] += 1
+                elif _eksen == "BAKILMADI":
+                    out["_olculemeyen"] += 1
+                if _gereken:
+                    # Oran AYNI hesaptan cikar, ikinci bir uygulama ACILMAZ:
+                    # iki uygulama ayrisir ve fark yuvarlama degil kesit olur.
+                    _oran = _gereken / max(_kutu, 1.0)
                     if _oran > out["tasma_orani"]:
                         out["tasma_orani"] = round(_oran, 2)
-                # YATAY TASMA, wrap bulgusunun ikinci yarisi. Sarmayan bir
-                # kutuda dikey tasma imkansiz, yatay tasma kural: Storyline
-                # satiri saga uzatir, gerekirse slaydin disina. Bunu olcen
-                # hicbir sey yoktu, dolayisiyla o 16 sekil "duzeltildi" diye
-                # sayiliyor ama gercek kusurlari olcusuz kaliyordu.
-                if not shapes.wraps(shape) and lo <= size <= hi and \
-                        shapes.estimate_text_width(text, size, _uzay) > \
-                        (rect[2] - rect[0]) + slack:
-                    out["_yatay_temel"] += 1
             trig = shape.find("trigLst")
             clickable = trig is not None and len(list(trig)) > 0
             if not full and rect[3] / height * 100 > compose.FLOOR + 0.5 \
@@ -217,9 +235,14 @@ def audit(pkg: StoryPackage) -> dict:
         # kendi izgarasi hakkinda ve katman sekilleri o izgaranin parcasi
         # degil -- pop-up'in solu, slaydin sol hizasi sayilmaz.
         #
-        # `_yatay_temel` de adiyla temelde kaliyor; yatay tasmanin katman
-        # karsiligi ayri bir olcum ister (kutu genisligi orada baska
-        # kurallarla belirleniyor) ve olculmeden sayilmaz.
+        # YATAY TASMA ARTIK KATMANDA DA SAYILIYOR (2026-09-14). Burada bir
+        # donem "olculmeden sayilmaz" yaziyordu ve o erteleme O GUN DOGRUYDU:
+        # yatay olcunun katman karsiligi yoktu. Ertelemenin ON KOSULU artik
+        # saglandi -- `shapes.text_overflow` iki ekseni tek yerde soruyor ve
+        # `invariants.check_layer_text_width` ekilmis bir kusurla hem temelde
+        # hem KATMANDA isiriyor. Erteleme notu yeniden okunmasaydi kapali
+        # kalirdi; bedeli olculdu: kullanicinin gegenpress.story'sinde tasan
+        # alti kutunun ALTISI DA katmandaydi ve bu sayac sifir veriyordu.
         _uzay_kat = shapes.space_of(root, shapes.stage_size(pkg))
         _slack_kat = compose.FIT_TOLERANCE / 100 * height
         _katman_listesi = root.find("sldLayerLst")
@@ -230,16 +253,19 @@ def audit(pkg: StoryPackage) -> dict:
                 if not _metin or not _rect:
                     continue
                 _c2, _size2, _b2, _a2 = preview._text_style(_sh)
-                if not (lo <= _size2 <= hi):
-                    continue
-                _gereken2 = shapes.measured_text_height(
-                    _metin, _size2, _rect[2] - _rect[0], _uzay_kat,
-                    wrap=shapes.wraps(_sh))
-                if _gereken2 > (_rect[3] - _rect[1]) + _slack_kat:
+                _eksen2, _gereken2, _kutu2 = _tasma_olc(
+                    _sh, _metin, _size2, _rect, _uzay_kat, _slack_kat, lo, hi)
+                if _eksen2 == "GENISLIK":
                     out["tasma"] += 1
-                _oran2 = _gereken2 / max(_rect[3] - _rect[1], 1.0)
-                if _oran2 > out["tasma_orani"]:
-                    out["tasma_orani"] = round(_oran2, 2)
+                    out["_yatay_katman"] += 1
+                elif _eksen2 == "YUKSEKLIK":
+                    out["tasma"] += 1
+                elif _eksen2 == "BAKILMADI":
+                    out["_olculemeyen"] += 1
+                if _gereken2:
+                    _oran2 = _gereken2 / max(_kutu2, 1.0)
+                    if _oran2 > out["tasma_orani"]:
+                        out["tasma_orani"] = round(_oran2, 2)
 
         # Kopuk tetikleyici burada SAYILMAZ; hesap completeness'te, tek yerde.
         # Buradaki eski kopya bos slaytlari atliyordu (yukaridaki `continue`
@@ -335,6 +361,16 @@ def main() -> int:
     for key, why in UNGUARDED.items():
         value = found[key]
         print(f"  {key:<18}{str(value):<10}{'YOK':<38}{why}")
+    # TASMANIN EKSENI VE UCUNCU DURUM AYRI BASILIR. `tasma` tek sayiya
+    # indiginde "yatay mi dikey mi", "temelde mi katmanda mi" ve "kac kutuya
+    # HIC bakilmadi" kayboluyor -- ucu de duzeltmenin seklini belirliyor.
+    # `_yatay_katman` bir donem HIC hesaplanmiyordu ve kullanicinin
+    # gegenpress.story'sinde tasan alti kutunun altisi oradaydi.
+    print(f"\n  tasmanin ekseni : yatay {found['_yatay_temel']} temel + "
+          f"{found['_yatay_katman']} katman "
+          f"(kalani dikey, toplam {found['tasma']})")
+    print(f"  bakilmadi       : {found['_olculemeyen']} kutu "
+          f"(bant disi punto ya da %degisken% metin -- 'temiz' DEGIL)")
     print(f"\n  punto dagilimi: {found['_sizes']}")
     return 0
 

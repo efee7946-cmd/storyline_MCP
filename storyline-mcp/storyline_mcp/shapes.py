@@ -561,6 +561,13 @@ def estimate_text_width(text: str, font_size: float, space) -> float:
     return en_uzun * line_px * CHAR_WIDTH_RATIO
 
 
+# Storyline degisken referansi: `%Ad%` ya da `%Quiz_Result.ScorePoints%`.
+# `authoring._DEGISKEN_REF` noktali adi KAPSAMIYOR (govdesi [A-Za-z0-9_]*)
+# ve dogru yapiyor -- orada soru "bu degisken tanimli mi", burada "bu metnin
+# ekrandaki uzunlugu bilinebilir mi". Iki ayri soru, iki ayri kalip.
+_DEGISKEN = re.compile(r"%[A-Za-z_][A-Za-z0-9_.]*%")
+
+
 def text_overflow(text: str, font_size: float, box_w: float, box_h: float,
                   space, *, wrap: bool, slack: float = 0.0):
     """Bu metin bu kutuya sığıyor mu? ("", 0, 0) ya da (eksen, gereken, kutu).
@@ -586,7 +593,17 @@ def text_overflow(text: str, font_size: float, box_w: float, box_h: float,
 
     `slack`, yazanla okuyanin ayni toleransi paylasmasi icin disaridan
     gelir (compose.FIT_TOLERANCE).
+
+    UCUNCU DURUM: DEGISKEN TASIYAN METIN OLCULEMEZ. `%Quiz_Result.
+    ScorePoints%` dosyada 25 karakter, ekranda "8". Onu yazildigi haliyle
+    olcmek sonuc slaydinin skor kutusunu her kursta "x3.2 tasiyor" diye
+    raporlardi (olculdu: 1369 > 432, iki katmanda) ve ayni yanlis sinyal
+    yazma yolunda kutuya gereksiz sarma actirirdi. Rendere edilmis uzunluk
+    BILINMIYOR, yani dogru cevap "sigdi" da "tasti" da degil: BAKILMADI.
+    Cagiran onu kendi ucuncu kovasina yazar.
     """
+    if _DEGISKEN.search(text or ""):
+        return ("BAKILMADI", 0.0, 0.0)
     if wrap:
         gereken = measured_text_height(text, font_size, box_w, space,
                                        wrap=True)

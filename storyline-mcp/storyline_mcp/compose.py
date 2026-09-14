@@ -1690,8 +1690,13 @@ Bu secim..."
             #               hizalamayi da bozardi. Punto merdivenin icinde
             #               kalir ve kalibrasyon tabaninin altina inmez.
             if not sarma:
-                _gereken_w = shapes.estimate_text_width(metin, size, uzay)
-                if _gereken_w > genislik + slack:
+                _eksen_w, _gereken_w, _kutu_w = shapes.text_overflow(
+                    metin, size, genislik, kutu, uzay, wrap=False,
+                    slack=slack)
+                # BAKILMADI: metin bir degisken tasiyor, ekrandaki uzunlugu
+                # bilinmiyor. Olculmemis bir sayiya dayanarak sarma acmak,
+                # sonuc slaydinin skor kutusunu her kursta kirardi.
+                if _eksen_w == "GENISLIK":
                     if sh.tag in ("btn", "rsltBtn", "feedBackBtn"):
                         _punto = size
                         while shapes.estimate_text_width(
@@ -2117,7 +2122,12 @@ def compose_drag_feedback(pkg: StoryPackage, part: str, *,
         # SIGDIRMA BU YOLDA DA KOSAR. `compose_feedback_layers`ta vardi,
         # burada yoktu -- oysa yazarin geri bildirimi bu katmanlara da
         # yaziliyor ve tohumun kutusu baska uzunluga gore boyutlanmis.
-        katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
+        _uzay_d = shapes.space_of(root, shapes.stage_size(pkg))
+        katman_yazisini_sigdir(root, _uzay_d)
+        # Genisletme BU YOLDA DA kosar: `katman_yazisini_sigdir` icin
+        # yazilan gerekcenin aynisi -- yazarin metni bu katmanlara da
+        # yaziliyor ve tohumun dugmesi baska bir etikete gore boyutlanmis.
+        katman_dugmelerini_genislet(root, _uzay_d)
         pkg.replace_xml(part, root)
     return {"drag_feedback": written}
 
@@ -2504,6 +2514,134 @@ def katman_dugmelerini_hizala(root) -> int:
     return tasinan
 
 
+def katman_dugmelerini_genislet(root, uzay) -> int:
+    """Etiketi kutusuna sığmayan katman düğmelerini genişletir. Kac tane, doner.
+
+    SON CARE, VE SIRASI ONEMLI. Yatay tasmanin ilk caresi punto indirmek
+    (`katman_yazisini_sigdir`): kutuyu buyutmek katmanin duzenini degistirir,
+    punto ise yalnizca o yaziyi. Ama merdivenin tabani `CALIBRATED_RANGE`in
+    alt ucunda duruyor ve etiket orada da tasabiliyor -- olculdu 2026-09-14,
+    taze modulde: 13pt "Cevaplari gor" 125 birimlik kutuda 134 istiyor. O
+    noktada iki secenek kaliyor ve biri yanlis: olculmemis bir puntoya
+    inmek, ya da kutuyu etikete gore acmak.
+
+    IKI KISIT AYNI ANDA, ve tek tek ele alinirsa ikisi de kirilir:
+
+    1. KUME BIRLIKTE GENISLER, YOKSA DUGME ZIPLAR.
+       `katman_dugmelerini_hizala` katmanlarin dugmelerini TEK konuma
+       topluyor ve olcutu BOYUT. Tek bir dugmeyi genisletmek onu kumesinden
+       cikarir ve ogrenci katman degistirince dugme yine yer degistirir --
+       hizalamanin duzelttigi sikayet geri gelir. O yuzden genisleyen sey
+       dugme degil KUME, ve genislik kumenin EN UZUN etiketine gore.
+
+    2. SATIR BIRLIKTE YERLESIR, YOKSA GENISLEME KOMSUYA TAKILIR.
+       Her dugmeyi KENDI merkezinde buyutmek, yan yana iki dugmede ikisini
+       de yariyolda birakiyor -- olculdu: sonuc slaydinin "Yeniden Dene" /
+       "Gozden Gecir" cifti 480 birim isterken 470 ve 436'da kaldi, cunku
+       her biri otekinin ESKI kenarina dayandi. Oysa satirin tamami 1002
+       birim istiyor ve icerik bandi 1613 birim: yer VAR, eksik olan sey
+       ikisini birlikte yerlestirmekti.
+
+    SINIR: icerik bandi ve satirdaki dugme DISI komsular. Bir dugmeyi
+    komsusunun uzerine bindirmek, tasmayi cakismaya cevirmek olurdu.
+    """
+    PAY = 12.0                 # etiketin iki yanina nefes payi
+    BOSLUK = 8.0               # komsuyla en az bu kadar aralik
+    W, H = shapes.slide_size(root)
+    sol_sinir = MARGIN_X / 100 * W
+    sag_sinir = W - sol_sinir
+    slack = FIT_TOLERANCE / 100 * H
+
+    def _dugme_mu(sh):
+        return sh.tag in ("btn", "rsltBtn", "feedBackBtn")
+
+    # 1) Dugmeleri topla; kume = AYNI kutu (hizalamanin kendi olcutu).
+    kayit = []                 # (kap, sh, rect, gereken, anahtar)
+    gereken_kume: dict = {}
+    for kap in list(root.find("sldLayerLst") or []):
+        sl = kap.find("shapeLst")
+        for sh in (list(sl) if sl is not None else []):
+            if not _dugme_mu(sh):
+                continue
+            metin = model.shape_text(kap, sh.get("g") or "").strip()
+            rect = shapes.shape_rect(sh)
+            if not metin or not rect or shapes.wraps(sh):
+                continue
+            _c, size, _b, _a = _preview._text_style(sh)
+            if not size:
+                continue
+            anahtar = tuple(round(x) for x in rect)
+            g = shapes.estimate_text_width(metin, size, uzay) + PAY
+            gereken_kume[anahtar] = max(gereken_kume.get(anahtar, 0.0), g)
+            kayit.append((kap, sh, rect, anahtar))
+
+    if not kayit:
+        return 0
+
+    # 2) Satir satir yerlesim. Satir = ayni katmanda dikeyde kesisen dugmeler.
+    onerilen: dict = {}
+    for kap in {id(k): k for k, _s, _r, _a in kayit}.values():
+        satir_uyeleri = [(sh, rect, anahtar) for k, sh, rect, anahtar in kayit
+                         if k is kap]
+        kalan = list(satir_uyeleri)
+        while kalan:
+            oncu = kalan.pop(0)
+            satir = [oncu]
+            for uye in list(kalan):
+                if uye[1][1] < oncu[1][3] and oncu[1][1] < uye[1][3]:
+                    satir.append(uye)
+                    kalan.remove(uye)
+            satir.sort(key=lambda u: u[1][0])
+            genislikler = [max(gereken_kume[a], r[2] - r[0])
+                           for _s, r, a in satir]
+            if all(gereken_kume[a] <= (r[2] - r[0]) + slack
+                   for _s, r, a in satir):
+                continue                   # satirdaki her dugme zaten siğiyor
+            bosluklar = [b[1][0] - a[1][2] for a, b in zip(satir, satir[1:])]
+            toplam = sum(genislikler) + sum(bosluklar)
+            merkez = (satir[0][1][0] + satir[-1][1][2]) / 2
+            sol = merkez - toplam / 2
+            # Dugme DISI komsular satiri baglar; dugmeler birbirini baglamaz,
+            # cunku hepsi birlikte yeniden yerlesiyor.
+            ust = min(r[1] for _s, r, _a in satir)
+            alt = max(r[3] for _s, r, _a in satir)
+            sl = kap.find("shapeLst")
+            engel_sol, engel_sag = sol_sinir, sag_sinir
+            for komsu in (list(sl) if sl is not None else []):
+                if _dugme_mu(komsu):
+                    continue
+                kr = shapes.shape_rect(komsu)
+                if not kr or kr[3] <= ust or kr[1] >= alt:
+                    continue
+                if kr[2] <= satir[0][1][0]:
+                    engel_sol = max(engel_sol, kr[2] + BOSLUK)
+                elif kr[0] >= satir[-1][1][2]:
+                    engel_sag = min(engel_sag, kr[0] - BOSLUK)
+            if toplam > engel_sag - engel_sol:
+                continue                   # yer yok; satir oldugu gibi kalir
+            sol = min(max(sol, engel_sol), engel_sag - toplam)
+            for (sh, rect, anahtar), gen in zip(satir, genislikler):
+                aday = (sol, rect[1], sol + gen, rect[3])
+                # Ayni kume iki satirda farkli oneri alirsa DAR olani kazanir:
+                # genis olan, kumenin obur satirinda komsuya binebilir.
+                var = onerilen.get(anahtar)
+                if var is None or (aday[2] - aday[0]) < (var[2] - var[0]):
+                    onerilen[anahtar] = aday
+                sol += gen + (bosluklar.pop(0) if bosluklar else 0.0)
+
+    # 3) Uygula -- kumenin BUTUN uyelerine ayni kutu.
+    genisleyen = 0
+    for _kap, sh, rect, anahtar in kayit:
+        aday = onerilen.get(anahtar)
+        if aday is None:
+            continue
+        if abs(aday[0] - rect[0]) < 0.5 and abs(aday[2] - rect[2]) < 0.5:
+            continue
+        shapes.set_loc(sh, aday[0], rect[1], aday[2], rect[3])
+        genisleyen += 1
+    return genisleyen
+
+
 def katman_sik_etiketleri(root) -> dict:
     """katman GUID -> o katmani ACAN sikkin etiketi.
 
@@ -2802,9 +2940,14 @@ def compose_feedback_layers(pkg: StoryPackage, part: str, *,
     # "metinsiz" sayardi.
     gizlenen_kat = dekoratifi_gizle(root)
     hizalanan = katman_dugmelerini_hizala(root)
-    sigan = katman_yazisini_sigdir(root, shapes.space_of(root, shapes.stage_size(pkg)))
+    _uzay_son = shapes.space_of(root, shapes.stage_size(pkg))
+    sigan = katman_yazisini_sigdir(root, _uzay_son)
+    # SIRA: punto ONCE iner, kutu SONRA acilir. Tersi olsaydi kutu 17pt'ye
+    # gore buyur, sonra punto 13'e inerdi -- gereginden genis bir dugme.
+    genisleyen = katman_dugmelerini_genislet(root, _uzay_son)
     pkg.replace_xml(part, root)
     return {"layers": len(list(layers)), "rewritten": rewritten,
+            "dugme_genisletildi": genisleyen,
             "intrprops_baglanan": baglanan,
             "cikissiz_katman_acildi": acilan,
             "yabanci_katman_yazisi": yabanci,

@@ -496,10 +496,16 @@ def main() -> int:
           "        katmanlara varsayilan olarak bakiyor, inventory.audit\n"
           "        tasmayi katmanlarda da sayiyor. Tasma olcusu zaten\n"
           "        bakiyordu (invariants.tasan_yazilar).\n"
+          "        2026-09-14'te UCUNCU kesit acildi: YATAY tasma, hem\n"
+          "        temelde hem katmanda. Sarmayan bir kutuda dikey tasma\n"
+          "        tanim geregi imkansiz, yani o kutular eskiden CEVAPSIZ\n"
+          "        geciyordu; ekilmis kusur kanaryasi artik ikisini de\n"
+          "        yakaliyor (invariants.check_layer_text_width).\n"
           "        HALA OLCULMEYEN: katmanda hizalama/cakisma/taban (bunlar\n"
           "        slaydin kendi izgarasi hakkinda, katman sekilleri o\n"
-          "        izgaranin parcasi degil), yatay tasmanin katman\n"
-          "        karsiligi, ve elle yapilmis kurslarda zemini cozulemeyen\n"
+          "        izgaranin parcasi degil), %degisken% tasiyan metnin\n"
+          "        EKRANDAKI uzunlugu (AYRI sayilir, 'temiz' degil), ve\n"
+          "        elle yapilmis kurslarda zemini cozulemeyen\n"
           "        sekiller -- sonuncular 'olculemeyen' sayilir ve SESSIZ\n"
           "        kalir, ihlal diye raporlanmaz.")
     # EN SON SATIR. Yukaridaki KAPSAM blogu uzun ve `tail -1` onun
