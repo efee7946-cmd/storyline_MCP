@@ -591,6 +591,16 @@ def kos() -> list[str]:
                      "-- zincir hic kurulmamis olabilir")
 
     # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
+    #
+    # FIKSTUR YOKSA "GECTI" DEGIL "BAKILMADI". `test/` bu depoda
+    # .gitignore altinda, yani taban her calisma agacinda bulunmayabilir.
+    # Eksik bir fiksturu sessizce atlamak, md. 6'yi hic kosmadigi halde
+    # yesil gosterirdi -- bu deponun ayirdigi tam o hal.
+    if not BEYANSIZ_TABAN.is_file():
+        print(f"beyansiz tb : BAKILMADI -- fikstur yok ({BEYANSIZ_TABAN.name})")
+        kusur.append(f"MD. 6 BAKILMADI: {BEYANSIZ_TABAN.name} yok; navData "
+                     f"beyani OLCULMEDI ('gecti' degil)")
+        return kusur
     yol_n = CANARY / "ajan_yolu_beyansiz.story"
     for ek in (oturum.ANLIK_UZANTI, oturum.KUNYE_UZANTI, ".gerialma.bak"):
         (yol_n.with_suffix(yol_n.suffix + ek)).unlink(missing_ok=True)
