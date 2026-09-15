@@ -30,6 +30,20 @@ yazili). Bugun doyurulabilir olanlar iddia ediliyor:
     2  cevaplanamaz soru SIFIR
     3  sahipsiz etkilesim YOK           (puanli her slayt quiz'e kayitli)
     4  ayak izi TUTARLI                 (kurulan slaytlar farkta gorunuyor)
+    5  sahne sonu ILERI YOLU SAGLAM     (sahne siniri gecilebiliyor)
+
+MD. 5 NICIN SONRADAN EKLENDI. Kural (`ileri_zincirini_kur`) 2026-09-14'te
+yazildi ama tek cagirani panelin kurucu yolu oldu; ajanin MCP yolu onu hic
+gormuyordu. Kullanici ayni kusuru 2026-09-15'te yeniden bildirdi ve bu kez
+kurs BU yoldan kurulmustu -- kendi dosyasinda olculdu: bes sahnenin
+besinde de son slaydin ileri yolu "sonraki slayt", `jumpToScene` sifir.
+Kural `server._write`e tasindi; md. 5 onun bu yuzeyden gercekten
+gezildigini soruyor.
+
+AKIS IKI SAHNE KURUYOR, ve bu md. 5'in on kosulu: tek sahneli bir akista
+"sahnenin son slaydi" ile "kursun son slaydi" ayni sey olur ve yuklem
+hicbir sey sormaz. Kapsamda tek sahne kalirsa md. 5 bunu KUSUR olarak
+bildirir, sessizce yesil donmez.
 
 IDDIA EDILMEYENLER, acikca: `Ilerleme` degiskeni, medya plani, sonuc
 kilidi. Bunlar sohbet yolunda KURULMUYOR ve bu kapi onlari sormaz;
@@ -43,6 +57,12 @@ KIRMIZIYA dondugunu gormek. Uc ekim:
     a  sonuc slaydi HIC eklenmezse   -> iddia 1 kirmizi olmali
     b  questionIdLst bosaltilirsa    -> iddia 1 ve 3 kirmizi olmali
     c  dogruluk isareti silinirse    -> iddia 2 kirmizi olmali
+    d  sahne gecisi bozulursa        -> iddia 5 kirmizi olmali
+
+MD. 5 AYRICA TERS YONDEN SINANDI (2026-09-15): `_zincir_kapsami` bos
+donecek sekilde kapatilinca ana kosu KIRMIZIYA dondu (5 cikmaz, ilki
+`388e285d` kopuk sahne hedefi). Yani md. 5'in sifiri duzeltmenin
+kostugunu gosteriyor, kendi korlugunu degil.
 
 Ucu de kirmiziya donmezse bu kapi KOR demektir ve sifirlari okunmamali.
 
@@ -91,6 +111,7 @@ import warnings
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 warnings.simplefilter("ignore")
 
@@ -105,6 +126,7 @@ else:
 
 from storyline_mcp.package import StoryPackage      # noqa: E402
 from storyline_mcp import model, oturum, puanlama   # noqa: E402
+import completeness                                 # noqa: E402
 
 # SUNUCU ACILMAZSA KAPI HUKUM VERMEZ. Asagidaki dizi bir ISARET:
 # `akis` onu dondururse ortada olculmus bir sey yok ve kapi KOSAMADI (3)
@@ -219,6 +241,25 @@ async def akis(yol: pathlib.Path, *, sonuc_slaydi: bool = True) -> list[str]:
                                 else None,
                                 eyebrow="01_Giris", theme="gece")
 
+                # IKINCI SAHNE: SAHNE SINIRI OLMADAN sahne sonu olculemez.
+                # Tek sahneli bir akista "sahnenin son slaydi" ile "kursun
+                # son slaydi" ayni sey ve iddia 5 hicbir sey sormaz --
+                # yuklem bir kesitte kimildamiyorsa yesil, sorunun
+                # sorulamamasidir.
+                await cagir("add_scene", name="02_Uygulama")
+                for duzen, baslik in (("content", "Nasil Uygulanir"),
+                                      ("bullets", "Iki Adim")):
+                    yeni2 = await cagir("add_slide", template=sablon,
+                                        scene="02_Uygulama", name=baslik)
+                    slayt2 = yeni2.get("new_slide")
+                    if not slayt2:
+                        hatalar.append(f"add_slide donusunde new_slide yok ({yeni2})")
+                        continue
+                    await cagir("compose_slide", slide=slayt2, layout=duzen,
+                                title=baslik, body="Kisa bir govde metni.",
+                                bullets=["Bir", "Iki"] if duzen == "bullets" else None,
+                                eyebrow="02_Uygulama", theme="gece")
+
                 for i in range(2):
                     await cagir("add_question", prompt=f"Soru {i + 1}?",
                                 choices=["a", "b", "c", "d"], correct=[i % 4],
@@ -230,6 +271,49 @@ async def akis(yol: pathlib.Path, *, sonuc_slaydi: bool = True) -> list[str]:
                     await cagir("add_results_slide")
                 await cagir("animate_slide", preset="sakin")
     return hatalar
+
+
+KURULAN_SAHNELER = ("01_Giris", "02_Uygulama")
+
+
+def _kapsam(pkg: StoryPackage) -> list[str]:
+    """Bu akisin KURDUGU sahneler, sceneLst sirasinda.
+
+    Kapsam sunucunun surec-ici kaydindan OKUNMUYOR: kapi ayri bir surecte
+    kosuyor ve zaten kendi ne kurdugunu biliyor. Denetledigi kodun
+    kapsam cozucusunu cagirmak, o cozucudeki bir kusuru gormemek olurdu.
+    """
+    story = pkg.parse("story/story.xml")
+    return [sc.get("g") for sc in (story.find("sceneLst") or [])
+            if sc.get("name") in KURULAN_SAHNELER and sc.get("g")]
+
+
+def _sahne_sonu_cikmazlari(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
+    """Sahne SINIRINDA olu kalan ileri yollari; akisin sonu haric.
+
+    AKISIN SONU DISARIDA ve bu gevseme degil SOZLESME: `_write` zinciri
+    `kapat_son=False` ile kuruyor, cunku ajan yolunda kurs parca parca
+    buyuyor ve bugunun son sahnesi yarin ortada kalabilir. Kursun
+    sonundaki olu ileri dugmesini kapatmak kurucu yolun isi
+    (`son_slaydin_ilerisini_kapat`); onu burada istemek kapiyi INSA
+    GEREGI kalici kirmiziya cevirirdi, ve kalici kirmizi bir kapi sinyal
+    uretmeyi birakir.
+
+    KAPSAMDA TEK SAHNE VARSA IDDIA BOSTUR ve bu bir KUSUR olarak
+    dondurulur, sessizce yesil degil: sahne siniri olmayan bir akista bu
+    yuklem hicbir sey sormaz ve yesili "gecti" diye okunur.
+    """
+    if len(kapsam) < 2:
+        return ["KAPSAMDA TEK SAHNE: sahne siniri yok, iddia 5 hicbir sey "
+                "olcmedi (akis iki sahne kurmali)"]
+    index = model.slide_index(pkg)
+    son_sahne = kapsam[-1]
+    uyeler = sorted((r for r in index.values() if r.scene_guid == son_sahne),
+                    key=lambda r: r.position)
+    akisin_son_slaydi = uyeler[-1].basename if uyeler else ""
+    return [f"{slayt} ({sahne}): {neden}"
+            for slayt, sahne, neden in completeness.ileri_cikmazlari(pkg, kapsam)
+            if slayt != akisin_son_slaydi]
 
 
 def iddialar(yol: pathlib.Path, *, beklenen_yeni_slayt: int) -> list[str]:
@@ -257,6 +341,17 @@ def iddialar(yol: pathlib.Path, *, beklenen_yeni_slayt: int) -> list[str]:
     if sahipsiz:
         kusur.append(f"{len(sahipsiz)} puanli slayt quiz'e KAYITLI DEGIL "
                      f"({', '.join(sahipsiz[:3])}): puanlari toplama girmez")
+
+    # 5. SAHNE SONU ILERI YOLU
+    #
+    # Kullanicinin 2026-09-15'te ikinci kez bildirdigi kusur: "bir
+    # sahnenin son slaydindan digerinin ilk slaydina gecmiyor". Kural
+    # `server._write`te duruyor; bu iddia onun MCP yuzeyinden GERCEKTEN
+    # gezildigini soruyor -- ilk yazildiginda kural yalnizca panelin
+    # kurucu yolundaydi ve ajanin yolu onu hic gormuyordu.
+    kopuk = _sahne_sonu_cikmazlari(pkg, _kapsam(pkg))
+    if kopuk:
+        kusur.append(f"sahne sonu ILERI YOLU olu ({len(kopuk)}): {kopuk[0][:90]}")
 
     # 4. AYAK IZI
     f = oturum.fark(yol)
@@ -290,7 +385,7 @@ def kos() -> list[str]:
     if arac_hatalari:
         kusur.append(f"{len(arac_hatalari)} arac cagrisi HATA dondu: "
                      f"{arac_hatalari[0]}")
-    ana = iddialar(yol, beklenen_yeni_slayt=5)
+    ana = iddialar(yol, beklenen_yeni_slayt=8)
     print(f"ana kosu    : {len(ana)} kusur" +
           ("" if not ana else " -> " + ana[0][:70]))
     kusur.extend(f"AJAN YOLU: {k}" for k in ana)
@@ -298,7 +393,7 @@ def kos() -> list[str]:
     # --- KANARYA (a): SONUC SLAYDI YOK -> iddia 1 kirmizi olmali
     yol_a = _hazirla("ajan_yolu_kanarya_a.story")
     asyncio.run(akis(yol_a, sonuc_slaydi=False))
-    a = iddialar(yol_a, beklenen_yeni_slayt=5)
+    a = iddialar(yol_a, beklenen_yeni_slayt=7)
     zincir_a = [k for k in a if k.startswith("zincir")]
     print(f"kanarya (a) : sonuc slaydi yok -> "
           f"{'YAKALANDI' if zincir_a else 'KACTI'}")
@@ -321,7 +416,7 @@ def kos() -> list[str]:
             silinen += 1
     pk_b.replace_xml("story/story.xml", story)
     pk_b.save(yol_b, backup=False)
-    b = iddialar(yol_b, beklenen_yeni_slayt=5)
+    b = iddialar(yol_b, beklenen_yeni_slayt=8)
     print(f"kanarya (b) : {silinen} quiz kaydi silindi -> "
           f"{len(b)} iddia kirmizi")
     if silinen and not b:
@@ -354,7 +449,7 @@ def kos() -> list[str]:
         if degisti:
             pk_c.replace_xml(part, kok)
     pk_c.save(yol_c, backup=False)
-    c = iddialar(yol_c, beklenen_yeni_slayt=5)
+    c = iddialar(yol_c, beklenen_yeni_slayt=8)
     cev_c = [k for k in c if k.startswith("cevaplanamaz")]
     print(f"kanarya (c) : {bozulan} dogruluk isareti silindi -> "
           f"{'YAKALANDI' if cev_c else 'KACTI'}")
@@ -364,6 +459,50 @@ def kos() -> list[str]:
     if not bozulan:
         kusur.append("KANARYA KURULAMADI (c): bozulacak dogruluk isareti "
                      "yoktu -- ana kosu soru kurmamis olabilir")
+
+    # --- KANARYA (d): sahne sonu baglantisi bozulur -> iddia 5 kirmizi
+    #
+    # EKILEN KUSUR, KULLANICININ BILDIRDIGI HALIN TA KENDISI: sahne
+    # sonundaki `jumpToScene` "sonraki slayt"a ceviriliyor -- sahnenin son
+    # slaydinda gidecek slayt yoktur, dugme sessizce hicbir sey yapmaz.
+    # Ana kosudaki sifir, ancak bu ekim KIRMIZIYA donerse bir sey soyler.
+    yol_d = CANARY / "ajan_yolu_kanarya_d.story"
+    shutil.copy2(yol, yol_d)
+    pk_d = StoryPackage(yol_d)
+    kapsam_d = _kapsam(pk_d)
+    idx_d = model.slide_index(pk_d)
+    ekilen = 0
+    for sahne_guid in kapsam_d:
+        uyeler = sorted((r for r in idx_d.values() if r.scene_guid == sahne_guid),
+                        key=lambda r: r.position)
+        if not uyeler:
+            continue
+        kok = pk_d.parse(uyeler[-1].part)
+        degisti = False
+        for trig in kok.iter("trig"):
+            veri = trig.find("data")
+            if veri is None or veri.get("action") != "jumpToScene":
+                continue
+            veri.set("action", "jumpToSlide")
+            veri.set("actSubType", "next")
+            sahne = veri.find("scene")
+            if sahne is not None:
+                sahne.attrib.pop("jumpG", None)
+            degisti = True
+            ekilen += 1
+        if degisti:
+            pk_d.replace_xml(uyeler[-1].part, kok)
+    pk_d.save(yol_d, backup=False)
+    pk_d2 = StoryPackage(yol_d)
+    d = _sahne_sonu_cikmazlari(pk_d2, _kapsam(pk_d2))
+    print(f"kanarya (d) : {ekilen} sahne gecisi bozuldu -> "
+          f"{'YAKALANDI' if d else 'KACTI'}")
+    if ekilen and not d:
+        kusur.append("OLCU KOR (d): sahne gecisleri bozuldugu halde sahne "
+                     "sonu cikmazi sifir -- iddia 5 olcmuyor")
+    if not ekilen:
+        kusur.append("KANARYA KURULAMADI (d): bozulacak sahne gecisi yoktu "
+                     "-- zincir hic kurulmamis olabilir")
     return kusur
 
 

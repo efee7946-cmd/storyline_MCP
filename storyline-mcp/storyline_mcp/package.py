@@ -124,6 +124,12 @@ class StoryPackage:
             ) from exc
         if STORY_PART not in self._parts:
             raise StoryError(f"{self.path.name} icinde {STORY_PART} yok.")
+        # ACILISTAKI PARCA KUMESI. "Bu cagri neyi EKLEDI" sorusu yalnizca
+        # buradan cevaplanabiliyor: `_dirty` eklenen ile DOKUNULANI ayirmaz
+        # ve tema/animasyon araclari her slayda dokunuyor. Tek bir kume,
+        # tek bir yerde -- turetmek isteyen her cagirana birakilirsa
+        # ikisi ayrisir.
+        self._acilis_parcalari: frozenset[str] = frozenset(self._parts)
 
     # ---------------------------------------------------------------- parts
 
@@ -194,6 +200,16 @@ class StoryPackage:
     @property
     def dirty_parts(self) -> list[str]:
         return sorted(self._dirty)
+
+    @property
+    def eklenen_slayt_parcalari(self) -> list[str]:
+        """Bu paket acildigindan beri EKLENEN slayt parcalari.
+
+        Dokunulanlari saymaz; `set_theme_font` gibi her slayda yazan bir
+        arac bu listeyi buyutmez.
+        """
+        return [n for n in self._order
+                if SLIDE_RE.match(n) and n not in self._acilis_parcalari]
 
     @property
     def slide_parts(self) -> list[str]:
