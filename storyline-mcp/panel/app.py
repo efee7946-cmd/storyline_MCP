@@ -690,7 +690,7 @@ class Api:
                      options: dict | None = None) -> str:
         """Design and build a whole course from a brief, in the background.
 
-        options is the setup collected once: title, audience, goal, minutes,
+        options is the setup collected once: title, audience, goal, depth,
         sections, questions_per_section, tone, accent/bg colours.
         """
         if not brief.strip():

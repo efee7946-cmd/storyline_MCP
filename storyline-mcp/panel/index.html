@@ -247,15 +247,12 @@
       <label>Amaç</label>
       <input type="text" id="pGoal" placeholder="Günlük kararlarda riski fark etmesini sağlamak">
       <div class="row">
-        <div><label>Süre</label>
-          <select id="pMinutes">
-            <option value="">belirtme</option>
-            <option value="15">15 dakika</option>
-            <option value="25" selected>25 dakika</option>
-            <option value="40">40 dakika</option>
-            <option value="60">60 dakika</option>
+        <div><label>Bölüm derinliği</label>
+          <select id="pDepth">
+            <option value="kisa">Kısa — bölüm başına 4 slayt</option>
+            <option value="orta" selected>Orta — bölüm başına 7 slayt</option>
+            <option value="uzun">Uzun — bölüm başına 10 slayt</option>
           </select></div>
-        <div><label>Bölüm sayısı</label><input type="text" id="pSections" placeholder="otomatik"></div>
         <div><label>Bölüm başına soru</label>
           <select id="pQuestions">
             <option value="auto" selected>otomatik</option>
@@ -894,8 +891,11 @@ function courseProfile() {
     title: $("pTitle").value.trim(),
     audience: $("pAudience").value.trim(),
     goal: $("pGoal").value.trim(),
-    minutes: $("pMinutes").value,
-    sections: $("pSections").value.trim(),
+    // Hacim DAKIKAYLA degil DERINLIKLE isteniyor. Dakika, olculmemis bir
+    // sabitle slayt sayisina cevriliyordu ve o sayi istemde yalnizca oneriydi;
+    // ayni istemdeki "en fazla 2 icerik slaydi" tavani her zaman kazaniyordu.
+    // Derinlik dogrudan sahne basina slayt sayisi: kisa 4, orta 7, uzun 10.
+    depth: $("pDepth").value,
     questions_per_section: $("pQuestions").value,
     tone: $("pTone").value,
     question_types: selectedQTypes.length ? selectedQTypes.join(",") : "",

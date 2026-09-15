@@ -275,7 +275,7 @@ def build() -> StoryPackage:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             report = builder.build(str(WORK), "Zor musteriyle iletisim",
-                                   options={"theme": "kagit", "minutes": "20",
+                                   options={"theme": "kagit", "depth": "kisa",
                                             "questions_per_section": "1",
                                             "tone": "hikaye"},
                                    on_progress=lambda text: None)

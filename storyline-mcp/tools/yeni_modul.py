@@ -1210,7 +1210,7 @@ def main() -> int:
                  ["content", "bullets"]),
         ):
             _sc32 = [_sahne32("S", _duz32)]
-            _b32._medya_plani(_sc32, {"medya": "normal", "minutes": "20"},
+            _b32._medya_plani(_sc32, {"medya": "normal"},
                               "brief", "model", lambda m: None)
             _cikan = [_sp["layout"] for _sp in _sc32[0]["content"]]
             if _cikan != _bek32:

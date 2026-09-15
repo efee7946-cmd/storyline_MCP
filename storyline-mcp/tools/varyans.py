@@ -73,9 +73,13 @@ Kapsanacak ana basliklar:
 Her bolumde calisanin karar vermesi gereken somut durumlar olsun."""
 
 KOSULAR = [
-    ("KISA_A", KISA, {"minutes": "20", "sections": "4", "theme": "orman"}),
-    ("KISA_B", KISA, {"minutes": "20", "sections": "4", "theme": "orman"}),
-    ("UZUN_C", UZUN, {"minutes": "60", "sections": "8", "theme": "komur"}),
+    # HACIM ARTIK DERINLIKLE isteniyor (dakika degil). Eski karsiliklari:
+    # 20 dk -> 11 slaytlik butce, 60 dk -> 33. Yeni sayilar sahne basina
+    # BAGLAYICI oldugu icin toplam buyuyor: kisa/4 bolum -> 17, uzun/8
+    # bolum -> 81. UZUN_C kosusu bu yuzden eskisinden belirgin uzun surer.
+    ("KISA_A", KISA, {"depth": "kisa", "sections": "4", "theme": "orman"}),
+    ("KISA_B", KISA, {"depth": "kisa", "sections": "4", "theme": "orman"}),
+    ("UZUN_C", UZUN, {"depth": "uzun", "sections": "8", "theme": "komur"}),
 ]
 
 _asil_yama = builder._ayrac_yamasi

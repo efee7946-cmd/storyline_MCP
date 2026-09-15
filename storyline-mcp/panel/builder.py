@@ -85,11 +85,8 @@ Kurallar:
                adim varsa BUNU kullan -- ogrenci her birini kendi acar.
 - kind: "content", "question", "drag" (gruplama), "commitment" (yazdirma) veya "hotspot" (sicak nokta)
 - Ilk sahne bir kapak (cover) slaydiyla baslasin.
-- Brief'te gecen her ana baslik icin ayri bir sahne olustur; sahne adlari
-  "01_Ad", "02_Ad" biciminde, Turkce karakter ve bosluk kullanma.
-- Konu sahnesi EN FAZLA 2 icerik slaydi tasisin ve bir question ile kapansin.
-  Uc icerik slaydi koyarsan ardisik okuma DORDE cikar; ritim kurali bunu
-  yasakliyor.
+{bolum_kurali}
+{derinlik_kurali}
 - SECTION KOSULLU: bir sahnede section'dan sonra EN AZ IKI gövde slaydi
   gelecekse ayraç koy, yoksa KOYMA. Arkasinda tek slayt olan bir ayrac hicbir
   seyi ayirmiyor, yalnizca yer kapliyor -- ve bütçe darken kurs bastan sona
@@ -118,7 +115,7 @@ Kurallar:
   UC bilesime sigmisti (bes content, bes bullets, bes section) ve kullanici
   "hepsi ayni tasarim" diye bildirdi. Sira tasiyan bir anlatimi steps yap,
   akilda kalmasi gereken cumleyi statement yap.
-- Toplam slayt sayisi {slide_budget} civarinda olsun.
+{toplam_kurali}
 {ogretim}
 {question_rule}
 KUNYE:
@@ -224,8 +221,160 @@ TONES = {
     "hikaye": "Ton: senaryo anlatimi. Somut bir calisanin basindan gecenler uzerinden anlat.",
 }
 
-# Roughly how many slides a learner gets through per minute of course time.
-SLIDES_PER_MINUTE = 0.55
+# Bir konu sahnesinin DERINLIGI -- kunyedeki Kisa/Orta/Uzun secimi, slayt
+# olarak. Sayilar sahnenin TAMAMINI sayar: bir ayrac + govde + sorular.
+#
+# BUNDAN ONCE HACIM DAKIKAYLA ISTENIYORDU ve tutmuyordu, iki ayri sebepten.
+# (1) Dakika->slayt cevrimi OLCULMEMIS bir sabitti: 0.55, ilk uretim
+# commit'inden beri dokunulmamis ve yaninda olcum notu yok -- bu depoda
+# her sabitin var. (2) Cevrimin sonucu isteme yalnizca ONERI olarak
+# giriyordu ("civarinda olsun") ama ayni istemde EMIR KIPINDE bir tavan
+# duruyordu: "konu sahnesi EN FAZLA 2 icerik slaydi tasisin". Cakistiklarinda
+# emir kazaniyordu. Uretim kaydinda dort sahne / on alti slayt, yani sahne
+# basina hep ayrac + 2 icerik + 1 soru; sureyi buyutmek bolumleri
+# KALINLASTIRMIYOR, yalnizca bolum SAYISINI artiriyordu. Kaldirilan sinir o
+# tavandir; bu tablo onun yerine gecer ve istedigi seyi DOGRUDAN soyler.
+#
+# BOLUNUS SECILMIS DEGIL, ARDISIK OKUMA KURALINDAN CIKAR: seri en fazla uc
+# olabildigi icin (`_ardisik_okuma` / `_kadans_ihlalleri`) her ucuncu
+# slayttan sonra bir durak gerekir. Ayrac disinda kalan d-1 slaydin
+# (d-1)//3'u soru, kalani govde olur:
+#
+#   Kisa  (4):  ayrac + 2 govde + 1 soru
+#   Orta  (7):  ayrac + 4 govde + 2 soru
+#   Uzun (10):  ayrac + 6 govde + 3 soru
+#
+# SORU KAPALIYSA YUVALAR BOS BIRAKILMAZ, HIC OLUSMAZ (kullanici karari,
+# 2026-09-16): govde sayisi AYNEN kalir, sahne kisalir -- 3 / 5 / 7 slayt.
+# Yani "soru olmasin" kursu seyreltmez, yalnizca duraklarini kaldirir.
+SCENE_DEPTHS = {"kisa": 4, "orta": 7, "uzun": 10}
+DEFAULT_DEPTH = 7
+
+# Kursun makul TOPLAM hacmi (govde slaydi olarak). Bolum sayisi alani
+# panelden kaldirildiginda toplami baglayan tek sey bu bant kaldi:
+# derinlik x (modelin serbest bolum secimi) SINIRSIZDIR -- Uzun derinlik
+# ve sekiz bolum 81 slayt eder ve bunu kimse istemedi. Bant, derinligi
+# bolum sayisina cevirir: DERIN BOLUM SAYIYI ARTIRMAZ, BOLUMU KALINLASTIRIR.
+TOPLAM_HEDEF = (20, 36)
+BOLUM_SINIRI = (3, 8)
+
+
+def _depth(options: dict) -> int:
+    """Kunyedeki derinlik, SLAYT sayisi olarak. Ad da ("orta") sayi da kabul."""
+    ham = options.get("depth")
+    if ham in (None, ""):
+        return DEFAULT_DEPTH
+    ad = str(ham).strip().lower()
+    if ad in SCENE_DEPTHS:
+        return SCENE_DEPTHS[ad]
+    try:
+        return max(int(ad), 3)
+    except (TypeError, ValueError):
+        return DEFAULT_DEPTH
+
+
+def scene_shape(options: dict) -> tuple:
+    """Bir konu sahnesinin ayrac disindaki bolunusu: (govde, soru).
+
+    BU SAYIYI TEK HESAPLAYAN YER. Uc ayri tuketicisi var -- istemdeki
+    derinlik kurali, istemdeki soru kurali ve toplam slayt butcesi -- ve
+    ucu ayri yazilsaydi ayrisirlardi: kullanici "Uzun" secip soru sayisini
+    elle 1 yaptiginda istem "3 soru" derken butce 10 slayt sayardi.
+
+    Soru sayisi normalde derinlikten cikar, ama kunyede ACIK bir secim
+    varsa (Bolum basina soru) o kazanir: alan panelde duruyor ve sessizce
+    yok sayilmasi, kullanicinin gordugu bir dugmenin hicbir sey yapmamasi
+    olurdu.
+
+    GOVDE SAYISI SORUDAN BAGIMSIZ: sorular kapatilinca yuvalar bos
+    birakilmaz, hic olusmaz -- govde aynen kalir, sahne kisalir.
+    """
+    d = _depth(options)
+    soru = (d - 1) // 3
+    govde = d - 1 - soru
+    per = options.get("questions_per_section")
+    if per not in (None, "", "auto"):
+        try:
+            soru = max(int(per), 0)
+        except (TypeError, ValueError):
+            pass
+    return govde, soru
+
+
+def _derinlik_etiketi(options: dict) -> str:
+    govde, soru = scene_shape(options)
+    return "%d slayt/bolum (1 ayrac + %d govde + %d soru)" % (
+        1 + govde + soru, govde, soru)
+
+
+def _bolum_bandi(options: dict) -> tuple:
+    """Derinlikten cikan (alt, ust) bolum sayisi. Toplam hedefi TOPLAM_HEDEF."""
+    govde, soru = scene_shape(options)
+    per = max(1 + govde + soru, 1)
+    alt = min(max(round(TOPLAM_HEDEF[0] / per), BOLUM_SINIRI[0]), BOLUM_SINIRI[1])
+    ust = min(max(round(TOPLAM_HEDEF[1] / per), alt + 1), BOLUM_SINIRI[1])
+    return alt, ust
+
+
+def _bolum_kurali(options: dict) -> str:
+    """Kac konu bolumu olacak. Kunyede yazmiyorsa SECIMI MODEL YAPAR.
+
+    Alan panelden kaldirildi (kullanici karari 2026-09-16): egitim
+    teknologunun brief'i zaten konulari soyluyor, sayiyi ayrica sormak ayni
+    seyi iki kez sormakti -- ve iki cevap celistiginde hangisinin tuttugu
+    yaziliyor degildi.
+
+    ONCELIK ACIKCA YAZILIR, cunku yazilmazsa model kosudan kosuya farkli
+    secer ve ayni brief bir kez alti, bir kez uc bolum uretir: brief
+    basliklari SAYIYORSA onlar yetkilidir, saymiyorsa bant yetkilidir.
+    """
+    ad_kurali = ('- Sahne adlari "01_Ad", "02_Ad" biciminde; Turkce karakter '
+                 've bosluk kullanma.\n')
+    ham = str(options.get("sections") or "").strip()
+    if ham:
+        return ("- TAM OLARAK %s konu bolumu olustur; kunyede acikca istendi.\n"
+                % ham) + ad_kurali
+    alt, ust = _bolum_bandi(options)
+    govde, soru = scene_shape(options)
+    per = 1 + govde + soru
+    return ("- BOLUM SAYISINI SEN BELIRLE, kunyede yazmiyor. Sirasiyla:\n"
+            "  1) Brief ana basliklari SAYIYORSA her biri bir bolum olsun --\n"
+            "     sayilarini azaltma, iki basligi tek bolumde birlestirme.\n"
+            "  2) Saymiyorsa hedef kitleye ve amaca bakarak %d-%d konu bolumu\n"
+            "     cikar. Yeni baslayanlara daha az ve daha somut bolum, konuyu\n"
+            "     bilen bir kitleye daha ayrimli bolumler uygundur.\n"
+            "- Bolum derinligi %d slayt oldugu icin bu bandi ASMA: kurs %d-%d\n"
+            "  slayt civarinda kalsin. Derin bolum bolum SAYISINI artirmaz,\n"
+            "  bolumun KENDISINI kalinlastirir.\n"
+            % (alt, ust, per, 1 + alt * per, 1 + ust * per)) + ad_kurali
+
+
+def _derinlik_kurali(options: dict) -> str:
+    """Sahne BASINA hacim kurali -- kaldirilan "en fazla 2 icerik" tavaninin yeri."""
+    govde, soru = scene_shape(options)
+    if not soru:
+        return ("- HER KONU SAHNESI %d SLAYT TASISIN: bir ayrac ve %d govde\n"
+                "  slaydi. Bu kursta soru YOK; soru yerine BASKA BIR SLAYT DE\n"
+                "  KOYMA -- sahne o yuvalar kadar KISA kalsin.\n"
+                % (1 + govde, govde))
+    return ("- HER KONU SAHNESI %d SLAYT TASISIN: bir ayrac, %d govde slaydi\n"
+            "  ve %d soru/etkilesim. Sorulari sahnenin sonuna YIGMA, govdenin\n"
+            "  ARASINA dagit: ardisik okuma uc slayti gecmesin.\n"
+            % (1 + govde + soru, govde, soru))
+
+
+def _toplam_kurali(options: dict) -> str:
+    """Toplam yalnizca bolum sayisi BILINIYORSA soylenir.
+
+    Bolum sayisi bos birakilabilir ve o zaman toplam da bilinemez.
+    Uydurulmus bir toplam sahne basina kuralla celisir, model ikisinden
+    birini secmek zorunda kalir ve hangisini sectigi kosudan kosuya
+    degisirdi -- yani hata ARALIKLI gorunurdu.
+    """
+    toplam = slide_budget(options, fallback=0)
+    if not toplam:
+        return ""
+    return "- Toplam slayt sayisi %d civarinda olsun.\n" % toplam
 
 
 def _profile_text(options: dict) -> str:
@@ -234,7 +383,7 @@ def _profile_text(options: dict) -> str:
         ("Kurs basligi", options.get("title")),
         ("Hedef kitle", options.get("audience")),
         ("Amac", options.get("goal")),
-        ("Sure", f"{options['minutes']} dakika" if options.get("minutes") else None),
+        ("Bolum derinligi", _derinlik_etiketi(options)),
         ("Bolum sayisi", options.get("sections")),
         ("Istenen Soru/Etkilesim Tipleri", options.get("question_types")),
     ]
@@ -267,30 +416,38 @@ def _question_rule(options: dict, arities: str) -> str:
                 "Sahnelere soru/etkilesim dagitirken YALNIZCA kullanicinin sectigi bu tipleri kullan.\n"
             )
 
-    if per in (None, "", "auto"):
-        rule = ("- Her konu sahnesinde en az 1 soru/etkilesim bulunsun.\n"
-                f"- Soru bicimleri: {arities}\n")
-    else:
-        try:
-            count = int(per)
-        except (TypeError, ValueError):
-            count = 1
-        if count <= 0:
-            return ("- Bu kursta SORU OLMAYACAK. Hicbir sahneye question ekleme.\n"
-                    "  Kullanici bunu ACIKCA istedi; yukaridaki ortak soru\n"
-                    "  kurallari bu kursta GECERSIZDIR.\n")
-        rule = (f"- Her konu sahnesinde TAM OLARAK {count} adet soru/etkilesim bulunsun.\n"
-                f"- Soru bicimleri: {arities}\n")
+    if _sorular_kapali(options):
+        return ("- Bu kursta SORU OLMAYACAK. Hicbir sahneye question ekleme.\n"
+                "  Kullanici bunu ACIKCA istedi; yukaridaki ortak soru\n"
+                "  kurallari bu kursta GECERSIZDIR.\n"
+                "  Soru yerine BASKA BIR SLAYT DE KOYMA: sahne kisalir.\n")
+    # "auto" da, elle secilmis sayi da AYNI YERDEN okunur -- `scene_shape`
+    # ikisini de karara baglar. Burada ikinci bir hesap yapilsaydi derinlik
+    # kurali ile bu kural farkli sayilar soyleyebilirdi.
+    _, count = scene_shape(options)
+    rule = (f"- Her konu sahnesinde TAM OLARAK {count} adet soru/etkilesim bulunsun.\n"
+            f"- Soru bicimleri: {arities}\n")
 
     return rule + type_rule
 
 
 def slide_budget(options: dict, fallback: int = 18) -> int:
-    minutes = options.get("minutes")
+    """Toplam slayt: kapak + (bolum sayisi x sahne derinligi).
+
+    TAHMIN DEGIL TUREV. Eskiden dakikayi olculmemis bir sabitle carpiyordu;
+    simdi istenen seklin toplamini SAYIYOR. Bolum sayisi bos birakilmissa
+    toplam BILINMEZ ve fallback doner -- cagiran taraf (`_toplam_kurali`) o
+    durumda toplamdan hic soz etmez, derinlik kurali sahne basina zaten
+    baglayicidir.
+    """
+    govde, soru = scene_shape(options)
     try:
-        return max(int(round(int(minutes) * SLIDES_PER_MINUTE)), 6)
+        bolum = int(str(options.get("sections")).strip())
     except (TypeError, ValueError):
         return fallback
+    if bolum <= 0:
+        return fallback
+    return 1 + bolum * (1 + govde + soru)        # kapak + konu sahneleri
 
 
 def _cli_json(cli, prompt: str, model: str, timeout: float,
@@ -1487,7 +1644,7 @@ def build(
 ) -> dict:
     """Design a course from the brief and build it, section by section.
 
-    options carries the setup: title, audience, goal, minutes, sections,
+    options carries the setup: title, audience, goal, depth, sections,
     questions_per_section, tone. Anything omitted simply is not asserted.
     """
     options = options or {}
@@ -1559,7 +1716,9 @@ def build(
                 "surebilir; olculen en uzunu 6.5 dakika)")
     outline_istemi = (
         OUTLINE_PROMPT.replace("{brief}", brief)
-                      .replace("{slide_budget}", str(budget))
+                      .replace("{bolum_kurali}", _bolum_kurali(options))
+                      .replace("{derinlik_kurali}", _derinlik_kurali(options))
+                      .replace("{toplam_kurali}", _toplam_kurali(options))
                       .replace("{question_rule}", _question_rule(options, arity_text))
                       .replace("{profile}", profile)
                       .replace("{ogretim}", ogretim.ORTAK_KURALLAR))
@@ -2074,6 +2233,29 @@ def build(
     for _b in _hacim_bulgulari([sahne_hacmi[i] for i in _konu_araligi(scenes)
                                 if i < len(sahne_hacmi)]):
         on_progress("sahne hacmi -- %s" % _b)
+
+    # SORUSUZ KURSTA ARDISIK OKUMA OLCULUR AMA ONARILMAZ.
+    #
+    # `_kadans_ihlalleri` sorular kapaliyken BASTAN doner ve bu DOGRU:
+    # onarim araya soru koyarak calisiyor, soru yasakken konulacak bir sey
+    # yok. Ama donen bos liste "temiz" DEGIL, "bakilmadi" demek -- ve ikisi
+    # rapora ayni goruntuyu veriyordu.
+    #
+    # OLCULDU 2026-09-16, derinlik degisikligiyle ayni turda: dort bolumluk
+    # sorusuz bir kursta seri Kisa'da 13, Uzun'da 29 slayt cikiyor -- yani
+    # kurs bastan sona TEK bir okuma serisi ve denetim "temiz" diyordu.
+    # Derinlik secimi bu sayiyi buyuttugu icin (eski tavan 2 icerik/sahneydi)
+    # olcumun sessiz kalmasi artik daha pahali.
+    #
+    # IHLAL DEGIL BULGU: ihlal listesine konsaydi iskeleti yeniden isteyen
+    # dongu tetiklenirdi ve o dongu bunu ASLA duzeltemez -- soru yasak.
+    if _sorular_kapali(options):
+        _seri = _ardisik_okuma(scenes, "content")
+        if _seri > 3:
+            on_progress("⚠️ %d slayt kesintisiz okuma -- bu kursta soru "
+                        "kapali, yani ogrenciyi durduran hicbir sey yok. "
+                        "Olculdu, ONARILMADI: soru yasakken araya "
+                        "konulacak bir slayt yok." % _seri)
 
     # ILERLEME KATMANI: degisken, kosullu tetikleyici, sonuc slaydi, kilit.
     # Slaytlar kuruldu ama kurs hala sayfa cevirmek -- degiskeni ve kosulu
