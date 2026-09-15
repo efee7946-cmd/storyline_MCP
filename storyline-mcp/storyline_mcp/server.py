@@ -11,6 +11,7 @@ from __future__ import annotations
 import functools
 import re
 import subprocess
+import xml.etree.ElementTree as ET
 from dataclasses import asdict
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from . import (anim, authoring, compose, jscat, jscheck, logic, media, medya,
-               duzenle, model, oturum, pedagogy, puanlama, settings)
+               duzenle, model, oturum, pedagogy, puanlama, settings, shapes)
 from .clone import clone_slide, create_scene
 from .edits import Edit, apply_text_edits
 from .package import STORY_PART, StoryPackage, StoryError, lock_state
@@ -418,6 +419,75 @@ def _sahne_kuruldu(path: str, scene_guid: str | None) -> None:
         kova.append(scene_guid)
 
 
+def _navdata_tamamla(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
+    """Bu cagrinin EKLEDIGI slaytlara eksik `<navData>`yi yazar.
+
+    KULLANICININ BILDIRDIGI KUSUR (2026-09-15, ILERI duzeldikten sonra):
+    "geri tusu calismiyor ama hala". Storyline'in tetikleyici paneli GERI
+    tetikleyicisini "Unassigned Triggers" altinda, nesnesi cozulememis bir
+    `OnClick` gibi gosteriyor -- ILERI ise "Player Triggers / Next Button"
+    altinda duruyor ve calisiyor.
+
+    OLCULEN FARK. Uretilen kursta geri tetikleyicisinin XML'i, kullanicinin
+    ELLE yaptigi ve yayinlanip CALISAN kursunkiyle ayni sinifta. Ayrisan tek
+    yapisal sey slaydin kendisi:
+
+        calisan kurs (20 slayt)      navData VAR   20/20
+        uretilen kurs (12 slayt)     navData YOK   12/12
+        gegenpress (10 slayt)        navData VAR    5/10 -- ve o besinde
+                                     geri tetikleyicisi YOK (soru tohumlari)
+
+    Yani "geri tetikleyicisi tasiyan slayt" ile "navData tasiyan slayt"
+    kumeleri uretilen kurslarda hic kesismiyor. `<navData>` slaydin hangi
+    oynatici dugmelerini gosterdigini BEYAN EDEN eleman; beyan yoksa
+    `NavigationIntent="Previous"` tasiyan tetikleyicinin baglanacagi bir
+    GERI dugmesi de yok. ILERI'nin etkilenmemesi ayni resmin parcasi:
+    onun olayi (`OnNextButtonClick`) dogrudan bir oynatici olayi ve
+    slaydin beyanina bagli degil.
+
+    NEREDEN GELIYOR: taban dosya. Kullanicinin Storyline'inda kaydedilmis
+    BOS proje tek slayt tasiyor ve o slaytta `navData` yok (olculdu: 48
+    parca, `szCalc`/`tmCtxLst`/`navData` yok). Bos projede tek slayt
+    oldugu icin geri dugmesi orada hic sinanmiyor; kurulan her icerik
+    slaydi o slayttan klonlaniyor ve eksikligi devraliyor.
+
+    DEGERLER UYDURULMADI. `settings.NAV_DEFAULTS`, kullanicinin calisan
+    kursundaki 11 slaydin navData'siyla BIREBIR ayni (olculdu, oznitelik
+    oznitelik). Zaten korpustan turetilmisti; burada yeniden dogrulandi.
+
+    EKLENEN SLAYT BASINA, ve yalnizca ELEMAN HIC YOKSA: tohumdan gelen
+    soru slaytlari kendi navData'sini tasiyor (`submit="true"`) ve ona
+    dokunmak gonderme dugmesini kapatirdi.
+
+    KAPSAMDAKI SAHNELERIN BUTUN SLAYTLARI, yalnizca bu cagrinin
+    EKLEDIKLERI degil. Gerekce olculdu: kursun ilk slaydi taban dosyadan
+    DEVRALINIYOR -- hic "eklenmiyor" -- ve eksikligi tam da orada tasiyor.
+    Kapsam disina cikilmiyor: araca dokunulmamis (devralinan sablon)
+    sahnelerin slayt ozellikleri kullanicinin karari.
+
+    BU BIR HIPOTEZ DEGIL AMA KANIT DA DEGIL: olculen sey korelasyon ve
+    mekanizma, Storyline'in panel yerlesimi dosyadan okunamiyor. Dogrulama
+    kullanicinin ekraninda: panelde tetikleyici "Player Triggers / Previous
+    Button" altina gecmeli.
+    """
+    hedef = list(pkg.eklenen_slayt_parcalari)
+    if kapsam:
+        index = model.slide_index(pkg)
+        kapsam_kume = set(kapsam)
+        hedef += [ref.part for ref in index.values()
+                  if ref.scene_guid in kapsam_kume and ref.part not in hedef]
+    yazilan: list[str] = []
+    for part in hedef:
+        root = pkg.parse(part)
+        if root.find("navData") is not None:
+            continue
+        shapes.insert_in_order(root, ET.Element("navData",
+                                                dict(settings.NAV_DEFAULTS)))
+        pkg.replace_xml(part, root)
+        yazilan.append(part.rsplit("/", 1)[-1])
+    return yazilan
+
+
 def _kapsami_guncelle(pkg: StoryPackage, path: str) -> None:
     """Bu cagrinin EKLEDIGI slaytlarin sahnelerini kapsama yazar.
 
@@ -476,6 +546,11 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
     # dosyaya dokunmaz. Kapsam BOSSA hic kosmaz (gerekce yukarida).
     _kapsami_guncelle(pkg, path)
     kapsam = _zincir_kapsami(pkg, path)
+    # SLAYT OYNATICI DUGMELERINI BEYAN ETSIN (gerekce: _navdata_tamamla).
+    # Kablolama ve ileri zinciriyle ayni sinifta: turetilmis, gorunur
+    # icerik uretmez, ve yalnizca EKSIK olani yazar. KAPSAMDAN SONRA
+    # cagriliyor -- devralinan ilk slaydi ancak kapsam kapsiyor.
+    navdata = _navdata_tamamla(pkg, kapsam)
     zincir = (authoring.ileri_zincirini_kur(pkg, kapsam, kapat_son=False)
               if kapsam else None)
     yazma = pkg.save(target, backup=True)
@@ -489,6 +564,7 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
                                       or zincir["onarilan"]))
     return {**yazma,
             **({"kablolama": kablo} if kablo["degisti"] else {}),
+            **({"navData_yazilan": navdata} if navdata else {}),
             **({"ileri_zinciri": zincir} if zincir_degisti else {})}
 
 

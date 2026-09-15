@@ -136,6 +136,11 @@ import completeness                                 # noqa: E402
 ACILMADI = "SUNUCU ACILMADI"
 
 BLANK = ROOT.parent / "test" / "bos.story"
+# `<navData>` BEYAN ETMEYEN taban: kullanicinin kendi Storyline'inda
+# kaydedilmis bos proje (1 sahne / 1 slayt). Md. 6 bu tabana IHTIYAC
+# DUYUYOR -- `bos.story`nin her slaydinda navData zaten var, yani orada
+# yuklem hicbir zaman kimildamaz ve yesili "gecti" diye okunur.
+BEYANSIZ_TABAN = ROOT.parent / "test" / "_referans" / "bos_navdatasiz.story"
 CANARY = ROOT.parent / "test" / "_canary"
 
 
@@ -316,6 +321,80 @@ def _sahne_sonu_cikmazlari(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
             if slayt != akisin_son_slaydi]
 
 
+async def akis_beyansiz(yol: pathlib.Path) -> list[str]:
+    """`<navData>` beyan etmeyen bir tabandan KISA bir kurulum.
+
+    Kullanicinin kurdugu sekli izliyor: taban sahnesine de slayt
+    ekleniyor (onun dosyasinda 'Intro Scene' 1 -> 2 slayt oldu), cunku
+    kursun ILK slaydi devralinandir ve eksikligi tam orada tasir.
+    """
+    hatalar: list[str] = []
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-c", "from storyline_mcp.server import main; main()"], env=None)
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8",
+                                errors="replace") as _tampon:
+        async with stdio_client(params, errlog=_tampon) as (r, w):
+            async with ClientSession(r, w) as sess:
+                try:
+                    await sess.initialize()
+                except BaseException as _acilis:
+                    hatalar.append("SUNUCU ACILMADI: %s" % type(_acilis).__name__)
+                    return hatalar
+
+                async def cagir(ad, **kw):
+                    res = await sess.call_tool(
+                        ad, {"path": str(yol), "in_place": True, **kw})
+                    hata = _hata_mi(res)
+                    if hata:
+                        hatalar.append(f"{ad}: {hata[:110]}")
+                        return {}
+                    return _coz(res)
+
+                await cagir("add_slide", template="slide.xml",
+                            scene="Intro Scene", name="Kapak")
+                for ad in ("A_Bolum", "B_Bolum"):
+                    await cagir("add_scene", name=ad)
+                    await cagir("add_slide", template="slide.xml",
+                                scene=ad, name=f"{ad}_1")
+    return hatalar
+
+
+def _tum_sahneler(pkg: StoryPackage) -> list[str]:
+    story = pkg.parse("story/story.xml")
+    return [sc.get("g") for sc in (story.find("sceneLst") or []) if sc.get("g")]
+
+
+def _beyansiz_slaytlar(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
+    """Kapsamda GERI tetikleyicisi tasiyip `<navData>` BEYAN ETMEYEN slaytlar.
+
+    Kullanicinin 2026-09-15'te bildirdigi ikinci kusurun olcusu: "geri
+    tusu calismiyor ama hala". `<navData>` slaydin hangi oynatici
+    dugmelerini gosterdigini beyan eden eleman; beyan yoksa
+    `NavigationIntent="Previous"` tasiyan tetikleyicinin baglanacagi bir
+    GERI dugmesi de yok -- ve Storyline onu "Unassigned" gosteriyor.
+
+    ILERI BU YUKLEMIN DISINDA ve sebebi ayni resmin parcasi: onun olayi
+    (`OnNextButtonClick`) dogrudan bir oynatici olayi, slaydin beyanina
+    bagli degil. O yuzden ILERI calisirken GERI calismiyordu.
+    """
+    index = model.slide_index(pkg)
+    kapsam_kume = set(kapsam)
+    out = []
+    for ref in index.values():
+        if ref.scene_guid not in kapsam_kume:
+            continue
+        root = pkg.parse(ref.part)
+        if root.find("navData") is not None:
+            continue
+        if any(t.find("data") is not None
+               and t.find("data").get("NavigationIntent") == "Previous"
+               for t in root.iter("trig")):
+            out.append(ref.basename)
+    return sorted(out)
+
+
 def iddialar(yol: pathlib.Path, *, beklenen_yeni_slayt: int) -> list[str]:
     """Kurulan kursun IDDIALARI. Kurucuya esitlik ARANMIYOR (bkz. baslik)."""
     kusur: list[str] = []
@@ -352,6 +431,13 @@ def iddialar(yol: pathlib.Path, *, beklenen_yeni_slayt: int) -> list[str]:
     kopuk = _sahne_sonu_cikmazlari(pkg, _kapsam(pkg))
     if kopuk:
         kusur.append(f"sahne sonu ILERI YOLU olu ({len(kopuk)}): {kopuk[0][:90]}")
+
+    # 6. SLAYT OYNATICI DUGMELERINI BEYAN EDIYOR
+    beyansiz = _beyansiz_slaytlar(pkg, _kapsam(pkg))
+    if beyansiz:
+        kusur.append(f"{len(beyansiz)} slayt GERI tetikleyicisi tasiyor ama "
+                     f"navData BEYAN ETMIYOR ({', '.join(beyansiz[:3])}): "
+                     f"geri dugmesi baglanamaz")
 
     # 4. AYAK IZI
     f = oturum.fark(yol)
@@ -503,6 +589,50 @@ def kos() -> list[str]:
     if not ekilen:
         kusur.append("KANARYA KURULAMADI (d): bozulacak sahne gecisi yoktu "
                      "-- zincir hic kurulmamis olabilir")
+
+    # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
+    yol_n = CANARY / "ajan_yolu_beyansiz.story"
+    for ek in (oturum.ANLIK_UZANTI, oturum.KUNYE_UZANTI, ".gerialma.bak"):
+        (yol_n.with_suffix(yol_n.suffix + ek)).unlink(missing_ok=True)
+    shutil.copy2(BEYANSIZ_TABAN, yol_n)
+    n_hatalari = asyncio.run(akis_beyansiz(yol_n))
+    if any(h.startswith(ACILMADI) for h in n_hatalari):
+        return [ACILMADI]
+    if n_hatalari:
+        kusur.append(f"beyansiz taban kosusunda {len(n_hatalari)} arac hatasi: "
+                     f"{n_hatalari[0]}")
+    pk_n = StoryPackage(yol_n)
+    beyansiz = _beyansiz_slaytlar(pk_n, _tum_sahneler(pk_n))
+    print(f"beyansiz tb : {len(beyansiz)} slayt navData beyan etmiyor")
+    if beyansiz:
+        kusur.append(f"AJAN YOLU (beyansiz taban): {len(beyansiz)} slayt GERI "
+                     f"tetikleyicisi tasiyor ama navData BEYAN ETMIYOR "
+                     f"({', '.join(beyansiz[:3])})")
+
+    # --- KANARYA (e): navData silinir -> md. 6 kirmizi olmali
+    yol_e = CANARY / "ajan_yolu_kanarya_e.story"
+    shutil.copy2(yol_n, yol_e)
+    pk_e = StoryPackage(yol_e)
+    silinen = 0
+    for ref in model.slide_index(pk_e).values():
+        kok = pk_e.parse(ref.part)
+        nav = kok.find("navData")
+        if nav is None:
+            continue
+        kok.remove(nav)
+        pk_e.replace_xml(ref.part, kok)
+        silinen += 1
+    pk_e.save(yol_e, backup=False)
+    pk_e2 = StoryPackage(yol_e)
+    e = _beyansiz_slaytlar(pk_e2, _tum_sahneler(pk_e2))
+    print(f"kanarya (e) : {silinen} navData silindi -> "
+          f"{'YAKALANDI' if e else 'KACTI'}")
+    if silinen and not e:
+        kusur.append("OLCU KOR (e): navData'lar silindigi halde beyansiz "
+                     "slayt sifir -- md. 6 olcmuyor")
+    if not silinen:
+        kusur.append("KANARYA KURULAMADI (e): silinecek navData yoktu -- "
+                     "beyansiz taban kosusu slayt kurmamis olabilir")
     return kusur
 
 
