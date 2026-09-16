@@ -24,6 +24,13 @@ DAVRANIS:
 
     python tools/sablon_isaretle.py <dosya.story> --liste
     python tools/sablon_isaretle.py <dosya.story> <sahne adi> [<sahne adi> ...]
+    python tools/sablon_isaretle.py <dosya.story> --kaldir <sahne adi> [...]
+
+KALDIRMA DA BURADA. Isaretin geri alinmasi da tek yerden: sahibi Storyline'da
+aciklamayi elle de silebilir, ama kapilarin bir kopyayi KESIN isaretsiz
+yapmasi gerekiyor -- kanarya (h) yerel `bos.story` isaretli oldugunda
+"isaretsiz" sandigi kopyayi isaretli buldu ve KACTI (olculdu, iki durumlu
+suit karsilastirmasi, 2026-09-16).
 """
 
 from __future__ import annotations
@@ -51,6 +58,59 @@ def sahneler(yol: str | pathlib.Path) -> list[dict]:
     return [{"ad": s.get("name"), "isaretli": authoring.akis_disi_mi(s),
              "desc": s.get("desc") or ""}
             for s in (story.find("sceneLst") or [])]
+
+
+def _yedekle(yol: pathlib.Path, etiket: str) -> str:
+    bugun = datetime.date.today().isoformat()
+    hedef = yol.with_name(f"{yol.name}.{etiket}-{bugun}.bak")
+    if hedef.exists():
+        saat = datetime.datetime.now().strftime("%H%M%S")
+        hedef = yol.with_name(f"{yol.name}.{etiket}-{bugun}-{saat}.bak")
+    shutil.copy2(yol, hedef)
+    return str(hedef)
+
+
+def kaldir(yol: str | pathlib.Path, adlar: list[str], *,
+           yedek: bool = True) -> dict:
+    """Adlari verilen sahnelerden akis disi isaretini kaldir (onek + bir bosluk).
+
+    `isaretle` ile ayni secim kurallari: bilinmeyen ya da belirsiz adda HICBIR
+    SEY yazilmaz. Isaretsiz sahneye dokunulmaz.
+    """
+    yol = pathlib.Path(yol)
+    pkg = StoryPackage(yol)
+    story = pkg.parse(STORY_PART)
+    elemanlar = list(story.find("sceneLst") or [])
+    ada_gore: dict[str, list] = {}
+    for s in elemanlar:
+        ada_gore.setdefault(_ad(s.get("name")), []).append(s)
+    rapor = {"kaldirilan": [], "zaten_isaretsiz": [], "bilinmeyen": [],
+             "belirsiz": [], "yedek": None, "yazildi": False,
+             "mevcut": [s.get("name") for s in elemanlar]}
+    for ad in adlar:
+        uyan = ada_gore.get(_ad(ad), [])
+        if not uyan:
+            rapor["bilinmeyen"].append(ad)
+        elif len(uyan) > 1:
+            rapor["belirsiz"].append(ad)
+    if rapor["bilinmeyen"] or rapor["belirsiz"]:
+        return rapor
+    for ad in adlar:
+        sahne = ada_gore[_ad(ad)][0]
+        if not authoring.akis_disi_mi(sahne):
+            rapor["zaten_isaretsiz"].append(sahne.get("name"))
+            continue
+        kalan = (sahne.get("desc") or "")[len(authoring.AKIS_DISI_ISARETI):]
+        sahne.set("desc", kalan[1:] if kalan.startswith(" ") else kalan)
+        rapor["kaldirilan"].append(sahne.get("name"))
+    if not rapor["kaldirilan"]:
+        return rapor
+    if yedek:
+        rapor["yedek"] = _yedekle(yol, "isaret-kaldirma-oncesi")
+    pkg.replace_xml(STORY_PART, story)
+    pkg.save(yol, backup=False)
+    rapor["yazildi"] = True
+    return rapor
 
 
 def isaretle(yol: str | pathlib.Path, adlar: list[str], *,
@@ -87,13 +147,7 @@ def isaretle(yol: str | pathlib.Path, adlar: list[str], *,
     if not rapor["isaretlenen"]:
         return rapor
     if yedek:
-        bugun = datetime.date.today().isoformat()
-        hedef = yol.with_name(f"{yol.name}.isaret-oncesi-{bugun}.bak")
-        if hedef.exists():
-            saat = datetime.datetime.now().strftime("%H%M%S")
-            hedef = yol.with_name(f"{yol.name}.isaret-oncesi-{bugun}-{saat}.bak")
-        shutil.copy2(yol, hedef)
-        rapor["yedek"] = str(hedef)
+        rapor["yedek"] = _yedekle(yol, "isaret-oncesi")
     pkg.replace_xml(STORY_PART, story)
     pkg.save(yol, backup=False)
     rapor["yazildi"] = True
@@ -117,6 +171,17 @@ def main() -> int:
     if lock_state(yol) != "free":
         print("DOSYA KILITLI (Storyline'da acik olabilir) -- yazilmadi.")
         return 3
+    if sys.argv[2] == "--kaldir":
+        rapor = kaldir(yol, sys.argv[3:], yedek=True)
+        if rapor["bilinmeyen"] or rapor["belirsiz"]:
+            print(f"YAZILMADI. bilinmeyen={rapor['bilinmeyen']} "
+                  f"belirsiz={rapor['belirsiz']}")
+            print(f"  dosyadaki sahneler: {rapor['mevcut']}")
+            return 2
+        print(f"kaldirilan: {rapor['kaldirilan']}")
+        print(f"zaten isaretsiz: {rapor['zaten_isaretsiz']}")
+        print(f"yedek: {rapor['yedek']}")
+        return 0
     rapor = isaretle(yol, sys.argv[2:], yedek=True)
     if rapor["bilinmeyen"] or rapor["belirsiz"]:
         print(f"YAZILMADI. bilinmeyen={rapor['bilinmeyen']} "

@@ -732,12 +732,24 @@ def akis_md9(yol: pathlib.Path, *, isaretle: bool = True) -> tuple:
     4. YENI MCP sureci: M1, M2, M3'e SIRALI soru.
 
     `isaretle=False` KANARYA (h) icindir: ayni akis isaretsiz kopyada.
+
+    ISARET DURUMU VARSAYILMAZ, KURULUR -- iki yonde de. Kopya `BLANK`ten
+    (kullanicinin yerel `bos.story`si) geliyor ve o dosya isaretli olabilir.
+    Ilk yazimda ikisi de varsayiliyordu ve iki durumlu suit karsilastirmasi
+    yakaladi (2026-09-16): yerel `bos.story` isaretliyken md. 9 "KURULAMADI"
+    dedi (isaretlenen [], zaten 2) ve kanarya (h) "isaretsiz" kopyayi
+    isaretli buldu. Kalan 28 adim iki durumda birebir ayniydi.
     """
     import sablon_isaretle
     story = StoryPackage(yol).parse("story/story.xml")
     sablon = [(s.get("g"), s.get("name")) for s in (story.find("sceneLst") or [])]
-    isaret = (sablon_isaretle.isaretle(yol, [ad for _, ad in sablon], yedek=False)
-              if isaretle else {"isaretlenen": [], "yazildi": False})
+    adlar = [ad for _, ad in sablon]
+    isaret = (sablon_isaretle.isaretle(yol, adlar, yedek=False) if isaretle
+              else sablon_isaretle.kaldir(yol, adlar, yedek=False))
+    # KURULAN DURUM, yazma raporu degil: "bu cagri yazdi mi" degil, sablon
+    # sahnelerinin HEPSI istenen durumda mi.
+    isaret["durum_tamam"] = all(s["isaretli"] == isaretle
+                               for s in sablon_isaretle.sahneler(yol))
     sablon_g = {g for g, _ in sablon}
     once_iz = _ileri_parmak_izi(StoryPackage(yol), sablon_g)
 
@@ -1138,13 +1150,14 @@ def kos() -> list[str]:
     sonra_iz_9 = _ileri_parmak_izi(pk_9, sablon_9)
     degisen_9 = sorted(g[:8] for g in set(once_iz_9) | set(sonra_iz_9)
                        if once_iz_9.get(g) != sonra_iz_9.get(g))
-    print(f"md9 isaret  : {isaret_9.get('isaretlenen')} "
-          f"(yazildi={isaret_9.get('yazildi')})")
+    print(f"md9 isaret  : sablon isaretli={isaret_9.get('durum_tamam')} "
+          f"(bu kosu yazdi: {isaret_9.get('isaretlenen')}, "
+          f"zaten: {isaret_9.get('zaten')})")
     print(f"md9 (a)     : {'TAM' if not fark_9 else fark_9[:80]}")
     print(f"md9 (b)     : sablonda degisen slayt {len(degisen_9)}")
     if h_9:
         kusur.append(f"md. 9 kosusunda {len(h_9)} arac hatasi: {h_9[0]}")
-    if not isaret_9.get("yazildi") or len(isaret_9.get("isaretlenen") or []) != len(sablon_9):
+    if not isaret_9.get("durum_tamam"):
         kusur.append(f"MD. 9 KURULAMADI: sablon isaretlenemedi ({isaret_9})")
     else:
         if fark_9:
@@ -1191,7 +1204,7 @@ def kos() -> list[str]:
     # server `_zincir_kapsami` ustundeki blok). Degismiyorsa (b)'nin yesili
     # isaretle ilgisiz.
     yol_h = _hazirla("ajan_yolu_md9_isaretsiz.story")
-    h_h, _, sablon_h, once_iz_h = akis_md9(yol_h, isaretle=False)
+    h_h, isaret_h, sablon_h, once_iz_h = akis_md9(yol_h, isaretle=False)
     if any(h.startswith(ACILMADI) for h in h_h):
         return [ACILMADI]
     sonra_iz_h = _ileri_parmak_izi(StoryPackage(yol_h), sablon_h)
@@ -1199,7 +1212,9 @@ def kos() -> list[str]:
                  if once_iz_h.get(g) != sonra_iz_h.get(g)]
     print(f"kanarya (h) : isaretsiz sablonda degisen slayt {len(degisen_h)} -> "
           f"{'YAKALANDI' if degisen_h else 'KACTI'}")
-    if h_h:
+    if not isaret_h.get("durum_tamam"):
+        kusur.append(f"KANARYA KURULAMADI (h): kopya isaretsiz yapilamadi ({isaret_h})")
+    elif h_h:
         kusur.append(f"kanarya (h) kosusunda arac hatasi: {h_h[0]}")
     elif not degisen_h:
         kusur.append("OLCU KOR (h): ISARETSIZ sablon da degismedi -- md. 9 (b)'nin "
