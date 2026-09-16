@@ -281,7 +281,8 @@ async def akis(yol: pathlib.Path, *, sonuc_slaydi: bool = True) -> list[str]:
 KURULAN_SAHNELER = ("01_Giris", "02_Uygulama")
 
 
-def _kapsam(pkg: StoryPackage) -> list[str]:
+def _kapsam(pkg: StoryPackage,
+            adlar: tuple = KURULAN_SAHNELER) -> list[str]:
     """Bu akisin KURDUGU sahneler, sceneLst sirasinda.
 
     Kapsam sunucunun surec-ici kaydindan OKUNMUYOR: kapi ayri bir surecte
@@ -290,7 +291,7 @@ def _kapsam(pkg: StoryPackage) -> list[str]:
     """
     story = pkg.parse("story/story.xml")
     return [sc.get("g") for sc in (story.find("sceneLst") or [])
-            if sc.get("name") in KURULAN_SAHNELER and sc.get("g")]
+            if sc.get("name") in adlar and sc.get("g")]
 
 
 def _sahne_sonu_cikmazlari(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
@@ -319,6 +320,50 @@ def _sahne_sonu_cikmazlari(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
     return [f"{slayt} ({sahne}): {neden}"
             for slayt, sahne, neden in completeness.ileri_cikmazlari(pkg, kapsam)
             if slayt != akisin_son_slaydi]
+
+
+def _erken_sahne_cikislari(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
+    """Sahnenin SONU OLMAYAN bir slayttan sahneyi terk eden ILERI yollari.
+
+    KULLANICININ BILDIRDIGI KUSUR (2026-09-16): "soru kisimlari preview'de
+    gelmiyor, atliyor". Icerik slaydi sahne cikisini tasiyordu, cunku
+    cikis yazildiginda o slayt gercekten sondu; soru sonradan ve AYRI bir
+    cagriyla eklendi ve cikisi kimse tasimadi. Arkasindaki her slayt
+    ERISILEMEZ.
+
+    MD. 5 BUNU GOREMIYORDU ve onarimla AYNI kor noktayi tasiyordu: iddia 5
+    yalnizca sahne SONUNU soruyor. Kusurlu dosyada her sahnenin sonu
+    dogru bir `jumpToScene` tasiyordu -- sorun sonun ONCESINDEYDI.
+
+    ONARIMDAN BAGIMSIZ YAZILDI. `authoring._ileri_datalari`yi ya da
+    `ILERI_OLAYLARI`i cagirmiyor; `trig` dugumlerini kendisi geziyor ve olay
+    kumesi kendi literali. Denetledigi kodun yardimcisini cagiran bir kapi,
+    o yardimcidaki kusuru goremez.
+
+    OLCULECEK SLAYT YOKSA KUSUR DONER, yesil degil: kapsamda iki slaytli
+    sahne yoksa "sonu olmayan slayt" yoktur ve yuklem hicbir sey sormaz.
+    """
+    index = model.slide_index(pkg)
+    olculen = 0
+    bulunan: list[str] = []
+    for sahne_guid in kapsam:
+        uyeler = sorted((r for r in index.values() if r.scene_guid == sahne_guid),
+                        key=lambda r: r.position)
+        for sira, uye in enumerate(uyeler[:-1]):
+            olculen += 1
+            for trig in pkg.parse(uye.part).iter("trig"):
+                veri = trig.find("data")
+                if veri is None or veri.get("action") != "jumpToScene":
+                    continue
+                if veri.get("event") not in ("OnNextButtonClick", "OnClick"):
+                    continue
+                bulunan.append(
+                    f"{uye.basename}: {veri.get('event')} sahneden cikiyor, "
+                    f"arkasindaki {len(uyeler) - sira - 1} slayt erisilemez")
+                break
+    if not olculen:
+        return ["KAPSAMDA IKI SLAYTLI SAHNE YOK: iddia 7 hicbir sey olcmedi"]
+    return bulunan
 
 
 async def akis_beyansiz(yol: pathlib.Path) -> list[str]:
@@ -359,6 +404,77 @@ async def akis_beyansiz(yol: pathlib.Path) -> list[str]:
                     await cagir("add_slide", template="slide.xml",
                                 scene=ad, name=f"{ad}_1")
     return hatalar
+
+
+SONRADAN_SAHNELER = ("A_Konu", "B_Konu")
+
+
+async def akis_sonradan_soru(yol: pathlib.Path) -> tuple:
+    """KULLANICININ AKISI: icerik ONCE, soru SONRA ve AYRI bir cagriyla.
+
+    Ana kosu bu sekli URETMIYOR: iki `add_question` `scene=` vermeden
+    cagriliyor, yani soru, cikisi zaten yazilmis bir icerik slaydinin
+    arkasina eklenmiyor. Orada yesil kalan md. 7 hicbir sey kanitlamazdi.
+
+    Sira bilerek boyle ve her adimin bir isi var:
+      A_Konu'ya iki slayt    -- A'nin son slaydi 2. yuva
+      B_Konu + bir slayt     -- zincir 2. yuvaya `jumpToScene -> B` yazar
+      A_Konu'ya soru          -- 2. yuva artik son DEGIL, cikis tasinmali
+
+    ONKOSUL KANITI DONER: soru cagrisinin yanitindaki
+    `ileri_zinciri.erken_cikis`. Kusur uretildiyse ve onarim kostuysa
+    orada 2. yuva yazar. Bossa ve yuklem de yesilse, akis kusuru HIC
+    URETMEMISTIR -- o yesil "gecti" degil "bakilmadi"dir.
+    """
+    hatalar: list[str] = []
+    bildirilen: list[str] = []
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-c", "from storyline_mcp.server import main; main()"], env=None)
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8",
+                                errors="replace") as _tampon:
+        async with stdio_client(params, errlog=_tampon) as (r, w):
+            async with ClientSession(r, w) as sess:
+                try:
+                    await sess.initialize()
+                except BaseException as _acilis:
+                    hatalar.append("SUNUCU ACILMADI: %s" % type(_acilis).__name__)
+                    return hatalar, bildirilen
+
+                async def cagir(ad, **kw):
+                    res = await sess.call_tool(
+                        ad, {"path": str(yol), "in_place": True, **kw})
+                    hata = _hata_mi(res)
+                    if hata:
+                        hatalar.append(f"{ad}: {hata[:110]}")
+                        return {}
+                    return _coz(res)
+
+                ham = await cagir("list_templates")
+                liste = ham.get("result") if isinstance(ham, dict) else ham
+                adaylar = [t["slide"] for t in (liste if isinstance(liste, list) else [])
+                           if isinstance(t, dict) and t.get("kind") == "content"]
+                if not adaylar:
+                    hatalar.append("list_templates icerik sablonu vermedi -- "
+                                   "sonradan-soru akisi KURULAMADI")
+                    return hatalar, bildirilen
+                sablon = adaylar[0]
+
+                a, b = SONRADAN_SAHNELER
+                await cagir("add_scene", name=a)
+                for baslik in ("Birinci", "Ikinci"):
+                    await cagir("add_slide", template=sablon, scene=a, name=baslik)
+                await cagir("add_scene", name=b)
+                await cagir("add_slide", template=sablon, scene=b, name="Sonraki")
+                sonuc = await cagir("add_question", scene=a,
+                                    prompt="Sonradan eklenen soru?",
+                                    choices=["a", "b"], correct=[0],
+                                    feedback={"correct": "Dogru.",
+                                              "incorrect": "Yanlis."})
+                zincir = (sonuc or {}).get("ileri_zinciri") or {}
+                bildirilen = list(zincir.get("erken_cikis") or [])
+    return hatalar, bildirilen
 
 
 def _tum_sahneler(pkg: StoryPackage) -> list[str]:
@@ -438,6 +554,11 @@ def iddialar(yol: pathlib.Path, *, beklenen_yeni_slayt: int) -> list[str]:
         kusur.append(f"{len(beyansiz)} slayt GERI tetikleyicisi tasiyor ama "
                      f"navData BEYAN ETMIYOR ({', '.join(beyansiz[:3])}): "
                      f"geri dugmesi baglanamaz")
+
+    # 7. SAHNE ICINDEN ERKEN CIKIS -- gerekce `_erken_sahne_cikislari`nda.
+    erken = _erken_sahne_cikislari(pkg, _kapsam(pkg))
+    if erken:
+        kusur.append(f"sahne ICINDEN erken cikis ({len(erken)}): {erken[0][:90]}")
 
     # 4. AYAK IZI
     f = oturum.fark(yol)
@@ -589,6 +710,79 @@ def kos() -> list[str]:
     if not ekilen:
         kusur.append("KANARYA KURULAMADI (d): bozulacak sahne gecisi yoktu "
                      "-- zincir hic kurulmamis olabilir")
+
+    # --- SONRADAN SORU KOSUSU: md. 7 ancak burada kimildar
+    #
+    # BURADA, md. 6'NIN ONUNDE, bilerek: md. 6 fikstur yoksa kos()'tan
+    # ERKEN DONUYOR. Arkasina konan bir olcu, fikstursuz her calisma
+    # agacinda hic kosmaz ve yesil gorunurdu.
+    yol_s = _hazirla("ajan_yolu_sonradan_soru.story")
+    s_hatalari, bildirilen = asyncio.run(akis_sonradan_soru(yol_s))
+    if any(h.startswith(ACILMADI) for h in s_hatalari):
+        return [ACILMADI]
+    if s_hatalari:
+        kusur.append(f"sonradan-soru kosusunda {len(s_hatalari)} arac hatasi: "
+                     f"{s_hatalari[0]}")
+    pk_s = StoryPackage(yol_s)
+    kapsam_s = _kapsam(pk_s, SONRADAN_SAHNELER)
+    erken_s = _erken_sahne_cikislari(pk_s, kapsam_s)
+    print(f"sonradan soru: {len(erken_s)} erken cikis | onarim bildirdi: "
+          f"{bildirilen or '-'}")
+    if erken_s:
+        kusur.append(f"AJAN YOLU (sonradan soru): sahne ICINDEN erken cikis "
+                     f"({len(erken_s)}): {erken_s[0][:90]}")
+    elif not bildirilen:
+        # UCUNCU DURUM. Yuklem yesil ama onarim bir sey bildirmedi: ya akis
+        # kusuru hic uretmedi ya da onarim kosmadi. Ikisi de "gecti" degil.
+        kusur.append("MD. 7 BAKILMADI: sonradan-soru akisi erken cikis "
+                     "URETMEDI (onarim bir sey bildirmedi) -- yesil kanit degil")
+
+    # --- KANARYA (f): erken cikis EKILIR -> md. 7 kirmizi olmali
+    #
+    # Kullanicinin dosyasindaki hal: sahne sonu OLMAYAN bir slaydin ILERI
+    # dugmesi sonraki sahneye atliyor. Onarilmis dosyaya geri ekiliyor;
+    # yuklem bunu gormuyorsa yukaridaki yesil bir sey soylemiyor.
+    yol_f = CANARY / "ajan_yolu_kanarya_f.story"
+    shutil.copy2(yol_s, yol_f)
+    pk_f = StoryPackage(yol_f)
+    kapsam_f = _kapsam(pk_f, SONRADAN_SAHNELER)
+    idx_f = model.slide_index(pk_f)
+    ekilen_f = 0
+    if len(kapsam_f) == 2:
+        uyeler_f = sorted((r for r in idx_f.values()
+                           if r.scene_guid == kapsam_f[0]),
+                          key=lambda r: r.position)
+        for uye in uyeler_f[:-1]:
+            kok = pk_f.parse(uye.part)
+            for trig in kok.iter("trig"):
+                veri = trig.find("data")
+                if (veri is None
+                        or veri.get("event") != "OnNextButtonClick"
+                        or veri.get("action") != "jumpToSlide"):
+                    continue
+                veri.set("action", "jumpToScene")
+                veri.set("actSubType", "spec")
+                sahne_dugumu = veri.find("scene")
+                if sahne_dugumu is None:
+                    sahne_dugumu = veri.makeelement("scene", {})
+                    veri.append(sahne_dugumu)
+                sahne_dugumu.set("jumpG", kapsam_f[1])
+                ekilen_f += 1
+                break
+            if ekilen_f:
+                pk_f.replace_xml(uye.part, kok)
+                break
+    pk_f.save(yol_f, backup=False)
+    pk_f2 = StoryPackage(yol_f)
+    f_bulgu = _erken_sahne_cikislari(pk_f2, _kapsam(pk_f2, SONRADAN_SAHNELER))
+    print(f"kanarya (f) : {ekilen_f} erken cikis ekildi -> "
+          f"{'YAKALANDI' if f_bulgu else 'KACTI'}")
+    if ekilen_f and not f_bulgu:
+        kusur.append("OLCU KOR (f): erken cikis ekildigi halde sahne ici "
+                     "bulgu sifir -- md. 7 olcmuyor")
+    if not ekilen_f:
+        kusur.append("KANARYA KURULAMADI (f): A_Konu'da ILERI dugmesi tasiyan "
+                     "sonu-olmayan slayt yoktu -- akis beklenen sekli kurmamis")
 
     # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
     #

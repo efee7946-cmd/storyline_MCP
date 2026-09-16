@@ -3332,6 +3332,29 @@ def ileri_zincirini_kur(pkg: StoryPackage,
     sahne sonunda duran ve YANINDA calisan bir `jumpToScene/spec` bulunan
     olu `jumpToSlide/next` tetikleyicileri, yani kasit ezilmiyor, olu
     kardes onariliyor.
+
+    ERKEN SAHNE CIKISI (2026-09-16, kullanicinin bildirdigi kusur):
+    "soru kisimlari preview'de gelmiyor, atliyor". trafikegitimi.story'de
+    alti soru ERISILEMEZDI -- slided, slidef, slidee, slide10, slide11,
+    slide13. Sebep parca adlarinda yaziyor: icerik slaytlari slide2-slidec,
+    sorular slided ve sonrasi. Yani sahne cikisi yazildiginda 2. yuva
+    GERCEKTEN son slayttti; sorular sonra eklendi ve cikisi kimse tasimadi.
+
+    BU ONARIM O ZAMAN DA KOSMUSTU VE GORMEMISTI, olculdu: kapsam yedi
+    sahneyle elle verilip kosuldugunda erken cikis sayisi 6 -> 6. Kor
+    nokta asagidaki `else` dalindaydi -- sahne ICI slaytlarda yalnizca
+    hedefi COZULMEYEN atlamalar onariliyordu. Cozulen bir `jumpToScene`
+    "kasitli hedef" sayilip korunuyordu.
+
+    AMA SAHNE ICINDE KASIT OLAMAZ: slayt sahnenin SONU DEGILSE, sahneyi
+    terk eden bir ILERI arkasindaki butun kardesleri erisilemez birakir.
+    Hedefin cozuluyor olmasi kasit kaniti degil; kusurun DOGUS BICIMI tam
+    olarak budur -- gecerli bir cikis, artik dogru olmayan bir yerde.
+    "Kasitli hedef korunur" sozlesmesi sahne SONU slaytlari icin
+    yazilmisti ve orada aynen duruyor.
+
+    KAPSAM AYNI KAPSAM: yalnizca bu kursun sahneleri. Devralinan ya da
+    kullanicinin kendi sahnelerine burada da dokunulmuyor.
     """
     story = pkg.parse(STORY_PART)
     sahne_adlari = {s.get("g"): (s.get("name") or "")
@@ -3350,7 +3373,7 @@ def ileri_zincirini_kur(pkg: StoryPackage,
             akis.append((guid, uyeler))
 
     rapor: dict = {"baglanan": [], "onarilan": [], "eklenen": [],
-                   "kapatilan": None, "sahne": len(akis)}
+                   "kapatilan": None, "erken_cikis": [], "sahne": len(akis)}
     if not akis:
         rapor["why"] = "akista sahne yok"
         return rapor
@@ -3382,9 +3405,17 @@ def ileri_zincirini_kur(pkg: StoryPackage,
                     degisti = True
                     rapor["kapatilan"] = uye.basename
             else:
-                # Sahne ICI: "sonraki slayt" dogru bicim. Yalnizca hedefi
-                # COZULMEYEN atlamalar duzeltilir.
+                # Sahne ICI: "sonraki slayt" dogru bicim.
                 for data in datalar:
+                    # ERKEN CIKIS once: bu slayt sahnenin sonu degil, yani
+                    # sahneden cikan bir ILERI arkasindakileri erisilemez
+                    # birakir. Hedef COZULSE DE yanlis (gerekce yukarida).
+                    if data.get("action") == "jumpToScene":
+                        _sonraki_slayda_cevir(data)
+                        degisti = True
+                        rapor["erken_cikis"].append(uye.basename)
+                        continue
+                    # Kalan: hedefi COZULMEYEN atlamalar.
                     if data.get("actSubType") != "spec":
                         continue
                     if _hedef_tutuyor_mu(data, sahne_guid_kumesi, slayt_guidleri):

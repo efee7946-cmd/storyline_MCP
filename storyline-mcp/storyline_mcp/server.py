@@ -560,8 +560,12 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
     # Sessiz kalmiyor: kayit gercekten degistiyse cagirana SOYLENIYOR.
     # Sessizce dogru olan bir sey, sonradan sessizce yanlis olabilir.
     # Sessiz kalmiyor: zincir gercekten bir sey bagladiysa cagirana SOYLENIYOR.
+    # ERKEN CIKIS DA BIR DEGISIKLIK. Sayilmasaydi, alti soruyu erisilebilir
+    # yapan bir kosu cagirana "degisen bir sey yok" derdi -- sessizce
+    # dogru olan bir sey sonradan sessizce yanlis olabilir.
     zincir_degisti = bool(zincir and (zincir["baglanan"] or zincir["eklenen"]
-                                      or zincir["onarilan"]))
+                                      or zincir["onarilan"]
+                                      or zincir.get("erken_cikis")))
     return {**yazma,
             **({"kablolama": kablo} if kablo["degisti"] else {}),
             **({"navData_yazilan": navdata} if navdata else {}),
