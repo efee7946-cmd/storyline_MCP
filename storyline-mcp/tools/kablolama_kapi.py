@@ -93,6 +93,7 @@ AYAKLAR = ayak.Defter(
     "cogaltmaz",
     "ara hal",
     "ispatsiz",
+    "cift liste",
 )
 
 
@@ -407,6 +408,57 @@ def kanarya() -> list[str]:
         if not bildirdi:
             kusur.append("SESSIZ: cozulemeyen kayit ne siliniyor ne de "
                          "bildiriliyor -- gorunmez kaliyor")
+
+    # 7. CIFT LISTE -- YAZICI, STORYLINE'IN OKUDUGU LISTEYE YAZAR
+    #
+    # AYNI TURETMENIN IKI UYGULAMASI VARDI ve quiz'i farkli buluyorlardi:
+    #     kablola            quizMgr.findall("quizLst")[0]   okunan liste
+    #     register_question  next(iter(story.iter("quiz")))  her listeye iner
+    # Ikincisi `izleme`nin kendi docstring'inin uyardigi kalip. Olculdu
+    # (2026-09-16, MCP `add_question`, test/_canary/cift_liste.log): ilk
+    # liste bos, quiz ikincide (yks/tuzla sekli) -> yeni sorunun guid'i
+    # IKINCI listeye yazildi; kablola okunan listeyi bos bulup hicbir sey
+    # raporlamadi; arac yanitinda uyari yok. Kontrol kolu (tek liste):
+    # guid liste 0'da, zincir temiz.
+    #
+    # IDDIA DAR: "atilan listeye yazmaz". Cift listeli dosyada puanlamanin
+    # CALISTIGINI iddia etmiyor -- o sekli `zincir`in 0 numarali kosulu
+    # zaten bildiriyor ve onarimi ayri bir karar.
+    yol7 = _kurs("kablolama_cift_liste.story")
+    pkg7 = StoryPackage(yol7)
+    st7 = pkg7.parse("story/story.xml")
+    mgr7 = st7.find("quizMgr")
+    ilk7 = mgr7.find("quizLst")
+    mgr7.insert(list(mgr7).index(ilk7), mgr7.makeelement("quizLst", {}))
+    pkg7.replace_xml("story/story.xml", st7)
+    pkg7.save(yol7, backup=False)
+    once7 = {r.guid for r in model.slide_index(StoryPackage(yol7)).values()}
+    _, hata7 = asyncio.run(_kosu(yol7, [("add_question", {
+        "prompt": "Cift liste?", "choices": ["a", "b"], "correct": [0],
+        "feedback": {"correct": "E", "incorrect": "H"}})]))
+    if hata7 == [ACILMADI]:
+        return [ACILMADI]
+    pkg7b = StoryPackage(yol7)
+    yeni7 = [r.guid for r in model.slide_index(pkg7b).values()
+             if r.guid not in once7]
+    atilan7 = []
+    listeler7 = pkg7b.parse("story/story.xml").find("quizMgr").findall("quizLst")
+    for liste in listeler7[1:]:
+        for quiz in liste:
+            ids = {(e.text or "").strip()
+                   for e in (quiz.find("questionIdLst") or [])}
+            atilan7 += [g for g in yeni7 if g in ids]
+    AYAKLAR.yaz("cift liste", f"yeni soru {len(yeni7)}, ATILAN listeye "
+                              f"yazilan {len(atilan7)} (liste {len(listeler7)})")
+    if hata7:
+        kusur.append(f"KANARYA KURULAMADI (cift liste): {hata7[0]}")
+    elif not yeni7:
+        kusur.append("KANARYA KURULAMADI (cift liste): add_question yeni "
+                     "slayt kurmadi")
+    elif atilan7:
+        kusur.append("YAZICI ATILAN LISTEYE KAYDETTI: ilk quizLst bos, quiz "
+                     "ikincide; yeni soru Storyline'in kaydederken ATACAGI "
+                     "quiz'e yazildi ve arac bunu bildirmedi")
     return kusur
 
 
