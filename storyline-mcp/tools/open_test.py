@@ -148,9 +148,11 @@ def close_user_project() -> bool:
         return True
     title = ctl.open_project() or ""
     print(f"Storyline'da {title!r} acik; kaydedilip kapatilacak.")
-    # save_and_close needs a path only for its closing "is the file free?"
-    # poll; the window disappearing is the signal that matters here.
-    result = ctl.save_and_close(title)
+    # YOL BILINMIYOR: bu, kullanicinin zaten acik olan projesi ve elimizde
+    # yalnizca baslik var. Eskiden baslik YOL YERINE geciliyordu ve kapanis
+    # dongusu var olmayan bir yolun serbest oldugunu "olcuyordu". None bunu
+    # ACIK yapiyor: yalnizca pencerenin gitmesi beklenir.
+    result = ctl.save_and_close(None)
     if not result.get("closed"):
         print(f"Kapatilamadi: {result.get('reason', '?')}")
         return False

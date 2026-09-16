@@ -76,8 +76,16 @@ def _zincir_hali(yol: pathlib.Path) -> dict:
     pkg = StoryPackage(yol)
     index = model.slide_index(pkg)
     iz = puanlama.izleme(pkg, index)
+    # KIMLIKLE, PARCA ADIYLA DEGIL. Storyline kaydederken slayt parcalarini
+    # YENIDEN NUMARALIYOR -- olculdu 2026-09-16: ajan yolu turunda 10/18,
+    # md. 8 fiksturunde 16/19 slayt. Adla fark iki yonde yanilir: korunan
+    # kayit adi degistigi icin "kaybolan" gorunur, ya da kaybolan kaydin
+    # adini baska bir kayitli slayt alir ve kayip hic gorunmez. Mevcut
+    # ciftlerde yanlis hukum VERMEMISTI; yeniden numaralamanin yayginligi
+    # yeterli sebep. Deger: gosterim icin tur oncesi/sonrasi parca adi.
+    ad_guid = {ref.basename: ref.guid for ref in index.values()}
     return {
-        "kayitli": set(iz["registered"]),
+        "kayitli": {ad_guid.get(b, b): b for b in iz["registered"]},
         "quizlst": iz["quizlst_sayisi"],
         "gorunmeyen": list(iz["gorunmeyen_quiz"]),
         "kirik": puanlama.zincir(pkg),
@@ -145,6 +153,22 @@ def tur(yol: pathlib.Path, *, ctrl_s: bool = True) -> list[str]:
 
     KANIT story.xml OZETI, ve yon dogru yanilir: gercek bir kayit bayt
     bayt ayni cikarsa sonuc KAYDETMEDI (bakilmadi) olur, asla "gecti".
+
+    STORYLINE'IN OLCULMUS DAVRANISLARI -- KUSUR DEGIL, KURAL (2026-09-16):
+
+      * Yalnizca bir SONUC SLAYDININ bagladigi quiz'i korur; SAHIPSIZ
+        quiz kayitta tumuyle ATILIR (`<quizLst />`). Md. 8 fiksturunde
+        (sonuc slaydi yok) kayit 3 -> 0 bu yuzden; ajan yolu ana kosusunda
+        (sonuc slaydi var) 2 -> 2. "tur testi md. 8 fiksturunde dusuyor" diye goren,
+        kapiyi ya da urunu bozuk sanmamali.
+      * O kayip KALICI DEGIL: sonradan MCP yuzeyinden `add_results_slide`
+        eklenince kayitlar geri gelir -- 3 -> 0 -> 3, KIMLIKLE (ayni
+        guid, ayni soru metni), zincir temiz. Geri getiren
+        `add_results_slide`in KENDI kayit dongusu; `kablola` o kosuda bir
+        sey eklemedi, yani "kablola Storyline'a karsi calisiyor" bu olcuyle
+        SINANMADI. (test/_canary/sahipsiz_quiz.log)
+      * Slayt parcalarini YENIDEN NUMARALAR. Tur oncesi/sonrasi karsilastirma
+        KIMLIKLE yapilir (bkz. `_zincir_hali`).
 
     `ctrl_s=False` KANARYADIR (`--kanarya-kaydetme`): eski davranisi
     yeniden uretir ve KAYDETMEDI donmelidir -- donmuyorsa kanit ayagi
@@ -245,7 +269,8 @@ def tur(yol: pathlib.Path, *, ctrl_s: bool = True) -> list[str]:
     sonra = _zincir_hali(yol)
 
     # KAPI 1: kayitlar kaybolmamali.
-    kayip = sorted(once["kayitli"] - sonra["kayitli"])
+    kayip = sorted(once["kayitli"][g]
+                   for g in set(once["kayitli"]) - set(sonra["kayitli"]))
     AYAKLAR.yaz("kayit", f"{len(once['kayitli'])} -> {len(sonra['kayitli'])}"
                          + (f" KAYBOLAN: {kayip[:3]}" if kayip else ""))
     if kayip:
@@ -374,6 +399,10 @@ def main() -> int:
     print("        normallestirmeleri (ad, sira, bicim) kusur sayilmaz.")
     print("        Kapi yalnizca ZINCIRI savunuyor: kayit kaybi, ikinci")
     print("        quizLst, ve tur oncesi temiz olan zincirin bozulmasi.")
+    print("STORYLINE KURALI: yalnizca SONUC SLAYDININ bagladigi quiz")
+    print("        korunur; sahipsiz quiz kayitta atilir (kusur degil,")
+    print("        olculmus davranis). Parca adlari yeniden numaralanir;")
+    print("        karsilastirma kimlikle.")
     return 0
 
 

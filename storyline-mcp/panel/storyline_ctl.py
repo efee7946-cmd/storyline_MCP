@@ -262,9 +262,30 @@ def make_dirty(*, settle: float = 1.5) -> dict:
                        "dolmadi; slayt karti beklenen yerde olmayabilir.")}
 
 
-def save_and_close(path: str | Path, *, timeout: float = 45.0,
+def save_and_close(path: str | Path | None, *, timeout: float = 45.0,
                    save_timeout: float = 25.0) -> dict:
-    """Save the open project and close Storyline, so the file becomes free."""
+    """Save the open project and close Storyline, so the file becomes free.
+
+    `path` YA VAR OLAN BIR DOSYA YOLU YA DA ACIKCA None (2026-09-16).
+
+    Kapanis dongusu "dosya serbest mi" sorusunu bu yoldan soruyor.
+    `tur_testi` buraya pencere BASLIGINI geciyordu: `lock_state` var
+    olmayan bir yolu sordu, "serbest" hemen dogruydu, ve tur sonrasi ozet
+    yari yazilmis dosyadan okunabilirdi. Var olmayan yol artik HICBIR SEY
+    YAPILMADAN reddedilir -- sessiz bir yanlis bekleme yerine yuksek sesli
+    bir hata.
+
+    None, yolu BILINMEYEN proje icindir: `open_test` kullanicinin ZATEN
+    ACIK projesini kapatiyor ve elinde yalnizca baslik var. O zaman
+    yalnizca pencerenin gitmesi beklenir -- ve bu kaza degil, SECIM olur.
+    Panelin dort cagrisi gercek yol geciyor; davranislari degismez.
+    """
+    if path is not None and not Path(path).exists():
+        return {"closed": False,
+                "reason": (f"Gecersiz yol {str(path)!r}: dosya yok. "
+                           "save_and_close pencere basligi degil DOSYA "
+                           "YOLU ister (yolu bilinmeyen proje icin None). "
+                           "Hicbir sey kaydedilmedi, kapatilmadi.")}
     window = storyline_window()
     if window is None:
         return {"closed": False, "reason": "Storyline penceresi bulunamadi."}
@@ -295,7 +316,8 @@ def save_and_close(path: str | Path, *, timeout: float = 45.0,
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if lock_state(path) == "free" and storyline_window() is None:
+        if ((path is None or lock_state(path) == "free")
+                and storyline_window() is None):
             return {"closed": True, "project": name}
         time.sleep(0.5)
 
