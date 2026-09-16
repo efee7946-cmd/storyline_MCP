@@ -15,7 +15,7 @@ import hashlib
 import re
 import xml.etree.ElementTree as ET
 
-from . import clone, donors, model, shapes
+from . import clone, donors, model, puanlama, shapes
 from .clone import clone_slide, create_scene  # noqa: F401  (re-exported)
 from .edits import set_shape_text
 from .package import STORY_PART, StoryPackage, StoryError
@@ -1842,9 +1842,12 @@ def register_question(pkg: StoryPackage, slide_guid: str) -> dict:
     if manager is None:
         return {"registered": False, "why": "quizMgr yok", "gonder": gonder,
                 "katman_temizligi": katman_temizligi}
-    quiz = next(iter(story.iter("quiz")), None)
+    # OKUNAN quiz, `iter` DEGIL -- gerekce `puanlama.okunan_quiz`. Cift
+    # listeli dosyada `iter` soruyu Storyline'in ATACAGI quiz'e yaziyordu.
+    quiz = puanlama.okunan_quiz(story)
     if quiz is None:
-        return {"registered": False, "why": "quizLst icinde quiz yok",
+        return {"registered": False,
+                "why": "Storyline'in okudugu quizLst'te quiz yok",
                 "gonder": gonder,
                 "katman_temizligi": katman_temizligi}
 
@@ -2862,7 +2865,10 @@ def _quiz_kur(pkg: StoryPackage, sonuc_slayt_guid: str) -> dict:
     yonetici = story.find("quizMgr")
     if yonetici is None:
         return {"kuruldu": False, "why": "quizMgr yok"}
-    if next(iter(story.iter("quiz")), None) is not None:
+    # OKUNAN liste soruluyor, `iter` degil (gerekce `puanlama.okunan_quiz`).
+    # `iter` cift listeli dosyada ATILACAK quiz'i "var" sayip kurulumu
+    # atliyordu; sonuc slaydi Storyline'in okumayacagi quiz'e baglaniyordu.
+    if puanlama.okunan_quiz(story) is not None:
         return {"kuruldu": False, "why": "quiz zaten var"}
 
     tohum = clone.SEED_DIR / "quiz.xml"
@@ -3471,18 +3477,28 @@ def add_results_slide(
     # `register_question` quiz yoksa erken donuyor ve kayitliysa
     # "registered" demiyor, yani kosulsuz cagirmanin bedeli yok; kapinin
     # bedeli ise kayitsiz kalan bir sorunun puanının toplama hic girmemesi.
+    #
+    # TEK YER HESAPLAR (2026-09-16). Burada puanli her slayt icin
+    # `register_question` cagiran bir dongu vardi: `kablola`nin kayit
+    # halkasinin IKINCI uygulamasi, ve quiz'i `iter` ile buluyordu. Sahipsiz
+    # quiz olcumunde kayitlari geri getiren bu donguydu, `kablola` bos
+    # dondu -- degismez hic sinanmamisti. Artik ayni
+    # `puanlama.kayitlari_turet` cagriliyor.
+    #
+    # `kablola`nin TAMAMI DEGIL, bilerek: `kablolama_kapi._kurs(kablola=False)`
+    # "yeniden dene" tohumunu hasarli birakmak icin bu fonksiyonu KABLOLASIZ
+    # cagiriyor. MCP ve kurucu yolunda `kablola` hemen ardindan zaten kosuyor.
+    #
+    # `geriye_donuk_kayit` artik yalnizca YENI eklenenleri sayar (eskiden
+    # "zaten kayitli" olanlar da sayiliyordu); kodda okuyan yok.
     geri_kayit: list[str] = []
-    if True:
-        for _part, _ref in model.slide_index(pkg).items():
-            if _ref.guid == result["slide_guid"]:
-                continue                    # sonuc slaydinin kendisi
-            _kok = pkg.parse(_part)
-            if not any(e.tag.endswith("Intr") and e.find("intrProps") is not None
-                       for e in _kok.iter()):
-                continue
-            _kayit = register_question(pkg, _ref.guid)
-            if _kayit.get("registered"):
-                geri_kayit.append(_ref.basename)
+    _story = pkg.parse(STORY_PART)
+    _quiz = puanlama.okunan_quiz(_story)
+    if _quiz is not None:
+        _kayit = puanlama.kayitlari_turet(pkg, _story, _quiz)
+        if _kayit["eklenen"] or _kayit["dusen_bayat"] or _kayit["lms_yazildi"]:
+            pkg.replace_xml(STORY_PART, _story)
+        geri_kayit = list(_kayit["eklenen"])
     quiz_bagi = _quizi_sonuc_slaydina_bagla(pkg, result["slide_guid"])
 
     # SONUC SLAYDI DA KURSUN OLCEGINDE OLSUN. Tohum kendi punto setini

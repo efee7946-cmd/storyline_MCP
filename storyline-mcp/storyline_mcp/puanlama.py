@@ -409,56 +409,52 @@ def eksik_sonuc_uyarisi(pkg: StoryPackage) -> str:
     return "%s (+%d kirik daha; tamami icin audit)" % (kirik[0], len(kirik) - 1)
 
 
-def kablola(pkg: StoryPackage) -> dict:
-    """Quiz kaydını dosyadakiyle UZLAŞTIR. Değişmez, adım değil.
+def okunan_quiz(story):
+    """Storyline'in OKUDUGU quiz: `quizMgr`in ILK `quizLst`inin ilk quiz'i.
 
-    NICIN HER YAZMADA. Kablolama TURETILMIS: hangi slaytlarin puanli
-    etkilesim tasidigi ve hangisinde sonuc slaydi oldugu dosyada zaten
-    yazili; icinde kullanici girdisi YOK. Turetilmis bir sey adim degil
-    DEGISMEZDIR -- adim atlanabilir, degismez atlanamaz. Sohbet yolunun
-    "bitti" ani olmadigi icin bir kapanis ADIMI kurulamiyordu; degismez
-    o soruyu cozmuyor, ORTADAN KALDIRIYOR.
+    YAZICILAR ICIN TEK YER (2026-09-16). Ayni soruyu uc yazici soruyordu ve
+    ikisi farkli cevapliyordu:
 
-    GORUNUR ICERIK URETMEZ (md. 3 karari, bkz. tools/ajan_yolu.py):
-    sonuc slaydi yoksa baglanacak bir sey de yoktur ve bu fonksiyon
-    HICBIR SEY yapmaz. Yapim ortasindaki mesru ara hal -- soru var,
-    sonuc slaydi henuz yok -- boylece kusur sayilmiyor. Yazma anindaki
-    bir REDDIN yapamadigi sey buydu.
+        kablola             quizMgr.findall("quizLst")[0]    okunan liste
+        register_question   next(iter(story.iter("quiz")))   her listeye iner
+        _quiz_kur           next(iter(story.iter("quiz")))   her listeye iner
 
-    UZLASTIRIR, EKLEMEZ. Yalnizca ekleyen bir surum bir UST KUMEYE
-    yakinsardi: `delete_shape` ile etkilesimi kaldirilan bir sorunun
-    kaydi listede kalir ve Storyline toplama sifir puanli bir soru
-    katardi. Ucu birden yapiliyor ve ucu de ayri raporlaniyor.
+    Olculdu (MCP add_question, kontrol kollu; test/_canary/cift_liste.log):
+    ilk liste bos, quiz ikincide (yks/tuzla sekli) -> yeni soru Storyline'in
+    kaydederken ATACAGI quiz'e yazildi, kablola hicbir sey raporlamadi, arac
+    uyari vermedi.
 
-    STORYLINE'IN OKUDUGU QUIZ'E yazar. `authoring.register_question`
-    `story.iter("quiz")` kullaniyor ve iter ATILAN quizLst'in icine de
-    iniyor; gorunmeyen bir quiz'e kayit yapmak hicbir sey yapmamakla
-    ayni sey. Ayrimi `izleme` tutuyor, bu fonksiyon da ondan okuyor.
-
-    DEGISIKLIK YOKSA DOSYAYA DOKUNMAZ (`degisti: False`). Kararli
-    durumda maliyeti bir karsilastirma; olculdu (tools/kablolama_kapi.py):
-    temiz bir kursta arac cagrilari 0 yazma uretiyor.
+    DENETLEYICILER BUNU CAGIRMAZ. `izleme` ve `zincir` quiz'in HANGI listede
+    durdugunu kendi kodlariyla soruyor; bu yardimciya baglansalardi, burada
+    dogacak bir kusuru goremezlerdi. Cift liste deneyinde kirmiziyi yakalayan
+    tam olarak `zincir`in bagimsiz aramasiydi.
     """
-    import xml.etree.ElementTree as ET
-
-    index = model.slide_index(pkg)
-    # `dusen_cozulemeyen` DUSURULMEZ, yalnizca BILDIRILIR: adi mirastir,
-    # anlami asagida yazili (kanitlayabildigimiz kadarini sil).
-    rapor = {"eklenen": [], "dusen_bayat": [], "dusen_cozulemeyen": [],
-             "lms_yazildi": False, "degisti": False, "neden": ""}
-
-    story = pkg.parse("story/story.xml")
     manager = story.find("quizMgr")
     if manager is None:
-        rapor["neden"] = "quizMgr yok"
-        return rapor
+        return None
     listeler = manager.findall("quizLst")
-    quiz = next(iter(listeler[0]), None) if listeler else None
-    if quiz is None:
-        # Sonuc slaydi (ve dolayisiyla quiz) henuz kurulmamis olabilir:
-        # bu ARA HAL, kusur degil.
-        rapor["neden"] = "Storyline'in okudugu quizLst'te quiz yok"
-        return rapor
+    return next(iter(listeler[0]), None) if listeler else None
+
+
+def kayitlari_turet(pkg: StoryPackage, story, quiz, index: dict | None = None) -> dict:
+    """KAYIT HALKASI: bayati dusur, eksigi ekle, LMS hedefini yaz. TEK YER.
+
+    Bellekteki `story` uzerinde calisir; dosyaya yazmak CAGIRANIN isi (rapor
+    ne degistigini soyler). Iki cagirani var: `kablola` (bunun uzerine
+    "yeniden dene" bagini kurar) ve `authoring.add_results_slide`.
+
+    NICIN AYRILDI (2026-09-16). `add_results_slide` bu turetmeyi kendi
+    `register_question` dongusuyle yapiyordu -- ikinci bir uygulama, ve quiz'i
+    baska buluyordu. Sahipsiz quiz olcumunde (kayit 3 -> 0 -> 3) kayitlari
+    geri getiren O donguydu; hemen ardindan kosan `kablola` bos dondu. Yani
+    "degismez Storyline'a karsi da calisiyor" hic sinanmamisti.
+    """
+    import xml.etree.ElementTree as ET
+    if index is None:
+        index = model.slide_index(pkg)
+    manager = story.find("quizMgr")
+    rapor = {"eklenen": [], "dusen_bayat": [], "dusen_cozulemeyen": [],
+             "lms_yazildi": False}
 
     guid_ile = {ref.guid: ref.basename for ref in index.values()}
     ad_ile = {ref.basename: ref.guid for ref in index.values()}
@@ -518,6 +514,64 @@ def kablola(pkg: StoryPackage) -> dict:
         manager.set("lmsResultSlideG", hedef)
         manager.set("trackMode", "result")
         rapor["lms_yazildi"] = True
+    return rapor
+
+
+def kablola(pkg: StoryPackage) -> dict:
+    """Quiz kaydını dosyadakiyle UZLAŞTIR. Değişmez, adım değil.
+
+    NICIN HER YAZMADA. Kablolama TURETILMIS: hangi slaytlarin puanli
+    etkilesim tasidigi ve hangisinde sonuc slaydi oldugu dosyada zaten
+    yazili; icinde kullanici girdisi YOK. Turetilmis bir sey adim degil
+    DEGISMEZDIR -- adim atlanabilir, degismez atlanamaz. Sohbet yolunun
+    "bitti" ani olmadigi icin bir kapanis ADIMI kurulamiyordu; degismez
+    o soruyu cozmuyor, ORTADAN KALDIRIYOR.
+
+    GORUNUR ICERIK URETMEZ (md. 3 karari, bkz. tools/ajan_yolu.py):
+    sonuc slaydi yoksa baglanacak bir sey de yoktur ve bu fonksiyon
+    HICBIR SEY yapmaz. Yapim ortasindaki mesru ara hal -- soru var,
+    sonuc slaydi henuz yok -- boylece kusur sayilmiyor. Yazma anindaki
+    bir REDDIN yapamadigi sey buydu.
+
+    UZLASTIRIR, EKLEMEZ. Yalnizca ekleyen bir surum bir UST KUMEYE
+    yakinsardi: `delete_shape` ile etkilesimi kaldirilan bir sorunun
+    kaydi listede kalir ve Storyline toplama sifir puanli bir soru
+    katardi. Ucu birden yapiliyor ve ucu de ayri raporlaniyor.
+
+    STORYLINE'IN OKUDUGU QUIZ'E yazar. `authoring.register_question`
+    `story.iter("quiz")` kullaniyor ve iter ATILAN quizLst'in icine de
+    iniyor; gorunmeyen bir quiz'e kayit yapmak hicbir sey yapmamakla
+    ayni sey. Ayrimi `izleme` tutuyor, bu fonksiyon da ondan okuyor.
+
+    DEGISIKLIK YOKSA DOSYAYA DOKUNMAZ (`degisti: False`). Kararli
+    durumda maliyeti bir karsilastirma; olculdu (tools/kablolama_kapi.py):
+    temiz bir kursta arac cagrilari 0 yazma uretiyor.
+    """
+    import xml.etree.ElementTree as ET
+
+    index = model.slide_index(pkg)
+    # `dusen_cozulemeyen` DUSURULMEZ, yalnizca BILDIRILIR: adi mirastir,
+    # anlami asagida yazili (kanitlayabildigimiz kadarini sil).
+    rapor = {"eklenen": [], "dusen_bayat": [], "dusen_cozulemeyen": [],
+             "lms_yazildi": False, "degisti": False, "neden": ""}
+
+    story = pkg.parse("story/story.xml")
+    manager = story.find("quizMgr")
+    if manager is None:
+        rapor["neden"] = "quizMgr yok"
+        return rapor
+    quiz = okunan_quiz(story)
+    if quiz is None:
+        # Sonuc slaydi (ve dolayisiyla quiz) henuz kurulmamis olabilir:
+        # bu ARA HAL, kusur degil.
+        rapor["neden"] = "Storyline'in okudugu quizLst'te quiz yok"
+        return rapor
+
+    # 1-3. KAYIT HALKASI `kayitlari_turet`te. Ayri, cunku `add_results_slide`
+    # ayni turetmeyi KENDI dongusuyle yapiyordu (gerekce orada).
+    rapor.update(kayitlari_turet(pkg, story, quiz, index))
+    guid_ile = {ref.guid: ref.basename for ref in index.values()}
+    id_list = quiz.find("questionIdLst")
 
     # 4. "SINAVI YENIDEN DENE" HEDEFI -- ve bu, ertelenmis bir notun
     #    on kosulu karsilandigi icin artik yapilabiliyor.
