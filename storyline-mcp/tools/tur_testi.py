@@ -59,9 +59,11 @@ from storyline_mcp import model, oturum, puanlama      # noqa: E402
 
 KOSAMADI = 3
 ACILMADI = "ACILMADI"
+KAYDETMEDI = "KAYDETMEDI"
 
 AYAKLAR = ayak.Defter(
     "acildi",
+    "yazildi",
     "zincir",
     "kayit",
     "quizLst",
@@ -82,8 +84,72 @@ def _zincir_hali(yol: pathlib.Path) -> dict:
     }
 
 
-def tur(yol: pathlib.Path) -> list[str]:
-    """Bir dosyayi ac-kaydet-kapat ve NE DEGISTIGINI olc."""
+def _story_ozeti(yol: pathlib.Path) -> str | None:
+    """story/story.xml'in sha256'si. Okunamazsa None -- kanit YOK sayilir."""
+    import hashlib
+    import zipfile
+    try:
+        with zipfile.ZipFile(yol) as z:
+            return hashlib.sha256(z.read("story/story.xml")).hexdigest()
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def _yazmayi_bekle(yol: pathlib.Path, sure: float = 40.0) -> bool:
+    """Dosyanin mtime'i degisip 3 sn DURULANA kadar bekler. Degistiyse True.
+
+    Kirli olmayan projede baslik yildiz TASIMIYOR, yani `save_and_close`un
+    "yildiz silinene kadar bekle" olcusu burada kullanilamaz. Dosya
+    Storyline aciktayken okunamiyor ama stat'i aliniyor.
+    """
+    try:
+        ilk = yol.stat().st_mtime_ns
+    except OSError:
+        return False
+    son_degisim, onceki = None, ilk
+    bitis = time.time() + sure
+    while time.time() < bitis:
+        time.sleep(0.5)
+        try:
+            simdi = yol.stat().st_mtime_ns
+        except OSError:
+            continue
+        if simdi != onceki:
+            son_degisim, onceki = time.time(), simdi
+        elif son_degisim and time.time() - son_degisim >= 3.0:
+            return True
+    return son_degisim is not None
+
+
+def tur(yol: pathlib.Path, *, ctrl_s: bool = True) -> list[str]:
+    """Bir dosyayi ac-KAYDET-kapat ve NE DEGISTIGINI olc.
+
+    KAYIT KANITLANMADAN HICBIR AYAK HUKUM VERMEZ (2026-09-16). Eskiden
+    kaydetme `storyline_ctl.save_and_close`a birakiliyordu ve o Ctrl+S'i
+    YALNIZCA KIRLI PENCEREDE gonderiyor -- urun icin dogru: panel
+    kapanirken kullanicinin temiz projesini yeniden yazmamali. Ama temiz
+    acilan bir projede Storyline dosyayi HIC YAZMIYORDU ve bu kapi yine de
+    "Storyline acti, kaydetti" deyip gecti. Olculdu: sahne isareti turu,
+    cikis 0, story.xml bayt bayt ayni. Kayit 3->3, quizLst 1->1, "yapisal
+    degisiklik yok" -- hepsi YAZILMAMIS dosyada da dogru.
+
+    DUSEN KAYITLI HUKUM: `banka_sorusu.py`nin "Storyline boyle bir kaydi
+    KORUYOR" bulgusu tam bu imzaya ("yapi birebir korundu") dayaniyordu.
+    Kural: gecmiste bir DEGISIKLIK raporlayan tur gecerli (degisiklik
+    yazmanin kanitidir, `yks`teki `Quiz_Result` silinmesi gibi); "hicbir
+    sey degismedi" diyen tur KANITSIZ.
+
+    CARE TESTTE, URUNDE DEGIL. Ctrl+S burada KOSULSUZ gonderiliyor;
+    `save_and_close`un `if dirty:`i ayakta. Urunu degistirmek her panel
+    kapanisini bir yazma islemine cevirirdi.
+
+    KANIT story.xml OZETI, ve yon dogru yanilir: gercek bir kayit bayt
+    bayt ayni cikarsa sonuc KAYDETMEDI (bakilmadi) olur, asla "gecti".
+
+    `ctrl_s=False` KANARYADIR (`--kanarya-kaydetme`): eski davranisi
+    yeniden uretir ve KAYDETMEDI donmelidir -- donmuyorsa kanit ayagi
+    ayirt etmiyor.
+    """
     import open_test as ot
     import storyline_ctl as ctl
 
@@ -92,6 +158,7 @@ def tur(yol: pathlib.Path) -> list[str]:
         (yol.with_suffix(yol.suffix + ek)).unlink(missing_ok=True)
     oturum.anlik_goruntu(yol, etiket="tur testi")
     once = _zincir_hali(yol)
+    once_ozet = _story_ozeti(yol)
 
     # ONCE TEMIZ ZEMIN. `test_open` da boyle yapiyor ve sebebi olculdu:
     # bir onceki turdan kapanmakta olan surec varken `launch` yeni bir
@@ -139,11 +206,40 @@ def tur(yol: pathlib.Path) -> list[str]:
                      f"(son baslik: {ctl.open_project()!r})")
         return kusur
 
-    sonuc = ctl.save_and_close(acildi)
+    # KOSULSUZ KAYIT (gerekce: docstring).
+    ctrl_s_durumu = "gonderilmedi (kanarya)"
+    if ctrl_s:
+        pencere = ctl.storyline_window()
+        if pencere is None:
+            ctrl_s_durumu = "pencere yok"
+        elif not ctl._send_save(pencere[0]):
+            ctrl_s_durumu = "GONDERILEMEDI (odak alinamadi)"
+        else:
+            ctrl_s_durumu = ("gonderildi, dosya yazildi"
+                             if _yazmayi_bekle(yol) else
+                             "gonderildi, mtime KIMILDAMADI")
+
+    # GERCEK YOL. Onceden pencere BASLIGI geciliyordu; kapanis
+    # dongusundeki `lock_state` var olmayan bir yolu soruyordu, yani
+    # "dosya serbest" hemen dogruydu ve ozet yari yazilmis dosyadan
+    # okunabilirdi.
+    sonuc = ctl.save_and_close(yol)
     if not sonuc.get("closed"):
         kusur.append(f"{yol.name}: kaydet-kapat basarisiz "
                      f"({sonuc.get('reason','?')}) -- dosya yarim kalmis "
                      f"olabilir, fark okunmamali")
+        return kusur
+
+    sonra_ozet = _story_ozeti(yol)
+    yazildi = once_ozet is not None and sonra_ozet not in (None, once_ozet)
+    AYAKLAR.yaz("yazildi", ("EVET (story.xml ozeti degisti)" if yazildi else
+                            "HAYIR (story.xml ayni)")
+                           + f" -- Ctrl+S {ctrl_s_durumu}")
+    if not yazildi:
+        kusur.append(f"{KAYDETMEDI}: {yol.name} turdan story.xml bayt bayt "
+                     f"AYNI cikti (Ctrl+S {ctrl_s_durumu}). Storyline dosyayi "
+                     f"yazmadi; zincir ve yapisal ayaklar yazilmamis dosyada da "
+                     f"dogru olurdu -- OLCULMEDI")
         return kusur
 
     sonra = _zincir_hali(yol)
@@ -201,6 +297,8 @@ def tur(yol: pathlib.Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("kurslar", nargs="+")
+    ap.add_argument("--kanarya-kaydetme", action="store_true",
+                    help="Ctrl+S GONDERME: eski davranis. KAYDETMEDI donmeli.")
     args = ap.parse_args()
 
     import open_test as ot
@@ -231,7 +329,7 @@ def main() -> int:
         # TURU ORIJINAL USTUNDE YAPMA: Storyline dosyayi yeniden yaziyor.
         kopya = yol.with_suffix(yol.suffix + ".tur.story")
         shutil.copy2(yol, kopya)
-        kusur += tur(kopya)
+        kusur += tur(kopya, ctrl_s=not args.kanarya_kaydetme)
 
     kosmayan = AYAKLAR.kosmayanlar()
     if kosmayan:
@@ -239,6 +337,26 @@ def main() -> int:
                      % ", ".join(kosmayan))
 
     print()
+    kaydetmedi = [k for k in kusur if k.startswith(KAYDETMEDI)]
+    if args.kanarya_kaydetme:
+        # KANARYA: eski davranis KAYDETMEDI uretmeli. Uretmiyorsa kanit
+        # ayagi ayirt etmiyor -- ya da pencere kirli acildi ve
+        # save_and_close kaydetti (o zaman kanarya KURULAMADI).
+        if kaydetmedi:
+            print("KANARYA YAKALANDI: Ctrl+S gonderilmeyince tur KAYDETMEDI "
+                  "dondu -- kanit ayagi ayirt ediyor.")
+            return 0
+        print("KANARYA KACTI / KURULAMADI: Ctrl+S gonderilmedigi halde "
+              "KAYDETMEDI donmedi.")
+        for k in kusur:
+            print(f"  - {k}")
+        return 1
+    if kaydetmedi:
+        print("KOSAMADI: Storyline dosyayi YAZMADI, yani turun hicbir "
+              "koruma ayagi olculmedi ('gecti' degil).")
+        for k in kaydetmedi:
+            print(f"  - {k}")
+        return KOSAMADI
     if any(k.startswith(ACILMADI) for k in kusur):
         print("KOSAMADI: dosya Storyline'da acilmadi, yani turun hicbir "
               "ayagi olculmedi.")

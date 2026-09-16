@@ -64,7 +64,10 @@ kisminin FIKSTURU oluyor -- gecerli olmasinin sarti da bu: uctan uca
 Storyline'in yazmis olmasi.
 
 BU ARAC O OTURUMU KOSAMAZ. Storyline'i baslatip kaydettirebiliyoruz
-(`tools/tur_testi.py` oyle yapiyor) ama ARAYUZUNDEN banka kuramayiz:
+(`tools/tur_testi.py` oyle yapiyor -- ama 2026-09-16'ya kadar YALNIZCA
+pencere kirliyse: temiz acilan projede Ctrl+S hic gonderilmiyordu ve
+Storyline dosyayi yazmiyordu; bkz. `tur_testi.tur`) ama ARAYUZUNDEN
+banka kuramayiz:
 menuye tiklamak ne elimizde var ne de bu deponun kabul ettigi bir yol
 ("arayuz taklidi yok" -- bkz. depo kokundeki README).
 """
@@ -198,8 +201,16 @@ def main() -> int:
         print(f"GORULEN: bankadaki {len(r['kesisim'])} slayt quiz'e KAYITLI.")
         print("  Kaydi KIMIN yazdigi buradan GORUNMEZ. Dosya Storyline'da")
         print("  yazildiysa cevap 'Storyline kaydediyor'dur; sentetik olarak")
-        print("  kurulduysa yalnizca 'Storyline boyle bir kaydi KORUYOR'")
-        print("  denebilir (olculdu: acilip kaydedildi, yapi birebir korundu).")
+        # DUSEN HUKUM (2026-09-16). Burada "olculdu: acilip kaydedildi, yapi
+        # birebir korundu" yaziyordu. O tur KAYIT KANITSIZDI: `tur_testi`
+        # temiz projede dosyayi yazmiyordu ve "birebir korundu" tam olarak
+        # YAZILMAMIS dosyanin imzasi. Kural: degisiklik raporlayan eski tur
+        # gecerli, "hicbir sey degismedi" diyen eski tur kanitsiz. O
+        # sentetik dosya elde degil; hukum yeniden OLCULMEDI, geri alindi.
+        print("  kurulduysa 'Storyline boyle bir kaydi KORUYOR' ancak KAYIT")
+        print("  KANITLI bir turla denebilir. Onceki 'acilip kaydedildi, yapi")
+        print("  birebir korundu' hukmu KANITSIZ (tur dosyayi yazmiyordu);")
+        print("  tools/tur_testi.py ile ('yazildi' ayagi) yeniden kosun.")
     else:
         print("GORULEN: bankadaki hicbir slayt quiz'e kayitli degil.")
         print("  Bankadan soru CEKILMEMIS olabilir (baslik, 3. adim).")

@@ -238,10 +238,20 @@ def zincir(pkg: StoryPackage) -> list[str]:
     # Olculdu, sentetik ama Storyline'in KABUL ETTIGI bir dosyayla:
     # banka sahnesine tasinmis bir soru slaydi, quiz'e kayitli. Banka
     # slaydi indekse `scene_name="(sahnesiz)"` olarak girdi, `izleme`nin
-    # `cozulemeyen` listesi BOS kaldi, `zincir` TEMIZ dondu. Dosya
-    # Storyline'da acilip kaydedildi ve yapi birebir korundu (banka 1
-    # slayt, kayit 2, tek quizLst) -- yani Storyline boyle bir kaydi
-    # ATMIYOR.
+    # `cozulemeyen` listesi BOS kaldi, `zincir` TEMIZ dondu. BU KISIM
+    # KODDAN OLCULDU ve ayakta; 3c karari ona dayaniyor.
+    #
+    # DUSEN ALT HUKUM (2026-09-16). Burada "Dosya Storyline'da acilip
+    # kaydedildi ve yapi birebir korundu (banka 1 slayt, kayit 2, tek
+    # quizLst) -- yani Storyline boyle bir kaydi ATMIYOR" yaziyordu. O tur
+    # KAYIT KANITSIZDI: `tur_testi` temiz projede Ctrl+S gondermiyordu ve
+    # "birebir korundu" yazilmamis dosyanin imzasi. Sentetik dosya elde
+    # degil, yeniden OLCULMEDI -- "Storyline bu kaydi koruyor mu" ACIK.
+    # Ters yonde, FARKLI kosulda bir olcu var: kayit kanitli turda
+    # Storyline SONUC SLAYDI OLMAYAN (sahipsiz) bir quiz'i kaydederken
+    # tumuyle atti, uc kayit kayboldu (test/_canary/tur_gercek.log).
+    # Banka durumu icin kanit degil; "korur" varsayimini tasimamanin
+    # sebebi.
     #
     # GERIYE KALAN, ve bu kosulu ILGILENDIRMIYOR: Storyline kullanici
     # bankadan soru CEKTIGINDE kaydi kendisi yazar mi? Sentetik dosya
