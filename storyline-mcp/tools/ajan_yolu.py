@@ -125,7 +125,7 @@ else:
     ISTEMCI_YOK = ""
 
 from storyline_mcp.package import StoryPackage      # noqa: E402
-from storyline_mcp import model, oturum, puanlama   # noqa: E402
+from storyline_mcp import authoring, model, oturum, puanlama   # noqa: E402
 import completeness                                 # noqa: E402
 
 # SUNUCU ACILMAZSA KAPI HUKUM VERMEZ. Asagidaki dizi bir ISARET:
@@ -684,6 +684,83 @@ def akis_md8(yol: pathlib.Path, *, sinir: bool) -> tuple:
 
 
 
+MD9_ELLE = "M4_Elle"
+MD9_SORU_SIRASI = ("M1", "M2", "M3")      # SIRALI: md. 8'in kusurunu tasimasin
+
+
+def _ileri_parmak_izi(pkg: StoryPackage, sahne_guidleri: set) -> dict:
+    """Verilen sahnelerdeki slaytlarin atlama tetikleri, SLAYT GUID'IYLE.
+
+    Guid ile, parca adiyla degil: Storyline kaydederken parcalari yeniden
+    numaraliyor (olculdu, tur_testi `_zincir_hali`).
+    """
+    index = model.slide_index(pkg)
+    iz: dict = {}
+    for ref in index.values():
+        if ref.scene_guid not in sahne_guidleri:
+            continue
+        satirlar = []
+        for trig in pkg.parse(ref.part).iter("trig"):
+            veri = trig.find("data")
+            if veri is None or not str(veri.get("action") or "").startswith("jump"):
+                continue
+            hedef = (veri.find("scene") if veri.get("action") == "jumpToScene"
+                     else veri.find("slide"))
+            satirlar.append((veri.get("event"), veri.get("action"),
+                             veri.get("actSubType"),
+                             hedef.get("jumpG") if hedef is not None else None))
+        iz[ref.guid] = sorted(satirlar, key=str)
+    return iz
+
+
+async def _md9_sorular(cagir, hatalar: list[str]) -> None:
+    for ad in MD9_SORU_SIRASI:
+        await cagir("add_question", scene=ad, prompt=f"{ad} sorusu?",
+                    choices=["a", "b"], correct=[0],
+                    feedback={"correct": "Dogru.", "incorrect": "Yanlis."})
+
+
+def akis_md9(yol: pathlib.Path) -> tuple:
+    """(arac hatalari, isaret raporu, sablon sahne guid'leri, sablonun ONCEKI izi).
+
+    1. Fiksturun HAZIR sahneleri (bos.story: Ana Menu, SINAV) sablondur --
+       kapi onlari `sablon_isaretle` ile KENDISI isaretler. Kullanicinin
+       yerel `bos.story`si isaretli olsun olmasin sonuc ayni.
+    2. MCP: `build_course` ile M1..M3.
+    3. ARAC DISI sahne: MCP'den GECMEDEN, `authoring` ile M4_Elle + iki
+       slayt -- kullanicinin Storyline'da elle ekledigi sahnenin yerine.
+    4. YENI MCP sureci: M1, M2, M3'e SIRALI soru.
+    """
+    import sablon_isaretle
+    story = StoryPackage(yol).parse("story/story.xml")
+    sablon = [(s.get("g"), s.get("name")) for s in (story.find("sceneLst") or [])]
+    isaret = sablon_isaretle.isaretle(yol, [ad for _, ad in sablon], yedek=False)
+    sablon_g = {g for g, _ in sablon}
+    once_iz = _ileri_parmak_izi(StoryPackage(yol), sablon_g)
+
+    async def icerik(cagir, hatalar):
+        await _md8_icerik(cagir, hatalar)
+    h1 = asyncio.run(_oturumda(yol, icerik))
+
+    pkg = StoryPackage(yol)
+    index = model.slide_index(pkg)
+    m1 = next((g for g, ad in ((s.get("g"), s.get("name")) for s in
+               pkg.parse("story/story.xml").find("sceneLst") or []) if ad == "M1"), None)
+    kaynak = next((r.basename for r in sorted(index.values(), key=lambda r: r.position)
+                   if r.scene_guid == m1), None)
+    elle_hatalari = []
+    if kaynak is None:
+        elle_hatalari.append("M1'de klonlanacak slayt yok -- arac disi sahne KURULAMADI")
+    else:
+        authoring.create_scene(pkg, MD9_ELLE)
+        for i in (1, 2):
+            authoring.add_slide(pkg, kaynak, scene=MD9_ELLE, name=f"Elle_{i}")
+        pkg.save(yol, backup=False)
+
+    h2 = asyncio.run(_oturumda(yol, _md9_sorular))
+    return h1 + elle_hatalari + h2, isaret, sablon_g, once_iz
+
+
 def _tum_sahneler(pkg: StoryPackage) -> list[str]:
     story = pkg.parse("story/story.xml")
     return [sc.get("g") for sc in (story.find("sceneLst") or []) if sc.get("g")]
@@ -1036,6 +1113,71 @@ def kos() -> list[str]:
         kusur.append(f"AJAN YOLU (yeni sohbet, sira disi soru): ILERI "
                      f"yuruyusu tam degil -- {fark_d8[:140]}")
 
+
+    # --- MD. 9: DISLAMA ISARETI -- arac disi sahne akista, isaretli sablon disarida
+    #
+    # SINAYAN KOL (anlam): icerme ("bu sahne kurs") ile dislama ("bu sahne akista
+    # degil") ARAC DISI eklenen sahnede ayrisir. Icermede o sahne akistan duser
+    # (kirmizi), dislamada akistadir (yesil). Kullanicinin Storyline'da elle
+    # ekledigi her sahne bu durumda.
+    #
+    # (b) ISARETLI SABLON DEGISMEZ: dislamanin obur yarisi. Isaret okunmuyorsa
+    # zincir sablon sahnelerinin sonunu kursa baglar.
+    #
+    # BURADA, md. 6'NIN ONUNDE (md. 6 fikstur yoksa ERKEN DONUYOR).
+    yol_9 = _hazirla("ajan_yolu_md9.story")
+    h_9, isaret_9, sablon_9, once_iz_9 = akis_md9(yol_9)
+    if any(h.startswith(ACILMADI) for h in h_9):
+        return [ACILMADI]
+    pk_9 = StoryPackage(yol_9)
+    gez_9, bek_9 = _ileri_yuruyusu(pk_9, _kapsam(pk_9, MD8_SAHNELER + (MD9_ELLE,)))
+    fark_9 = _yuruyus_farki(gez_9, bek_9)
+    sonra_iz_9 = _ileri_parmak_izi(pk_9, sablon_9)
+    degisen_9 = sorted(g[:8] for g in set(once_iz_9) | set(sonra_iz_9)
+                       if once_iz_9.get(g) != sonra_iz_9.get(g))
+    print(f"md9 isaret  : {isaret_9.get('isaretlenen')} "
+          f"(yazildi={isaret_9.get('yazildi')})")
+    print(f"md9 (a)     : {'TAM' if not fark_9 else fark_9[:80]}")
+    print(f"md9 (b)     : sablonda degisen slayt {len(degisen_9)}")
+    if h_9:
+        kusur.append(f"md. 9 kosusunda {len(h_9)} arac hatasi: {h_9[0]}")
+    if not isaret_9.get("yazildi") or len(isaret_9.get("isaretlenen") or []) != len(sablon_9):
+        kusur.append(f"MD. 9 KURULAMADI: sablon isaretlenemedi ({isaret_9})")
+    else:
+        if fark_9:
+            kusur.append(f"MD. 9 (a) ARAC DISI SAHNE AKISA GIRMEDI: {fark_9[:140]}")
+        if degisen_9:
+            kusur.append(f"MD. 9 (b) ISARETLI SABLON SAHNESI DEGISTI: {len(degisen_9)} "
+                         f"slaytin atlama tetigi ({', '.join(degisen_9[:3])})")
+
+    # --- KANARYA (g): sablon slaydina degisiklik EKILIR -> (b) yakalamali
+    #
+    # (b)'nin yesili ancak iz fonksiyonu bir degisikligi gorebiliyorsa bir sey
+    # soyler. Urunun kapsam mantigina DOKUNMADAN, dogrudan XML'de.
+    pk_g = StoryPackage(yol_9)
+    ekilen_g = 0
+    for ref in model.slide_index(pk_g).values():
+        if ref.scene_guid not in sablon_9:
+            continue
+        kok = pk_g.parse(ref.part)
+        for trig in kok.iter("trig"):
+            veri = trig.find("data")
+            if veri is not None and str(veri.get("action") or "").startswith("jump"):
+                veri.set("actSubType", "kanarya")
+                ekilen_g += 1
+                break
+        if ekilen_g:
+            pk_g.replace_xml(ref.part, kok)
+            break
+    iz_g = _ileri_parmak_izi(pk_g, sablon_9)
+    gordu_g = any(sonra_iz_9.get(g) != iz_g.get(g) for g in set(iz_g) | set(sonra_iz_9))
+    print(f"kanarya (g) : {ekilen_g} sablon tetigi ekildi -> "
+          f"{'YAKALANDI' if gordu_g else 'KACTI'}")
+    if not ekilen_g:
+        kusur.append("KANARYA KURULAMADI (g): sablon sahnelerinde atlama tetigi yok")
+    elif not gordu_g:
+        kusur.append("OLCU KOR (g): sablon tetigi degistirildigi halde iz ayni -- "
+                     "md. 9 (b) olcmuyor")
 
     # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
     #

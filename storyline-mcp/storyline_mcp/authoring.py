@@ -3243,6 +3243,50 @@ def _ileri_tetikleyicisi_ekle(root: ET.Element, sahne_guid: str) -> None:
     _ileri_dugmesini_ac(root)
 
 
+# AKIS DISI ISARETI -- sahne `desc`inin ONEKI. TEK SABIT: yazan
+# (`tools/sablon_isaretle.py`) ve zincir kapsami (`akis_sahneleri`) BURADAN okur.
+#
+# ANLAM DISLAMA, ICERME DEGIL (2026-09-16). Isaretsiz sahne AKISTA. Icerme
+# ("bu sahne kurs") kullanicinin Storyline'da elle ekledigi her sahneyi akistan
+# atardi -- ogrenci ona sessizce ulasamazdi, trafikegitimi'ndeki alti sorunun
+# yasadigi sey -- ve sahne kuran her yolun isareti yazmayi HATIRLAMASINI
+# gerektirirdi. Dislama isareti BIR KEZ, sablonun SAHIBI tarafindan, kursa ait
+# olmayan sahnelere konur: `bos.story` kopyasina kurulan kursta "Ana Menu" ve
+# "SINAV" akis disi; kullanicinin kendi dolu kursunda hicbir sey isaretli
+# degil, hepsi akista -- ve orada bu DOGRU, cunku sahneler icerik.
+# `promote_scenes`in "devralinani icerikten ayiramiyorum" belirsizligi boylece
+# kurucu karar vermeden kapaniyor: karari sablonun sahibi veriyor.
+#
+# TASIYICI NEDEN `desc` -- olculdu (test/_canary/tasiyici_zorla.json): kayit
+# KANITLI turda (story.xml ozeti degisti) `desc` Storyline'in yeniden
+# yazmasindan birebir sag cikti; ozel bir oznitelik ATILDI. Proje degiskeni
+# elendi: `audit` kullanilmayan kullanici degiskenini kusur sayiyor. `desc`
+# gorunur -- Storyline'da sahnenin aciklama alani -- ve bu dislama icin
+# OZELLIK: karar arac olmadan incelenip geri alinabiliyor.
+#
+# YUKLEM DAR: ONEK, `startswith`, alt dizi degil. Ortasinda "akis disi" gecen
+# gercek bir aciklama sahneyi akistan atmamali. Isaret ASCII: harf isaretli bir
+# isaret, kodlama hatasini sessiz bir eslesmeme kipine cevirirdi.
+AKIS_DISI_ISARETI = "[akis-disi]"
+
+
+def akis_disi_mi(sahne) -> bool:
+    """Bu `<scene>` elemani akis disi olarak isaretli mi (desc ONEKI)."""
+    return (sahne.get("desc") or "").startswith(AKIS_DISI_ISARETI)
+
+
+def akis_sahneleri(pkg: StoryPackage) -> list[str]:
+    """Akista sayilan sahneler, sceneLst SIRASINDA: isaretsiz olanlarin hepsi.
+
+    DOSYADAN TURETILIR, bellekten degil. Onceki kapsam MCP surecinin bellegindeydi
+    ve panelin YENI SOHBETI onu sifirliyordu -- sorular yeni sohbette sira disi
+    eklenince sahne akistan dusuyordu (md. 8, tools/ajan_yolu.py).
+    """
+    story = pkg.parse(STORY_PART)
+    return [s.get("g") for s in (story.find("sceneLst") or [])
+            if s.get("g") and not akis_disi_mi(s)]
+
+
 def ileri_zincirini_kur(pkg: StoryPackage,
                         sahne_guidleri: list[str] | None = None,
                         *, kapat_son: bool = True) -> dict:
