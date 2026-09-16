@@ -720,7 +720,7 @@ async def _md9_sorular(cagir, hatalar: list[str]) -> None:
                     feedback={"correct": "Dogru.", "incorrect": "Yanlis."})
 
 
-def akis_md9(yol: pathlib.Path) -> tuple:
+def akis_md9(yol: pathlib.Path, *, isaretle: bool = True) -> tuple:
     """(arac hatalari, isaret raporu, sablon sahne guid'leri, sablonun ONCEKI izi).
 
     1. Fiksturun HAZIR sahneleri (bos.story: Ana Menu, SINAV) sablondur --
@@ -730,11 +730,14 @@ def akis_md9(yol: pathlib.Path) -> tuple:
     3. ARAC DISI sahne: MCP'den GECMEDEN, `authoring` ile M4_Elle + iki
        slayt -- kullanicinin Storyline'da elle ekledigi sahnenin yerine.
     4. YENI MCP sureci: M1, M2, M3'e SIRALI soru.
+
+    `isaretle=False` KANARYA (h) icindir: ayni akis isaretsiz kopyada.
     """
     import sablon_isaretle
     story = StoryPackage(yol).parse("story/story.xml")
     sablon = [(s.get("g"), s.get("name")) for s in (story.find("sceneLst") or [])]
-    isaret = sablon_isaretle.isaretle(yol, [ad for _, ad in sablon], yedek=False)
+    isaret = (sablon_isaretle.isaretle(yol, [ad for _, ad in sablon], yedek=False)
+              if isaretle else {"isaretlenen": [], "yazildi": False})
     sablon_g = {g for g, _ in sablon}
     once_iz = _ileri_parmak_izi(StoryPackage(yol), sablon_g)
 
@@ -1178,6 +1181,29 @@ def kos() -> list[str]:
     elif not gordu_g:
         kusur.append("OLCU KOR (g): sablon tetigi degistirildigi halde iz ayni -- "
                      "md. 9 (b) olcmuyor")
+
+    # --- KANARYA (h): ISARETSIZ kopyada ayni akis -> sablon DEGISMELI
+    #
+    # (g) iz fonksiyonunun degisikligi GORDUGUNU kanitliyor; (b)'nin yesilinin
+    # ISARETTEN geldigini degil. Isaret okunmasaydi (b) yine yesil kalir miydi?
+    # Isaretsiz kopyada zincir sablon sahnelerini akisa almali ve tetiklerini
+    # degistirmeli -- bu, dislamanin KABUL EDILEN hata hali (bkz.
+    # server `_zincir_kapsami` ustundeki blok). Degismiyorsa (b)'nin yesili
+    # isaretle ilgisiz.
+    yol_h = _hazirla("ajan_yolu_md9_isaretsiz.story")
+    h_h, _, sablon_h, once_iz_h = akis_md9(yol_h, isaretle=False)
+    if any(h.startswith(ACILMADI) for h in h_h):
+        return [ACILMADI]
+    sonra_iz_h = _ileri_parmak_izi(StoryPackage(yol_h), sablon_h)
+    degisen_h = [g for g in set(once_iz_h) | set(sonra_iz_h)
+                 if once_iz_h.get(g) != sonra_iz_h.get(g)]
+    print(f"kanarya (h) : isaretsiz sablonda degisen slayt {len(degisen_h)} -> "
+          f"{'YAKALANDI' if degisen_h else 'KACTI'}")
+    if h_h:
+        kusur.append(f"kanarya (h) kosusunda arac hatasi: {h_h[0]}")
+    elif not degisen_h:
+        kusur.append("OLCU KOR (h): ISARETSIZ sablon da degismedi -- md. 9 (b)'nin "
+                     "yesili isaretten gelmiyor")
 
     # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
     #

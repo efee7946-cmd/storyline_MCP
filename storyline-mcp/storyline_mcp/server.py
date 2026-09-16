@@ -368,55 +368,49 @@ def _dikis_kaydi(pkg: StoryPackage, target: Path, yazma: dict,
 # panel yazdi, MCP yazmadi. `add_scene` + `add_slide` ile tek tek kuran
 # ajan yolu da bu yoldan bedavaya kapsaniyor.
 #
-# KAPSAM SURECTE TUTULUYOR, DOSYADAN TURETILMIYOR. Gerekcesi
-# `ileri_zincirini_kur`un kendi notunda OLCULU: kapsam=butun sahneler
-# denendiginde devralinan sablon sahnelerini (Ana Menu, SINAV) akisa
-# sokuyor, kullanicinin kasten kapattigi slayda yeniden ileri takiyor ve
-# devralinan slaytlari yeniden yaziyor. Eksik olan bilgi "akis nerede
-# bitiyor" degil "HANGI SAHNELER BU KURS" -- ve onu yalnizca kuran bilir:
-# `create_scene`in dondurdugu guid.
+# KAPSAM DOSYADAN TURETILIYOR, DISLAMA ISARETIYLE (2026-09-16).
 #
-# KAPSAMIN IKINCI YARISI: ARACA SLAYT EKLENEN SAHNELER. Taban dosya bos
-# degil -- kullanicinin dosyasinda kurs, devralinan 'Intro Scene' ile
-# BASLIYORDU (oturum anlik goruntusu: 1 sahne / 1 slayt) ve araç ona bir
-# slayt ekledi. Kapsam yalnizca `create_scene` olsaydi Intro -> Nedenler
-# gecisi baglanmadan kalirdi.
+# ONCEKI KARAR TERSINE CEVRILDI, iki olcumle. Kapsam MCP surecinin
+# bellegindeydi (`_KURULAN_SAHNELER`) ve gerekcesi "surec yeniden baslarsa
+# kapsam bosalir ve zincir kurulmaz -- guvenli taraf" idi. Guvenli DEGILDI:
 #
-# ONCE BASKA BIR OLCUT DENENDI VE ZARAR VERDI, olculdu: "kurulanlarin
-# ONUNDEKI komsu sahneyi de al". `bos.story` tabaninda uc sahne kuran bir
-# `build_course` kosusunda o olcut, devralinan SINAV sahnesinin son
-# slaydini kursun ilk sahnesine bagladi ve dort devralinan slaydi yeniden
-# yazdi -- yani ogrenciyi sablon artigina sokuyordu. "Bitisik olan" bir
-# vekil; "araç bu sahneye slayt EKLEDI mi" ise sorunun kendisi.
+#   * Panelin YENI SOHBETI yeni bir MCP sureci demek. Kapsam BOS degil
+#     EKSIK baslar: her yazma yalnizca kendi slayt ekledigi sahneyi katar.
+#     trafikegitimi.story'de sorular sira disi eklenince (sahne 2, 4, 3)
+#     sahne 2'nin sonu "sonraki kapsamdaki sahne" = 4'e baglandi; 3 gelince
+#     hedef COZULUYORDU ve "kasitli hedef" sayilip donduruldu. Sahne 3
+#     akistan dustu. Md. 8 (tools/ajan_yolu.py) panelin gercek `_run`
+#     siniriyla yeniden uretti: M1'in sorusu M2'yi atlayip M3'e gidiyor.
+#   * Arac DISI eklenen sahne (kullanicinin Storyline'da elle kurdugu) hic
+#     kapsama girmiyordu -- ogrenci ona ulasamazdi. Md. 9 (a).
 #
-# EKLENEN, DOKUNULAN DEGIL (`package.eklenen_slayt_parcalari`): tema ve
-# animasyon araclari her slayda yaziyor, ve "dirty" olcutu her sahneyi
-# kapsama sokardi.
+# DOSYADAN TURETMENIN ESKI ENGELI OLCULUYDU ve hala dogru: kapsam=butun
+# sahneler, devralinan sablon sahnelerini (Ana Menu, SINAV) akisa sokuyor --
+# `bos.story` tabaninda SINAV'in son slaydi kursun ilk sahnesine baglandi ve
+# dort devralinan slayt yeniden yazildi. CEVAP DISLAMA ISARETI
+# (`authoring.AKIS_DISI_ISARETI`, sahne `desc` oneki): sablonun SAHIBI kursa
+# ait olmayan sahneleri BIR KEZ isaretler (`tools/sablon_isaretle.py`),
+# isaretsiz her sahne akistadir. Md. 9 (b) isaretli sablonun degismedigini
+# soruyor.
 #
-# SUREC YENIDEN BASLARSA KAPSAM BOSALIR ve zincir kurulmaz. Bu, eski
-# davranisa dusmek demek -- yani guvenli taraf; bir sonraki oturumun
-# cagrilari kendi dokunduklari sahnelerden itibaren baglar.
+# BILINEN HATA HALI, acikca: sablon ISARETLENMEMISSE yukaridaki olculmus
+# zarar GERI GELIR -- sablon sahneleri akista, sonlari kursa baglanir ve
+# tetikleri yeniden yazilir. Dislama anlaminin kabul edilen maliyeti bu:
+# hata GORUNUR (ogrenci sablon artiginin icinden gecer), sessiz degil. Icerme
+# anlaminin hata hali ise ulasilamayan sahneydi -- trafikegitimi'ndeki alti
+# soru onizlemede fark edilmisti.
+#
+# KULLANICININ DOLU KURSUNDA hicbir sahne isaretli degil, hepsi akista -- ve
+# orada DOGRU, cunku sahneler icerik. `promote_scenes`in "devralinani
+# icerikten ayiramiyorum" belirsizligi kurucu karar vermeden kapaniyor.
+#
+# navData KAPSAMI AYRI SORU ve bellege ihtiyaci yok: "bu cagrinin EKLEDIGI
+# slaytlar ve onlarin sahneleri" (`_eklenen_sahneler`). Onu akisin
+# tamamina genisletmek, kullanicinin kendi slaytlarina navData yazmak olurdu.
 #
 # `panel/app.py`in `apply` yolu BU BOGAZDAN GECMIYOR (kendi `pkg.save`ini
 # cagiriyor) ve kapsanmiyor; panelin kurs kurma yolu `builder.build` ise
-# zinciri zaten kendisi kuruyor.
-_KURULAN_SAHNELER: dict[str, list[str]] = {}
-
-
-def _dosya_anahtari(path: str) -> str:
-    try:
-        return str(Path(path).resolve()).casefold()
-    except OSError:                                    # noqa: BLE001
-        return str(path).casefold()
-
-
-def _sahne_kuruldu(path: str, scene_guid: str | None) -> None:
-    """Araç tarafından kurulan bir sahneyi bu dosyanın kapsamına yazar."""
-    if not scene_guid:
-        return
-    kova = _KURULAN_SAHNELER.setdefault(_dosya_anahtari(path), [])
-    if scene_guid not in kova:
-        kova.append(scene_guid)
+# zinciri kendi bildigi sahne listesiyle kuruyor.
 
 
 def _navdata_tamamla(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
@@ -488,40 +482,34 @@ def _navdata_tamamla(pkg: StoryPackage, kapsam: list[str]) -> list[str]:
     return yazilan
 
 
-def _kapsami_guncelle(pkg: StoryPackage, path: str) -> None:
-    """Bu cagrinin EKLEDIGI slaytlarin sahnelerini kapsama yazar.
+def _eklenen_sahneler(pkg: StoryPackage) -> list[str]:
+    """Bu cagrinin EKLEDIGI slaytlarin sahneleri -- navData kapsami.
 
-    Kapsam surecte birikiyor, cunku her MCP cagrisi paketi yeniden aciyor:
-    slayti ekleyen cagri ile zinciri gorecek cagri ayri olabilir (kullanici
-    dosyasinda oyle oldu -- once `build_course`, sonra bes `compose_slide`).
+    EKLENEN, DOKUNULAN DEGIL (`package.eklenen_slayt_parcalari`): tema ve
+    animasyon araclari her slayda yaziyor, ve "dirty" olcutu her sahneyi
+    kapsama sokardi. Sahnenin DEVRALINAN ilk slaydi ancak sahne kapsama
+    girince navData alir (md. 6).
     """
     yeni_slaytlar = pkg.eklenen_slayt_parcalari
     if not yeni_slaytlar:
-        return
+        return []
     index = model.slide_index(pkg)
+    sahneler: list[str] = []
     for part in yeni_slaytlar:
         ref = index.get(part)
-        if ref is not None and ref.scene_guid:
-            _sahne_kuruldu(path, ref.scene_guid)
+        if ref is not None and ref.scene_guid and ref.scene_guid not in sahneler:
+            sahneler.append(ref.scene_guid)
+    return sahneler
 
 
-def _zincir_kapsami(pkg: StoryPackage, path: str) -> list[str]:
-    """Akis sayilacak sahneler, sceneLst SIRASINDA.
+def _zincir_kapsami(pkg: StoryPackage) -> list[str]:
+    """Akis sayilacak sahneler, sceneLst SIRASINDA: isaretsiz olanlarin hepsi.
 
-    SIRA sceneLst'ten okunuyor, kurulma sirasindan DEGIL:
-    `ileri_zincirini_kur` verilen listenin sirasini akis sirasi sayiyor ve
-    ikisi ayrisabilir (bir sahne sonradan one alinabilir).
-
-    ARADAKI SAHNELER DOLDURULMUYOR. Kapsamdaki iki sahnenin arasinda
-    duran, araca dokunulmamis bir sahne AKISA SOKULMUYOR -- kapsam disini
-    akisa sokmamak, bu kuralin tek gerekcesi.
+    DOSYADAN, her yazmada yeniden (gerekce yukaridaki blok). Hesabin kendisi
+    `authoring.akis_sahneleri`nde -- isareti yazan arac ile ayni sabitten
+    okuyor.
     """
-    kapsam = set(_KURULAN_SAHNELER.get(_dosya_anahtari(path)) or ())
-    if not kapsam:
-        return []
-    story = pkg.parse(STORY_PART)
-    return [s.get("g") for s in (story.find("sceneLst") or [])
-            if s.get("g") in kapsam]
+    return authoring.akis_sahneleri(pkg)
 
 
 def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool) -> dict:
@@ -543,14 +531,13 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
     kablo = puanlama.kablola(pkg)
     # SAHNE SONU ILERI ZINCIRI, kaydetmeden once. Kablolama ile ayni
     # sinifta: turetilmis, gorunur icerik uretmez, ve degisiklik yoksa
-    # dosyaya dokunmaz. Kapsam BOSSA hic kosmaz (gerekce yukarida).
-    _kapsami_guncelle(pkg, path)
-    kapsam = _zincir_kapsami(pkg, path)
+    # dosyaya dokunmaz. Kapsam DOSYADAN, her yazmada (gerekce yukarida).
+    kapsam = _zincir_kapsami(pkg)
     # SLAYT OYNATICI DUGMELERINI BEYAN ETSIN (gerekce: _navdata_tamamla).
     # Kablolama ve ileri zinciriyle ayni sinifta: turetilmis, gorunur
-    # icerik uretmez, ve yalnizca EKSIK olani yazar. KAPSAMDAN SONRA
-    # cagriliyor -- devralinan ilk slaydi ancak kapsam kapsiyor.
-    navdata = _navdata_tamamla(pkg, kapsam)
+    # icerik uretmez, ve yalnizca EKSIK olani yazar. Kapsami ZINCIRINKI
+    # DEGIL: bu cagrinin ekledigi slaytlarin sahneleri.
+    navdata = _navdata_tamamla(pkg, _eklenen_sahneler(pkg))
     zincir = (authoring.ileri_zincirini_kur(pkg, kapsam, kapat_son=False)
               if kapsam else None)
     yazma = pkg.save(target, backup=True)
@@ -575,16 +562,12 @@ def _write(pkg: StoryPackage, path: str, output_path: str | None, in_place: bool
 def _apply_op(pkg: StoryPackage, op: dict, path: str | None = None) -> dict:
     """Tek bir op'u uygular.
 
-    `path` VERILIRSE kurulan sahneler ileri zincirinin kapsamina yazilir
-    (gerekce: `_KURULAN_SAHNELER`). Opsiyonel, cunku `panel/app.py`nin
-    `apply` yolu bu bogazdan gecmiyor ve kendi kaydini yapiyor.
+    `path` artik kapsam icin KULLANILMIYOR: zincir kapsami dosyadan
+    turetiliyor (bkz. `_zincir_kapsami`). Parametre imza uyumu icin duruyor.
     """
     kind = op.get("op")
     if kind == "create_scene":
-        sonuc = create_scene(pkg, op["name"])
-        if path:
-            _sahne_kuruldu(path, sonuc.get("scene_guid"))
-        return sonuc
+        return create_scene(pkg, op["name"])
     if kind == "duplicate_slide":
         return clone_slide(pkg, op["slide"], scene=op.get("scene"), name=op.get("name"))
     if kind == "add_slide":
@@ -1033,7 +1016,6 @@ def add_scene(
     _guard(path)
     pkg = StoryPackage(path)
     result = create_scene(pkg, name)
-    _sahne_kuruldu(path, result.get("scene_guid"))
     return {**result, **_write(pkg, path, output_path, in_place)}
 
 
