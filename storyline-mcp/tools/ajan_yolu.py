@@ -477,6 +477,213 @@ async def akis_sonradan_soru(yol: pathlib.Path) -> tuple:
     return hatalar, bildirilen
 
 
+MD8_SAHNELER = ("M1", "M2", "M3")
+# trafikegitimi.story'nin PARCA ADI SIRASI: sorular sahne 2, 4, 3 sirasiyla
+# eklenmisti (slided, slidee, slidef). Sira disi ekleme, kapsamin eksik
+# oldugu anda "sonraki sahne"yi yanlis hesaplatir.
+MD8_SORU_SIRASI = ("M1", "M3", "M2")
+
+
+def _ileri_yuruyusu(pkg: StoryPackage, kapsam: list[str] | None = None) -> tuple:
+    """Ilk slayttan ILERI ile sona yurur: (gezilen, beklenen) slayt adlari.
+
+    YAPIYA DEGIL DAVRANISA BAKIYOR. Kullanicinin sikayeti "onizlemede
+    atliyor" idi; yapisal yuklemler (md. 5, md. 7) tek tek tetikleyici
+    bicimlerini soruyor ve GECERLI AMA YANLIS bir hedefi goremiyor --
+    trafikegitimi.story'de sahne 2'nin sonu var olan sahne 4'e gidiyordu ve
+    iki yuklem de yesildi. Bu yuruyus onu ve onarimin yol actigi ara
+    regresyonu (sahne 3'un dusmesi) yakaladi.
+
+    Ogrencinin bastigi: slaytta `OnNextButtonClick` varsa o (oynaticinin
+    ILERI'si), yoksa `OnClick` (soru slaytlarinda DEVAM). GERIYE giden
+    acik hedefli atlamalar ileri yol sayilmaz -- GERI dugmesidir.
+
+    KAPSAM VERILIRSE baslangic kapsamin ilk slaydi, beklenen kapsamdaki
+    slaytlardir ve kapsam disina cikan yuruyus orada DURUR. Gerekce
+    olculdu (2026-09-16): `test/bos.story` bos bir proje DEGIL, yalnizca
+    devralinan "Ana Menu" (4) ve "SINAV" (6) sahnelerini tasiyor. Beklenen
+    "sceneLst'teki her slayt" olunca dogru bir kurs yolu (Ana Menu -> M1 ->
+    M2 -> M3, SINAV atlanir) kontrol kosusunda KIRMIZI cikti. Uyelik
+    dosyadan turetilemiyor -- `_kapsam` ile ayni ilke: kapi ne kurdugunu
+    bilir. Kapsam verilmezse sceneLst'in tamami (sablonsuz dosyalar icin).
+
+    Onarimdan BAGIMSIZ:
+    `authoring` yardimcilarini cagirmiyor, `trig` dugumlerini kendisi geziyor.
+    """
+    story = pkg.parse("story/story.xml")
+    sira = [s.get("g") for s in (story.find("sceneLst") or []) if s.get("g")]
+    index = model.slide_index(pkg)
+    uyeler = {g: sorted((r for r in index.values() if r.scene_guid == g),
+                        key=lambda r: r.position) for g in sira}
+    akis = [g for g in sira if kapsam is None or g in set(kapsam)]
+    beklenen = [r.basename for g in akis for r in uyeler[g]]
+    konum = {r.basename: (si, pi)
+             for si, g in enumerate(sira) for pi, r in enumerate(uyeler[g])}
+    guid_ile = {r.guid: r for r in index.values() if r.guid}
+
+    simdiki = next((uyeler[g][0] for g in akis if uyeler[g]), None)
+    gezilen: list[str] = []
+    while (simdiki is not None and simdiki.basename not in gezilen
+           and simdiki.scene_guid in akis):
+        gezilen.append(simdiki.basename)
+        sahne = uyeler[simdiki.scene_guid]
+        yer = sahne.index(simdiki)
+        adaylar: dict = {"OnNextButtonClick": [], "OnClick": []}
+        for trig in pkg.parse(simdiki.part).iter("trig"):
+            veri = trig.find("data")
+            if veri is None or veri.get("event") not in adaylar:
+                continue
+            eylem = veri.get("action")
+            if eylem == "jumpToSlide" and veri.get("actSubType") == "next":
+                hedef = sahne[yer + 1] if yer + 1 < len(sahne) else None
+            elif eylem == "jumpToSlide":
+                d = veri.find("slide")
+                hedef = guid_ile.get(d.get("jumpG")) if d is not None else None
+                if (hedef is not None and konum.get(hedef.basename, (-1, -1))
+                        <= konum[simdiki.basename]):
+                    continue                       # GERI dugmesi
+            elif eylem == "jumpToScene":
+                d = veri.find("scene")
+                g = d.get("jumpG") if d is not None else None
+                hedef = uyeler[g][0] if uyeler.get(g) else None
+            else:
+                continue
+            adaylar[veri.get("event")].append(hedef)
+        secenek = adaylar["OnNextButtonClick"] or adaylar["OnClick"]
+        simdiki = secenek[0] if secenek else None
+    return gezilen, beklenen
+
+
+def _yuruyus_farki(gezilen: list[str], beklenen: list[str]) -> str:
+    """Ilk sapma, insan okuyacak bicimde."""
+    if gezilen == beklenen:
+        return ""
+    atlanan = [b for b in beklenen if b not in gezilen]
+    for n, (g, b) in enumerate(zip(gezilen, beklenen)):
+        if g != b:
+            onceki = gezilen[n - 1] if n else "(baslangic)"
+            return (f"{onceki} sonrasi {b} beklendi, {g}'e gidildi; "
+                    f"{len(gezilen)}/{len(beklenen)} slayt, atlanan: "
+                    f"{', '.join(atlanan[:6])}")
+    son = gezilen[-1] if gezilen else "(hic)"
+    return (f"yuruyus {son}'da DURDU; {len(gezilen)}/{len(beklenen)} slayt, "
+            f"varilmayan: {', '.join(atlanan[:6])}")
+
+
+async def _oturumda(yol: pathlib.Path, is_) -> list[str]:
+    """TEK bir MCP sunucu sureci. Her cagri yeni surec = sifir bellek."""
+    hatalar: list[str] = []
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-c", "from storyline_mcp.server import main; main()"], env=None)
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8",
+                                errors="replace") as _tampon:
+        async with stdio_client(params, errlog=_tampon) as (r, w):
+            async with ClientSession(r, w) as sess:
+                try:
+                    await sess.initialize()
+                except BaseException as _acilis:
+                    hatalar.append("SUNUCU ACILMADI: %s" % type(_acilis).__name__)
+                    return hatalar
+
+                async def cagir(ad, **kw):
+                    res = await sess.call_tool(
+                        ad, {"path": str(yol), "in_place": True, **kw})
+                    hata = _hata_mi(res)
+                    if hata:
+                        hatalar.append(f"{ad}: {hata[:110]}")
+                        return {}
+                    return _coz(res)
+
+                await is_(cagir, hatalar)
+    return hatalar
+
+
+async def _md8_icerik(cagir, hatalar: list[str]) -> None:
+    """Kullanicinin 1. oturumu: TEK `build_course` ile icerik.
+
+    Tabanin ilk sahnesine slayt EKLENMIYOR: `bos.story`de o sahne
+    devralinan "Ana Menu". Ilk yazimda oraya Kapak konmustu, yani kapi
+    bir sablon sahnesini degistiriyordu -- urunun yapmadigi bir sey.
+    """
+    ham = await cagir("list_templates")
+    liste = ham.get("result") if isinstance(ham, dict) else ham
+    adaylar = [t["slide"] for t in (liste if isinstance(liste, list) else [])
+               if isinstance(t, dict) and t.get("kind") == "content"]
+    if not adaylar:
+        hatalar.append("list_templates icerik sablonu vermedi -- md. 8 KURULAMADI")
+        return
+    s = adaylar[0]
+    ops: list[dict] = []
+    for ad in MD8_SAHNELER:
+        ops.append({"op": "create_scene", "name": ad})
+        ops += [{"op": "add_slide", "template": s, "scene": ad,
+                 "name": f"{ad}_{i}"} for i in (1, 2)]
+    await cagir("build_course", operations=ops)
+
+
+async def _md8_sorular(cagir, hatalar: list[str]) -> None:
+    """Kullanicinin 2. oturumu: AYRI `add_question` cagrilari, sira disi."""
+    for ad in MD8_SORU_SIRASI:
+        await cagir("add_question", scene=ad, prompt=f"{ad} sorusu?",
+                    choices=["a", "b"], correct=[0],
+                    feedback={"correct": "Dogru.", "incorrect": "Yanlis."})
+
+
+def _panel_yeni_sohbet_siniri(yol: pathlib.Path) -> list[dict]:
+    """Panelin YENI SOHBET sinirini PANELIN KENDI KODUYLA gecer.
+
+    NICIN IKI SUNUCU SURECI YETMEZ: kapsami diske yazan bir tasarim
+    (`.oturum.json`) iki surec arasinda hayatta kalir ve md. 8'i YANLIS
+    YESILLE gecerdi. Gercek sinirda `agent.AgentRun._run`, `resume` yoksa
+    `oturum.kapat()` cagiriyor ve o dosyayi SILIYOR. Olculen kume iddiadan
+    dar olmasin diye sinir kopyalanmiyor, cagriliyor.
+
+    MODEL CAGRILMIYOR: `find_cli` bu cagri boyunca None donduruyor. `_run`
+    sinir blogunu calistirip CLI bulunamadi hatasiyla cikiyor.
+    """
+    panel_dizini = str(ROOT / "panel")
+    if panel_dizini not in sys.path:
+        sys.path.insert(0, panel_dizini)
+    import agent as _agent
+    olaylar: list[dict] = []
+    asil = _agent.find_cli
+    _agent.find_cli = lambda: None
+    try:
+        _agent.AgentRun(str(yol), "md. 8 yeni sohbet siniri", olaylar.append,
+                        resume=None)._run()
+    finally:
+        _agent.find_cli = asil
+    return olaylar
+
+
+def akis_md8(yol: pathlib.Path, *, sinir: bool) -> tuple:
+    """(arac hatalari, sinir kaniti). sinir=False: KONTROL, hepsi tek surecte.
+
+    SINIR KANITI iki parcali ve ikisi de gerekli: sinirdan ONCE anlik
+    goruntu VAR, sinirdan sonra `_run` "anlik goruntusu alindi" diyor.
+    `anlik_goruntu` var olan noktaya dokunmadigi icin "alindi" ancak
+    `kapat` onu sildiyse gelir -- yani yeni-sohbet dali gercekten kostu.
+    """
+    if not sinir:
+        async def hepsi(cagir, hatalar):
+            await _md8_icerik(cagir, hatalar)
+            await _md8_sorular(cagir, hatalar)
+        return asyncio.run(_oturumda(yol, hepsi)), None
+
+    async def icerik(cagir, hatalar):
+        await _md8_icerik(cagir, hatalar)
+    h1 = asyncio.run(_oturumda(yol, icerik))
+    onceden_vardi = oturum.anlik_yolu(yol).exists()
+    olaylar = _panel_yeni_sohbet_siniri(yol)
+    alindi = any("anlik goruntusu alindi" in str(o.get("text", ""))
+                 for o in olaylar)
+    h2 = asyncio.run(_oturumda(yol, _md8_sorular))
+    return h1 + h2, (onceden_vardi and alindi, olaylar)
+
+
+
 def _tum_sahneler(pkg: StoryPackage) -> list[str]:
     story = pkg.parse("story/story.xml")
     return [sc.get("g") for sc in (story.find("sceneLst") or []) if sc.get("g")]
@@ -783,6 +990,52 @@ def kos() -> list[str]:
     if not ekilen_f:
         kusur.append("KANARYA KURULAMADI (f): A_Konu'da ILERI dugmesi tasiyan "
                      "sonu-olmayan slayt yoktu -- akis beklenen sekli kurmamis")
+
+    # --- MD. 8: YENI SOHBET SINIRI -- ILERI ile bastan sona yuruyus
+    #
+    # KULLANICININ DOSYASINDAKI IKINCI MEKANIZMA (2026-09-16): icerik tek
+    # oturumda dogru zincirlendi, sorular YENI sohbette sira disi eklendi ve
+    # sahne 2'nin sonu var olan sahne 4'e baglandi; sahne 3 akistan dustu.
+    # Md. 5 ve md. 7 yesildi -- hedef gecerliydi, yalnizca yanlisti.
+    #
+    # ONCE YAZILDI, TASARIMDAN ONCE: hangi care secilirse secilsin hakemi
+    # bu. Sinir panelin kendi `_run`i ile geciliyor; `.oturum.json`a yazan
+    # bir care orada silinir ve bu kapidan GECEMEZ.
+    #
+    # KONTROL AYNI AKISI TEK SURECTE KOSAR. Kontrol kirmiziysa yuruyus ya
+    # da kurulum bozuktur ve deney YORUMLANMAZ.
+    yol_k8 = _hazirla("ajan_yolu_md8_kontrol.story")
+    h_k8, _ = akis_md8(yol_k8, sinir=False)
+    if any(h.startswith(ACILMADI) for h in h_k8):
+        return [ACILMADI]
+    pk_k8 = StoryPackage(yol_k8)
+    fark_k8 = _yuruyus_farki(*_ileri_yuruyusu(pk_k8, _kapsam(pk_k8, MD8_SAHNELER)))
+
+    yol_d8 = _hazirla("ajan_yolu_md8_deney.story")
+    h_d8, (kanit_d8, olay_d8) = akis_md8(yol_d8, sinir=True)
+    if any(h.startswith(ACILMADI) for h in h_d8):
+        return [ACILMADI]
+    pk_d8 = StoryPackage(yol_d8)
+    gez_d8, bek_d8 = _ileri_yuruyusu(pk_d8, _kapsam(pk_d8, MD8_SAHNELER))
+    fark_d8 = _yuruyus_farki(gez_d8, bek_d8)
+
+    print(f"md8 kontrol : {'TAM' if not fark_k8 else fark_k8[:80]}")
+    print(f"md8 sinir   : {'GECILDI' if kanit_d8 else 'GECILMEDI'}")
+    print(f"md8 deney   : {'TAM' if not fark_d8 else fark_d8[:80]}")
+    if h_k8 or h_d8:
+        kusur.append(f"md. 8 kosularinda {len(h_k8) + len(h_d8)} arac hatasi: "
+                     f"{(h_k8 + h_d8)[0]}")
+    if fark_k8:
+        kusur.append(f"MD. 8 KONTROL KIRMIZI (tek surec): {fark_k8[:120]} -- "
+                     f"yuruyus ya da kurulum bozuk, deney YORUMLANMADI")
+    elif not kanit_d8:
+        kusur.append("MD. 8 BAKILMADI: panelin yeni-sohbet siniri GECILMEDI "
+                     "(anlik goruntu silinip yeniden alinmadi) -- "
+                     + "; ".join(str(o.get("text", ""))[:60] for o in olay_d8[:2]))
+    elif fark_d8:
+        kusur.append(f"AJAN YOLU (yeni sohbet, sira disi soru): ILERI "
+                     f"yuruyusu tam degil -- {fark_d8[:140]}")
+
 
     # --- BEYANSIZ TABAN KOSUSU: md. 6 ancak burada kimildar
     #
